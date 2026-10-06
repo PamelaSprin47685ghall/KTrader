@@ -27,18 +27,21 @@ include("live.jl")
     fit_v1(P)
 end
 
-export Bars, download_bars, save_bars, load_bars, load_universe,
-       # Geometry Layer
-       TAUS, BANDS, BANDCOL, WARMUP, ruler, center_of_mass, center_of_mass_decomposition, relative_modes,
-       # Response Layer
+export Bars, download_bars, save_bars, load_bars, load_universe, signal_prices,
+       # Geometry Layer (V0.95: Helmert Fixed Gauge)
+       TAUS, BANDS, BANDCOL, WARMUP, ruler, center_of_mass, center_of_mass_decomposition,
+       helmert_basis, project_helmert_gauge, pairwise_covariance,
+       # Response Layer (V0.95: Full Multivariate G with Trace Neutrality & Matrix-Free Matrix-Normal)
        path_basis_1d, build_path_basis, fit_response_operator, predict_modes, ResponseOperator,
-       # Prediction Layer
-       V1Model, fit_v1, generate_scenarios_v1,
+       optimize_evidence_alpha,
+       # Prediction Layer (V0.95: Out-of-fold residuals & Causal Fractional Mixture)
+       V1Model, fit_v1, generate_scenarios_v1, causal_fractional_posterior, DGRID_V1, frac_weights,
        # Kelly Layer
-       kelly_weights_v1, path_kelly_v1, path_kelly, is_final, settle_due,
+       kelly_weights_v1, path_kelly_v1, path_kelly,
        # Backtest Layer
-       backtest_v1, summarize,
+       backtest_v1, equal_weights_v1, summarize,
        # Execution Layer
-       Broker, tradier, rebalance!, tradable, held_weights, target_shares, LiveState, live_step!, settle!, preview_history
+       Broker, tradier, rebalance!, tradable, held_weights, target_shares, LiveState, live_step!, settle!, preview_history,
+       is_final, settle_due
 
 end

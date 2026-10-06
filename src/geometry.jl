@@ -1,21 +1,47 @@
 """
-KTrader V1.0: Geometry Layer
+KTrader V0.95: Geometry Layer
 - Per-asset fractal ruler s_i(τ) = c_i τ^{H_i} using each asset's OWN complete history
-- Center-of-mass macro decomposition on Ragged Panels:
-    m_t = (1/√N_t) Σ_{j ∈ alive(t)} u_{t, j}
-    u_perp_{t, j} = u_{t, j} - m_t / √N_t  (exact zero sum on alive assets)
-- Strict orthogonal complement relative modes:
-    P_0 = I - e_0 e_0',  C_perp = P_0 * C_avail * P_0
-    Ensures e_0' * Phi_perp ≡ 0 strictly, preserving all N-1 relative degrees of freedom.
-- Deterministic sign convention for eigenvectors (eliminates arbitrary sign flips across folds).
+- Center-of-mass macro decomposition: e_0 = (1, ..., 1)' / √N
+- Fixed Numerical Gauge: Analytical Helmert basis Q (N × (N-1))
+    Q' * e0 = 0,  Q' * Q = I_{N-1}
+- Relative covariance C_Q = Q' * C_avail * Q strictly in (N-1) space with PSD repair
+- No data-dependent eigenvector tracking across folds; modes are operator spectra, not coordinate axes
 """
 
 const TAUS  = 2 .^ (0:8)      # ruler fit horizons (1, 2, 4, 8, 16, 32, 64, 128, 256)
 const BANDS = 2 .^ (1:7)      # multi-scale bands (2, 4, 8, 16, 32, 64, 128)
 const BANDCOL = [findfirst(==(τ), TAUS) for τ in BANDS]
 const WARMUP = 2 * maximum(BANDS)
-const DEFAULT_L_BLOCK = 64
 
+"""
+Analytical Helmert basis matrix Q of size N × (N-1):
+Columns are strictly orthonormal and strictly orthogonal to e_0 = 1/√N.
+Deterministic, coordinate-free, invariant to sample estimation noise.
+"""
+function helmert_basis(N::Int)
+    N >= 2 || error("N must be >= 2 for relative subspace decomposition")
+    Q = zeros(Float64, N, N - 1)
+    for j in 1:(N - 1)
+        # Column j has j identical entries, one negative entry, rest zeros
+        c = 1.0 / sqrt(j * (j + 1))
+        for i in 1:j
+            Q[i, j] = c
+        end
+        Q[j + 1, j] = -j * c
+    end
+    Q
+end
+
+"""
+Center-of-mass unit vector in asset space:
+    e_0 = (1, 1, ..., 1)' / √N
+"""
+center_of_mass(N::Int) = fill(1.0 / sqrt(N), N)
+
+"""
+Per-asset fractal ruler s_i(τ) on TAUS: power-law fit of weighted RMS τ-increments.
+Uses ALL of asset j's own available history.
+"""
 function ruler(x::AbstractMatrix{Float64}, f::AbstractVector{<:Integer}, w::AbstractVector{Float64})
     T, N = size(x)
     Ntaus = length(TAUS)
@@ -64,11 +90,17 @@ function ruler(x::AbstractMatrix{Float64}, f::AbstractVector{<:Integer}, w::Abst
     out
 end
 
+"""
+Decompose price increments u (T × N) into:
+1. Macro center-of-mass component m_t = (1/√N_t) Σ_{j ∈ alive(t)} u_{t, j}
+2. Relative subspace u_perp_{t, j} = u_{t, j} - m_t / √N_t
+This preserves ALL history: long-history assets contribute to macro decades before newer assets list.
+"""
 function center_of_mass_decomposition(u::AbstractMatrix{Float64})
     T, N = size(u)
     m = zeros(Float64, T)
     u_perp = fill(NaN, T, N)
-    e0 = fill(1.0 / sqrt(N), N)
+    e0 = center_of_mass(N)
     
     for t in 1:T
         alive = findall(j -> isfinite(u[t, j]), 1:N)
@@ -85,6 +117,10 @@ function center_of_mass_decomposition(u::AbstractMatrix{Float64})
     (; e0, m, u_perp)
 end
 
+"""
+Pairwise-available weighted covariance matrix on ragged data.
+w: Optional row weights.
+"""
 function pairwise_covariance(X::AbstractMatrix{Float64}, w::AbstractVector{Float64} = ones(size(X, 1)))
     T, N = size(X)
     C = zeros(Float64, N, N)
@@ -120,59 +156,43 @@ function pairwise_covariance(X::AbstractMatrix{Float64}, w::AbstractVector{Float
     C
 end
 
-function relative_modes(u_perp::AbstractMatrix{Float64}, e0::AbstractVector{Float64}, w::AbstractVector{Float64} = ones(size(u_perp, 1)))
+"""
+Project relative increments u_perp into the fixed Helmert gauge:
+    z_rel = u_perp * Q   (T × (N-1))
+Computes PSD-repaired covariance C_Q in the (N-1) space:
+    C_Q = Q' * C_avail * Q
+    Repaired via eigenvalues: U * max(Λ, 1e-6) * U'
+Strictly free from any e_0 zero/negative eigenvalue sorting hazard.
+"""
+function project_helmert_gauge(u_perp::AbstractMatrix{Float64}, Q::AbstractMatrix{Float64})
     T, N = size(u_perp)
-    C_raw = pairwise_covariance(u_perp, w)
-    
-    P0 = I - e0 * e0'
-    C_perp = P0 * C_raw * P0
-    
-    E = eigen(Symmetric(C_perp))
-    
-    idx = sortperm(E.values, rev=true)
-    vals = E.values[idx]
-    vecs = E.vectors[:, idx]
-    
     K_rel = N - 1
-    Phi_perp = vecs[:, 1:K_rel]
     
-    # Gram-Schmidt cleanup against e0 and canonical sign convention
-    for k in 1:K_rel
-        v = Phi_perp[:, k]
-        v .-= dot(e0, v) * e0
-        v ./= norm(v)
-        # Canonical sign convention: largest absolute component is strictly positive
-        max_idx = argmax(abs.(v))
-        if v[max_idx] < 0
-            v .= -v
+    # Project each row t into Helmert coordinates
+    z_rel = zeros(Float64, T, K_rel)
+    for t in 1:T
+        for k in 1:K_rel
+            val = 0.0
+            for j in 1:N
+                uj = u_perp[t, j]
+                if isfinite(uj)
+                    val += uj * Q[j, k]
+                end
+            end
+            z_rel[t, k] = val
         end
-        Phi_perp[:, k] .= v
     end
     
-    (; Phi_perp, eigenvalues = vals[1:K_rel])
-end
-
-function stationary_bootstrap_weights(rng::AbstractRNG, T::Int, L::Int = DEFAULT_L_BLOCK)
-    w = zeros(Float64, T)
-    p_geom = 1.0 / max(L, 1)
+    # Available-case covariance in N-space
+    C_raw = pairwise_covariance(u_perp)
+    # Strictly project into (N-1) space
+    C_Q_raw = Q' * C_raw * Q
     
-    idx = rand(rng, 1:T)
-    for _ in 1:T
-        w[idx] += 1.0
-        idx = (rand(rng) < p_geom) ? rand(rng, 1:T) : mod1(idx + 1, T)
-    end
-    w
-end
-
-function bootstrap_relative_modes(u_perp::AbstractMatrix{Float64}, e0::AbstractVector{Float64};
-                                  D_draws = 4, L_block = DEFAULT_L_BLOCK, rng = Random.default_rng())
-    T, N = size(u_perp)
-    modes_draws = Vector{Matrix{Float64}}(undef, D_draws)
+    # Exact PSD repair in (N-1) space
+    E = eigen(Symmetric(C_Q_raw))
+    max_ev = maximum(E.values)
+    repaired_vals = max.(E.values, max(max_ev * 1e-4, 1e-6))
+    C_Q = E.vectors * Diagonal(repaired_vals) * E.vectors'
     
-    for d in 1:D_draws
-        w_boot = stationary_bootstrap_weights(rng, T, L_block)
-        rel = relative_modes(u_perp, e0, w_boot)
-        modes_draws[d] = rel.Phi_perp
-    end
-    modes_draws
+    (; z_rel, C_Q, E)
 end

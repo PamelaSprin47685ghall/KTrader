@@ -49,10 +49,15 @@ split effective today (stored history is pre-split, so quotes are scaled back by
 day the price gaps down by the dividend while total return does not, so the dividend is added back.
 """
 function preview_history(st::LiveState, last::AbstractVector;
-                         dividend = zeros(length(last)), split = ones(length(last)))
+                         dividend = zeros(length(last)), split = ones(length(last)),
+                         free = trues(length(last)))
     b = st.bars
     ratio = b.adj[end, :] ./ b.close[end, :]
-    vcat(b.adj, ((last .+ dividend) .* split .* ratio)')
+    # Strict signal price history: NaN on untradable days
+    sig_hist = signal_prices(b)
+    # Today's preview is NaN for unquoted/untradable assets
+    today_preview = ifelse.(free, (last .+ dividend) .* split .* ratio, NaN)
+    vcat(sig_hist, today_preview')
 end
 
 "Today's corporate actions of `x`: cached per day on success; a failed fetch is `(0, 1)` with an `@warn`, not cached."

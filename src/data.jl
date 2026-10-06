@@ -29,6 +29,13 @@ function Bars(dates, symbols, rawclose, rawadj)
     Bars(dates, symbols, carry(rawclose, bar), carry(rawadj, bar), bar)
 end
 
+"""
+Signal prices for causal theoretical inference:
+Strictly NaN when an asset did not trade on day t (bar[t, j] == false).
+Never injects fake zero-returns r = 0 from carried marking prices into the model.
+"""
+signal_prices(b::Bars) = ifelse.(b.bar, b.adj, NaN)
+
 load_universe(path) = [uppercase(strip(l)) for l in eachline(path)
                        if !isempty(strip(l)) && !startswith(strip(l), "#")]
 
@@ -39,7 +46,6 @@ is_final(d::Date, asof) = d < Date(asof) || (d == Date(asof) && hour(asof) >= 17
 
 http_json(url) = JSON3.read(HTTP.get(url, ["User-Agent" => "Mozilla/5.0"]; retry = true, read_idle_timeout = 30).body)
 
-"Final bars of one symbol as `Date => (close, adj)`; `getjson(url)` is the injectable transport."
 function fetch_symbol(sym; asof = ny_now(), getjson = http_json)
     url = "https://query1.finance.yahoo.com/v8/finance/chart/$sym?period1=0&period2=$(round(Int, time()))&interval=1d&events=div%2Csplit"
     res = getjson(url).chart.result[1]

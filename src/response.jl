@@ -1,20 +1,14 @@
 """
 KTrader V1.0: Response Layer
 - Multi-scale causal path basis functions B_m[H_t] over cumulative price coordinates
-- Full multivariate response operator G_b = A_b + i B_b:
-    A_b: cross-mode displacement / mean-reversion matrix
-    B_b: cross-mode velocity / momentum rotation matrix
-- Matrix-Normal Posterior on Trace-Neutral Subspace:
-    tr(A_b) = 0, tr(B_b) = 0 enforced strictly on the parameter support.
-    G | Y ~ MN(G_hat, Sigma_eps, V)
-- Matrix-Free Woodbury Identity:
-    (X'X + αI)⁻¹ X' = X' (XX' + αI)⁻¹
-    Prevents P × P memory allocation explosion when P = 14K reaches thousands.
-- Empirical Bayes Evidence: alpha is determined analytically from data, zero hand-tuned parameters.
+- Gauge-Invariant Scalar Ruler: s_perp(tau) divides all relative coordinates equally
+- Exact Nullspace Neutrality Parameterization: tr(A_b) = 0, tr(B_b) = 0 on parameter support
+- Matrix-Free Woodbury & Cholesky with Effective Degrees of Freedom gamma for Sigma_eps
+- Completely data-driven Empirical Bayes alpha
 """
 
 """
-Construct causal multi-scale path basis functions for a 1D integrated price coordinate X(t):
+Construct causal multi-scale path basis functions for 1D integrated price coordinate X(t):
 For each dyadic timescale τ in BANDS:
 - Q_τ(t) = (X(t) - c0(t)) / scale  (displacement from trailing mean)
 - P_τ(t) = (c0(t) - c1(t)) / scale  (velocity of trailing mean)
@@ -26,7 +20,7 @@ function path_basis_1d(X::AbstractVector{Float64}, s::AbstractVector{Float64})
     S = cumsum(vcat(0.0, X))
     
     for (idx, τ) in enumerate(BANDS)
-        scale = max(s[BANDCOL[idx]], 1e-6)
+        scale = length(s) == length(BANDS) ? max(s[idx], 1e-6) : max(s[BANDCOL[idx]], 1e-6)
         for t in (2τ + 1):T
             c0 = (S[t + 1] - S[t + 1 - τ]) / τ
             c1 = (S[t + 1 - τ] - S[t + 1 - 2τ]) / τ
@@ -39,46 +33,51 @@ function path_basis_1d(X::AbstractVector{Float64}, s::AbstractVector{Float64})
     B
 end
 
-function build_path_basis(m::AbstractVector{Float64}, z::AbstractMatrix{Float64}, s_macro::AbstractVector{Float64}, s_rel::AbstractMatrix{Float64})
+"""
+Build full multi-mode path basis:
+1. Macro integrated price path X_m(t) = Σ_{s ≤ t} m_s normalized by macro ruler s_macro
+2. Relative integrated price paths X_{k, t} = Σ_{s ≤ t} z_{k, s} normalized by GAUGE-INVARIANT scalar ruler s_perp(τ)
+"""
+function build_path_basis(m::AbstractVector{Float64}, z::AbstractMatrix{Float64}, s_macro::AbstractVector{Float64}, s_perp::AbstractVector{Float64})
     T = length(m)
     K_rel = size(z, 2)
     X_m = cumsum(m)
     X_rel = cumsum(z, dims=1)
     
     B_m = path_basis_1d(X_m, s_macro)
-    B_rel = [path_basis_1d(view(X_rel, :, k), view(s_rel, k, :)) for k in 1:K_rel]
+    # Gauge-invariant: all K_rel modes share the exact same s_perp(τ) at each band τ
+    B_rel = [path_basis_1d(view(X_rel, :, k), s_perp) for k in 1:K_rel]
     (; B_m, B_rel)
 end
 
 struct ResponseOperator
     G_macro::Vector{Float64}                # Length 2 * n_bands
-    post_cov_m::Matrix{Float64}             # Covariance of macro parameter posterior
+    post_cov_m::Matrix{Float64}             # Macro parameter covariance
     A_matrices::Vector{Matrix{Float64}}     # Analytic posterior mean A_b
     B_matrices::Vector{Matrix{Float64}}     # Analytic posterior mean B_b
-    G_raw_mean::Matrix{Float64}             # Posterior mean: K_rel × P_features
+    G_raw_mean::Matrix{Float64}             # K_rel × P_features
     L_Sigma_rel::Matrix{Float64}            # Cholesky of Sigma_eps
-    inv_V_factor::Matrix{Float64}           # Cholesky factor of V = (X'X + alpha*I)^-1
-    alpha_macro::Float64                    # Evidence-optimised macro prior precision
-    alpha_rel::Float64                      # Evidence-optimised relative prior precision
+    L_V_rel::Matrix{Float64}                # Cholesky factor of parameter covariance
+    alpha_macro::Float64
+    alpha_rel::Float64
     trace_real::Float64                     # Σ_b tr(A_b) ≡ 0
     trace_imag::Float64                     # Σ_b tr(B_b) ≡ 0
 end
 
 """
 MacKay Empirical Bayes Evidence Maximization for operator precision alpha:
-    gamma = Σ λ_i / (alpha + λ_i)
-    alpha <- gamma / ||G||_F^2
+Returns optimal alpha and effective degrees of freedom gamma = Σ λ_i / (alpha + λ_i).
 """
 function optimize_evidence_alpha(X::AbstractMatrix{Float64}, Y::AbstractMatrix{Float64}; iters = 15)
     n_samples, P = size(X)
     K = size(Y, 2)
     
-    # Use dual representation if P > n_samples (Woodbury)
     if P <= n_samples
         XtX = X' * X
         XtY = X' * Y
         ev = max.(eigvals(Symmetric(XtX)), 0.0)
         alpha = 1.0
+        gamma = 1.0
         for _ in 1:iters
             inv_V = inv(Symmetric(XtX + alpha * I))
             G_hat = (inv_V * XtY)'
@@ -90,16 +89,15 @@ function optimize_evidence_alpha(X::AbstractMatrix{Float64}, Y::AbstractMatrix{F
             end
             alpha = alpha_new
         end
-        return alpha
+        return alpha, gamma
     else
-        # Dual Woodbury: XX' is n_samples × n_samples
         XXt = X * X'
         ev = max.(eigvals(Symmetric(XXt)), 0.0)
         alpha = 1.0
+        gamma = 1.0
         for _ in 1:iters
             inv_W = inv(Symmetric(XXt + alpha * I))
-            # G_hat' = (1/alpha) * (X'Y - X' * inv_W * (XXt * Y / alpha))
-            G_hat = (Y' * inv_W * X) ./ alpha
+            G_hat = Y' * inv_W * X
             g_sq = sum(abs2, G_hat)
             gamma = sum(ev ./ (ev .+ alpha))
             alpha_new = clamp((gamma * K) / max(g_sq, 1e-12), 1e-4, 1e6)
@@ -108,33 +106,33 @@ function optimize_evidence_alpha(X::AbstractMatrix{Float64}, Y::AbstractMatrix{F
             end
             alpha = alpha_new
         end
-        return alpha
+        return alpha, gamma
     end
 end
 
 """
 Joint multivariate Bayesian estimation of the full response operator G.
-Uses Woodbury dual inversion when P_features > n_samples to prevent P × P memory explosion.
+- Enforces strict operator trace neutrality tr(A_b) = 0 and tr(B_b) = 0 on parameter support.
+- Residual covariance Sigma_eps scaled by effective degrees of freedom: n - gamma.
+- Supports training on custom time subsets (e.g. for true out-of-fold cross-fitting).
 """
-function fit_response_operator(B_m, B_rel, y_m, y_rel; ridge_alpha = nothing)
-    T = length(y_m)
+function fit_response_operator(B_m, B_rel, y_m, y_rel; ridge_alpha = nothing, ts = WARMUP:length(y_m)-1)
     K_rel = length(B_rel)
     n_bands = length(BANDS)
-    ts = WARMUP:T-1
     n_samples = length(ts)
     P_features = 2 * n_bands * K_rel
     
     # 1. Macro Response
     X_m = B_m[ts, :]
     y_target_m = y_m[ts .+ 1]
-    alpha_m = ridge_alpha === nothing ? optimize_evidence_alpha(X_m, reshape(y_target_m, :, 1)) : ridge_alpha
+    alpha_m, gamma_m = ridge_alpha === nothing ? optimize_evidence_alpha(X_m, reshape(y_target_m, :, 1)) : (ridge_alpha, size(X_m, 2))
     inv_m = inv(Symmetric(X_m' * X_m + alpha_m * I))
     g_macro_vec = inv_m * (X_m' * y_target_m)
     res_m = y_target_m - X_m * g_macro_vec
-    sig2_m = max(sum(abs2, res_m) / max(n_samples - size(X_m, 2), 1), 1e-8)
+    sig2_m = max(sum(abs2, res_m) / max(n_samples - gamma_m, 1.0), 1e-8)
     post_cov_m = Matrix(Symmetric(sig2_m * inv_m))
     
-    # 2. Relative Response
+    # 2. Relative Response: Stack features into X_rel
     X_rel_stacked = zeros(Float64, n_samples, P_features)
     for (idx, t) in enumerate(ts)
         col = 1
@@ -150,26 +148,14 @@ function fit_response_operator(B_m, B_rel, y_m, y_rel; ridge_alpha = nothing)
     end
     
     Y_target_rel = y_rel[ts .+ 1, :]
-    alpha_rel = ridge_alpha === nothing ? optimize_evidence_alpha(X_rel_stacked, Y_target_rel) : ridge_alpha
+    alpha_rel, gamma_rel = ridge_alpha === nothing ? optimize_evidence_alpha(X_rel_stacked, Y_target_rel) : (ridge_alpha, min(P_features, n_samples - 1))
     
-    # Fast solve for G_raw: K_rel × P_features
-    if P_features <= n_samples
-        XtX_rel = X_rel_stacked' * X_rel_stacked
-        V_rel = inv(Symmetric(XtX_rel + alpha_rel * I))
-        G_raw = (V_rel * (X_rel_stacked' * Y_target_rel))'
-        E_v = eigen(Symmetric(V_rel))
-        V_rep = E_v.vectors * Diagonal(max.(E_v.values, 1e-8)) * E_v.vectors'
-        L_V = Matrix(cholesky(Symmetric(V_rep)).L)
-    else
-        # Woodbury dual representation: XXt is n_samples × n_samples
-        inv_W = inv(Symmetric(X_rel_stacked * X_rel_stacked' + alpha_rel * I))
-        G_raw = (Y_target_rel' * inv_W * X_rel_stacked)
-        # Low-rank factor for sampling: V ≈ (1/alpha) * I - (1/alpha^2) * X' * inv_W * X
-        # Diagonal approximation for massive P
-        L_V = fill(1.0 / sqrt(alpha_rel), P_features, 1)
-    end
+    XtX_rel = X_rel_stacked' * X_rel_stacked
+    V_rel = inv(Symmetric(XtX_rel + alpha_rel * I))
+    G_raw = (V_rel * (X_rel_stacked' * Y_target_rel))'
     
-    # Enforce exact trace neutrality on the mean operator across all bands
+    # 3. Exact Trace Neutrality Enforcement on Operator Support:
+    # tr(A_b) = 0 and tr(B_b) = 0 strictly
     A_mats = [zeros(Float64, K_rel, K_rel) for _ in 1:n_bands]
     B_mats = [zeros(Float64, K_rel, K_rel) for _ in 1:n_bands]
     
@@ -183,6 +169,7 @@ function fit_response_operator(B_m, B_rel, y_m, y_rel; ridge_alpha = nothing)
                 B_mats[b][l, k] = G_raw[l, idx_p]
             end
         end
+        # Project diagonal to exact zero trace
         diag_mean_A = sum(diag(A_mats[b])) / K_rel
         diag_mean_B = sum(diag(B_mats[b])) / K_rel
         for k in 1:K_rel
@@ -195,14 +182,19 @@ function fit_response_operator(B_m, B_rel, y_m, y_rel; ridge_alpha = nothing)
         end
     end
     
-    # 3. Residual Covariance Sigma_eps
+    # 4. Residual Covariance Sigma_eps with Effective Degrees of Freedom: n - gamma
     Y_pred = X_rel_stacked * G_raw'
     res_rel = Y_target_rel - Y_pred
-    Sigma_eps = (res_rel' * res_rel) / max(n_samples - min(P_features, n_samples - 1), 1)
+    df_eff = max(n_samples - gamma_rel, 1.0)
+    Sigma_eps = (res_rel' * res_rel) / df_eff
     
     E_sig = eigen(Symmetric(Sigma_eps))
     Sigma_eps_repaired = E_sig.vectors * Diagonal(max.(E_sig.values, 1e-8)) * E_sig.vectors'
     L_Sigma = Matrix(cholesky(Symmetric(Sigma_eps_repaired)).L)
+    
+    E_v = eigen(Symmetric(V_rel))
+    V_rep = E_v.vectors * Diagonal(max.(E_v.values, 1e-8)) * E_v.vectors'
+    L_V = Matrix(cholesky(Symmetric(V_rep)).L)
     
     tr_A = sum(sum(diag(A_mats[b])) for b in 1:n_bands)
     tr_B = sum(sum(diag(B_mats[b])) for b in 1:n_bands)
@@ -238,16 +230,10 @@ function predict_modes(resp::ResponseOperator, B_m_t::AbstractVector{Float64}, B
     if !sample_posterior
         mu_rel = resp.G_raw_mean * x_features
     else
-        if size(resp.inv_V_factor, 2) == P_features
-            Z_rand = randn(rng, K_rel, P_features)
-            G_sample = resp.G_raw_mean .+ resp.L_Sigma_rel * Z_rand * resp.inv_V_factor'
-        else
-            # Woodbury fast diagonal perturbation
-            Z_rand = randn(rng, K_rel, P_features)
-            G_sample = resp.G_raw_mean .+ (resp.L_Sigma_rel * Z_rand) .* resp.inv_V_factor'
-        end
+        Z_rand = randn(rng, K_rel, P_features)
+        G_sample = resp.G_raw_mean .+ resp.L_Sigma_rel * Z_rand * resp.L_V_rel'
         
-        # Exact trace neutrality on every sample
+        # Enforce exact trace neutrality on each sampled G^(s)
         for b in 1:n_bands
             col_offset = (b - 1) * (2 * K_rel)
             sum_diag_q = 0.0

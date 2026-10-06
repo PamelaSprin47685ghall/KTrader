@@ -35,7 +35,7 @@ end
 Complete Path Kelly V1 decision function:
 Price history adj (T × N) -> Target weights w (length N, fully invested)
 """
-function path_kelly_v1(adj::AbstractMatrix{Float64}; S = 300, rng = Random.MersenneTwister(1), ridge_alpha = 10.0,
+function path_kelly_v1(adj::AbstractMatrix{Float64}; S = 300, rng = Random.MersenneTwister(1), ridge_alpha = nothing,
                        tradable = nothing, held = nothing)
     N = size(adj, 2)
     tr = tradable === nothing ? trues(N) : tradable
