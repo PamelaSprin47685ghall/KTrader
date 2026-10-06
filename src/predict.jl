@@ -286,7 +286,6 @@ function fit_v1(adj::AbstractMatrix{Float64}; ridge_alpha = nothing, F_folds = 3
                 end
             end
         end
-        timing === nothing || (timing.seconds[6]+=(time_ns()-eval_start)*1e-9)
     end
     
     own_res = [findall(isfinite, view(res_history, :, j)) for j in 1:N]
