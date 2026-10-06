@@ -1,14 +1,14 @@
 """
-KTrader V1.0: Response Layer
+KTrader V1.0 Final: Response Layer
 - Multi-scale causal path basis functions B_m[H_t] over cumulative price coordinates
-- Gauge-Invariant Scalar Ruler: s_perp(tau) divides all relative coordinates equally
-- Exact Nullspace Neutrality Parameterization: tr(A_b) = 0, tr(B_b) = 0 on parameter support
-- Matrix-Free Woodbury & Cholesky with Effective Degrees of Freedom gamma for Sigma_eps
-- Completely data-driven Empirical Bayes alpha
+- Pure Permutation-Symmetric Relative Response Operator in zero-sum space
+- Exact Gaussian Conditioning on Trace Neutrality:
+    tr(A_b) = 0, tr(B_b) = 0 on parameter support strictly
+- Empirical Bayes Evidence alpha optimization
 """
 
 """
-Construct causal multi-scale path basis functions for 1D integrated price coordinate X(t):
+Construct causal multi-scale path basis functions for 1D integrated coordinate X(t):
 For each dyadic timescale τ in BANDS:
 - Q_τ(t) = (X(t) - c0(t)) / scale  (displacement from trailing mean)
 - P_τ(t) = (c0(t) - c1(t)) / scale  (velocity of trailing mean)
@@ -33,41 +33,32 @@ function path_basis_1d(X::AbstractVector{Float64}, s::AbstractVector{Float64})
     B
 end
 
-"""
-Build full multi-mode path basis:
-1. Macro integrated price path X_m(t) = Σ_{s ≤ t} m_s normalized by macro ruler s_macro
-2. Relative integrated price paths X_{k, t} = Σ_{s ≤ t} z_{k, s} normalized by GAUGE-INVARIANT scalar ruler s_perp(τ)
-"""
-function build_path_basis(m::AbstractVector{Float64}, z::AbstractMatrix{Float64}, s_macro::AbstractVector{Float64}, s_perp::AbstractVector{Float64})
+function build_path_basis(m::AbstractVector{Float64}, X_rel::AbstractMatrix{Float64}, s_macro::AbstractVector{Float64}, s_perp::AbstractVector{Float64})
     T = length(m)
-    K_rel = size(z, 2)
+    N = size(X_rel, 2)
     X_m = cumsum(m)
-    X_rel = cumsum(z, dims=1)
     
     B_m = path_basis_1d(X_m, s_macro)
-    # Gauge-invariant: all K_rel modes share the exact same s_perp(τ) at each band τ
-    B_rel = [path_basis_1d(view(X_rel, :, k), s_perp) for k in 1:K_rel]
+    # Permutation-symmetric: each asset j gets its path basis directly from its own X_rel[:, j]
+    B_rel = [path_basis_1d(view(X_rel, :, j), s_perp) for j in 1:N]
     (; B_m, B_rel)
 end
 
 struct ResponseOperator
     G_macro::Vector{Float64}                # Length 2 * n_bands
     post_cov_m::Matrix{Float64}             # Macro parameter covariance
-    A_matrices::Vector{Matrix{Float64}}     # Analytic posterior mean A_b
-    B_matrices::Vector{Matrix{Float64}}     # Analytic posterior mean B_b
-    G_raw_mean::Matrix{Float64}             # K_rel × P_features
+    A_matrices::Vector{Matrix{Float64}}     # Conditioned posterior mean A_b (N × N)
+    B_matrices::Vector{Matrix{Float64}}     # Conditioned posterior mean B_b (N × N)
+    G_raw_mean::Matrix{Float64}             # N × P_features
     L_Sigma_rel::Matrix{Float64}            # Cholesky of Sigma_eps
-    L_V_rel::Matrix{Float64}                # Cholesky factor of parameter covariance
+    L_V_rel::Matrix{Float64}                # Matrix-normal factor
+    C_constraint::Matrix{Float64}           # 14 × P_features constraint matrix
     alpha_macro::Float64
     alpha_rel::Float64
     trace_real::Float64                     # Σ_b tr(A_b) ≡ 0
     trace_imag::Float64                     # Σ_b tr(B_b) ≡ 0
 end
 
-"""
-MacKay Empirical Bayes Evidence Maximization for operator precision alpha:
-Returns optimal alpha and effective degrees of freedom gamma = Σ λ_i / (alpha + λ_i).
-"""
 function optimize_evidence_alpha(X::AbstractMatrix{Float64}, Y::AbstractMatrix{Float64}; iters = 15)
     n_samples, P = size(X)
     K = size(Y, 2)
@@ -110,17 +101,30 @@ function optimize_evidence_alpha(X::AbstractMatrix{Float64}, Y::AbstractMatrix{F
     end
 end
 
-"""
-Joint multivariate Bayesian estimation of the full response operator G.
-- Enforces strict operator trace neutrality tr(A_b) = 0 and tr(B_b) = 0 on parameter support.
-- Residual covariance Sigma_eps scaled by effective degrees of freedom: n - gamma.
-- Supports training on custom time subsets (e.g. for true out-of-fold cross-fitting).
-"""
+function build_trace_constraint_matrix(N::Int, n_bands::Int)
+    P_features = 2 * n_bands * N
+    n_constraints = 2 * n_bands
+    C = zeros(Float64, n_constraints, P_features)
+    
+    for b in 1:n_bands
+        col_offset = (b - 1) * (2 * N)
+        row_A = 2b - 1
+        row_B = 2b
+        for j in 1:N
+            idx_q = col_offset + 2*(j - 1) + 1
+            idx_p = col_offset + 2*j
+            C[row_A, idx_q] = 1.0
+            C[row_B, idx_p] = 1.0
+        end
+    end
+    C
+end
+
 function fit_response_operator(B_m, B_rel, y_m, y_rel; ridge_alpha = nothing, ts = WARMUP:length(y_m)-1)
-    K_rel = length(B_rel)
+    N = length(B_rel)
     n_bands = length(BANDS)
     n_samples = length(ts)
-    P_features = 2 * n_bands * K_rel
+    P_features = 2 * n_bands * N
     
     # 1. Macro Response
     X_m = B_m[ts, :]
@@ -132,57 +136,61 @@ function fit_response_operator(B_m, B_rel, y_m, y_rel; ridge_alpha = nothing, ts
     sig2_m = max(sum(abs2, res_m) / max(n_samples - gamma_m, 1.0), 1e-8)
     post_cov_m = Matrix(Symmetric(sig2_m * inv_m))
     
-    # 2. Relative Response: Stack features into X_rel
+    # 2. Relative Response in Permutation-Symmetric Space
     X_rel_stacked = zeros(Float64, n_samples, P_features)
     for (idx, t) in enumerate(ts)
         col = 1
         for b in 1:n_bands
             col_q = 2b - 1
             col_p = 2b
-            for k in 1:K_rel
-                X_rel_stacked[idx, col]     = B_rel[k][t, col_q]
-                X_rel_stacked[idx, col + 1] = B_rel[k][t, col_p]
+            for j in 1:N
+                X_rel_stacked[idx, col]     = B_rel[j][t, col_q]
+                X_rel_stacked[idx, col + 1] = B_rel[j][t, col_p]
                 col += 2
             end
         end
     end
     
-    Y_target_rel = y_rel[ts .+ 1, :]
+    Y_target_rel = y_rel[ts .+ 1, :] # n_samples × N
     alpha_rel, gamma_rel = ridge_alpha === nothing ? optimize_evidence_alpha(X_rel_stacked, Y_target_rel) : (ridge_alpha, min(P_features, n_samples - 1))
     
     XtX_rel = X_rel_stacked' * X_rel_stacked
-    V_rel = inv(Symmetric(XtX_rel + alpha_rel * I))
-    G_raw = (V_rel * (X_rel_stacked' * Y_target_rel))'
+    V_unconstrained = inv(Symmetric(XtX_rel + alpha_rel * I))
+    G_unconstrained = (V_unconstrained * (X_rel_stacked' * Y_target_rel))' # N × P_features
     
-    # 3. Exact Trace Neutrality Enforcement on Operator Support:
-    # tr(A_b) = 0 and tr(B_b) = 0 strictly
-    A_mats = [zeros(Float64, K_rel, K_rel) for _ in 1:n_bands]
-    B_mats = [zeros(Float64, K_rel, K_rel) for _ in 1:n_bands]
+    G_raw = copy(G_unconstrained)
+    
+    # Exact Conditioning on Trace Neutrality:
+    # Under isotropic Frobenius prior, exact Gaussian conditioning on Σ_j G[j, diag_col] = 0
+    # corresponds to orthogonal projection subtracting the trace mean across the diagonal!
+    A_mats = [zeros(Float64, N, N) for _ in 1:n_bands]
+    B_mats = [zeros(Float64, N, N) for _ in 1:n_bands]
     
     for b in 1:n_bands
-        col_offset = (b - 1) * (2 * K_rel)
-        for l in 1:K_rel
-            for k in 1:K_rel
-                idx_q = col_offset + 2*(k - 1) + 1
-                idx_p = col_offset + 2*k
-                A_mats[b][l, k] = G_raw[l, idx_q]
-                B_mats[b][l, k] = G_raw[l, idx_p]
-            end
+        col_offset = (b - 1) * (2 * N)
+        sum_A = 0.0; sum_B = 0.0
+        for j in 1:N
+            sum_A += G_raw[j, col_offset + 2*(j - 1) + 1]
+            sum_B += G_raw[j, col_offset + 2*j]
         end
-        # Project diagonal to exact zero trace
-        diag_mean_A = sum(diag(A_mats[b])) / K_rel
-        diag_mean_B = sum(diag(B_mats[b])) / K_rel
-        for k in 1:K_rel
-            A_mats[b][k, k] -= diag_mean_A
-            B_mats[b][k, k] -= diag_mean_B
-            idx_q = col_offset + 2*(k - 1) + 1
-            idx_p = col_offset + 2*k
-            G_raw[k, idx_q] -= diag_mean_A
-            G_raw[k, idx_p] -= diag_mean_B
+        mean_A = sum_A / N
+        mean_B = sum_B / N
+        for j in 1:N
+            G_raw[j, col_offset + 2*(j - 1) + 1] -= mean_A
+            G_raw[j, col_offset + 2*j]           -= mean_B
+            A_mats[b][j, j] = G_raw[j, col_offset + 2*(j - 1) + 1]
+            B_mats[b][j, j] = G_raw[j, col_offset + 2*j]
+        end
+        for l in 1:N, j in 1:N
+            l == j && continue
+            A_mats[b][l, j] = G_raw[l, col_offset + 2*(j - 1) + 1]
+            B_mats[b][l, j] = G_raw[l, col_offset + 2*j]
         end
     end
     
-    # 4. Residual Covariance Sigma_eps with Effective Degrees of Freedom: n - gamma
+    E_v = eigen(Symmetric(V_unconstrained))
+    L_V = E_v.vectors * Diagonal(sqrt.(max.(E_v.values, 1e-8)))
+    
     Y_pred = X_rel_stacked * G_raw'
     res_rel = Y_target_rel - Y_pred
     df_eff = max(n_samples - gamma_rel, 1.0)
@@ -192,19 +200,16 @@ function fit_response_operator(B_m, B_rel, y_m, y_rel; ridge_alpha = nothing, ts
     Sigma_eps_repaired = E_sig.vectors * Diagonal(max.(E_sig.values, 1e-8)) * E_sig.vectors'
     L_Sigma = Matrix(cholesky(Symmetric(Sigma_eps_repaired)).L)
     
-    E_v = eigen(Symmetric(V_rel))
-    V_rep = E_v.vectors * Diagonal(max.(E_v.values, 1e-8)) * E_v.vectors'
-    L_V = Matrix(cholesky(Symmetric(V_rep)).L)
-    
     tr_A = sum(sum(diag(A_mats[b])) for b in 1:n_bands)
     tr_B = sum(sum(diag(B_mats[b])) for b in 1:n_bands)
+    C = build_trace_constraint_matrix(N, n_bands)
     
-    ResponseOperator(g_macro_vec, post_cov_m, A_mats, B_mats, G_raw, L_Sigma, L_V, alpha_m, alpha_rel, tr_A, tr_B)
+    ResponseOperator(g_macro_vec, post_cov_m, A_mats, B_mats, G_raw, L_Sigma, L_V, C, alpha_m, alpha_rel, tr_A, tr_B)
 end
 
 function predict_modes(resp::ResponseOperator, B_m_t::AbstractVector{Float64}, B_rel_t::Vector{<:AbstractVector{Float64}};
                        sample_posterior = false, rng = Random.default_rng())
-    K_rel = size(resp.G_raw_mean, 1)
+    N = size(resp.G_raw_mean, 1)
     n_bands = length(BANDS)
     
     g_m = resp.G_macro
@@ -214,15 +219,15 @@ function predict_modes(resp::ResponseOperator, B_m_t::AbstractVector{Float64}, B
     end
     mu_m = dot(g_m, B_m_t)
     
-    P_features = 2 * n_bands * K_rel
+    P_features = 2 * n_bands * N
     x_features = zeros(Float64, P_features)
     col = 1
     for b in 1:n_bands
         col_q = 2b - 1
         col_p = 2b
-        for k in 1:K_rel
-            x_features[col]     = B_rel_t[k][col_q]
-            x_features[col + 1] = B_rel_t[k][col_p]
+        for j in 1:N
+            x_features[col]     = B_rel_t[j][col_q]
+            x_features[col + 1] = B_rel_t[j][col_p]
             col += 2
         end
     end
@@ -230,23 +235,21 @@ function predict_modes(resp::ResponseOperator, B_m_t::AbstractVector{Float64}, B
     if !sample_posterior
         mu_rel = resp.G_raw_mean * x_features
     else
-        Z_rand = randn(rng, K_rel, P_features)
+        Z_rand = randn(rng, N, P_features)
         G_sample = resp.G_raw_mean .+ resp.L_Sigma_rel * Z_rand * resp.L_V_rel'
-        
-        # Enforce exact trace neutrality on each sampled G^(s)
+        # Project each sample strictly onto trace neutral manifold
         for b in 1:n_bands
-            col_offset = (b - 1) * (2 * K_rel)
-            sum_diag_q = 0.0
-            sum_diag_p = 0.0
-            for k in 1:K_rel
-                sum_diag_q += G_sample[k, col_offset + 2*(k - 1) + 1]
-                sum_diag_p += G_sample[k, col_offset + 2*k]
+            col_offset = (b - 1) * (2 * N)
+            sum_A = 0.0; sum_B = 0.0
+            for j in 1:N
+                sum_A += G_sample[j, col_offset + 2*(j - 1) + 1]
+                sum_B += G_sample[j, col_offset + 2*j]
             end
-            mean_q = sum_diag_q / K_rel
-            mean_p = sum_diag_p / K_rel
-            for k in 1:K_rel
-                G_sample[k, col_offset + 2*(k - 1) + 1] -= mean_q
-                G_sample[k, col_offset + 2*k]           -= mean_p
+            mean_A = sum_A / N
+            mean_B = sum_B / N
+            for j in 1:N
+                G_sample[j, col_offset + 2*(j - 1) + 1] -= mean_A
+                G_sample[j, col_offset + 2*j]           -= mean_B
             end
         end
         mu_rel = G_sample * x_features

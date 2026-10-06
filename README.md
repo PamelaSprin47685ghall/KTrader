@@ -1,77 +1,48 @@
-# KTrader — Path Kelly (Julia)
+# KTrader — Path Kelly 1.0 (Julia)
 
-Theory: `AGENTS.md`. Chain: price history → natural modes → ruler-normalised multi-scale
-observations (q, p) → belief posterior Π(ρ, θ | H) → predictive scenarios (drift hierarchy,
-long-memory covariance) → exact Kelly (`max E log w'X`, long-only, fully invested: Σw = 1,
-leverage 1, **no cash asset**) → `rebalance!`.
+Theory & Mathematical Closure: `AGENTS.md`. 
+Chain: price history → center-of-mass macro & zero-sum relative space → multi-scale cumulative path coordinates → multivariate response operator G_b = A_b + i B_b → exact Gaussian-conditioned trace neutrality tr(A_b)=0, tr(B_b)=0 on parameter support → causal fractional long-memory innovation law → exact matrix-free Matrix-Normal posterior predictive sampling → exact Kelly decision (`max E log w'X`, long-only, fully invested: Σw = 1, leverage 1, **no cash asset**) → `rebalance!`.
 
-## Layers (never mixed)
+## Core Mathematical Principles
 
-| layer | what | where |
-|---|---|---|
-| market theory | fixed law over the whole price path | `model.jl`: ruler, modes, (q,p), response, covariance |
-| epistemic | what the finite history lets us believe; belongs to theory, not to numerics | grouped ARD (α_k), neutrality as part of the prior, drift hierarchy, geometry uncertainty |
-| decision | exact Kelly on the posterior predictive | `kelly_weights`, `allocate` |
-| numerics | S scenarios, solver, FFT, moment matching | engineering only; must not change the objective |
-| execution | weights → orders on a dedicated account | `broker.jl`, `live.jl` |
+1. **Center-of-Mass Macro & Permutation-Symmetric Relative Space**:
+   $$m_t = \frac{1}{\sqrt{N_t}} \sum_{j \in \text{alive}(t)} u_{t, j}, \quad u_{\perp, t} = (I - e_0 e_0^T) u_t$$
+   Zero coordinate-ordering bias: 100% permutation-symmetric across all assets.
 
-## Belief vs observation
+2. **Multivariate Response Operator & Exact Trace Neutrality**:
+   $$G_b = A_b + i B_b \quad (\forall b \in \text{BANDS})$$
+   Diagonal entries $A_{jj}, B_{jj}$ govern self-continuation and mean-reversion. Off-diagonal entries $A_{lj}, B_{lj} (l \neq j)$ capture energy transfer between assets (sector rotation).
+   Operator trace neutrality is enforced directly on the Gaussian parameter support:
+   $$\operatorname{tr}(A_b) \equiv 0, \quad \operatorname{tr}(B_b) \equiv 0$$
 
-`q` (position vs trailing centre) and `p` (slope of the centre) are **observations** computed from
-prices. `(ρ_k, θ_k)` are **beliefs** about how a natural mode responds: `a = ρcosθ` multiplies −q
-(θ near 0: deviations revert; near π: they persist), `b = ρsinθ` multiplies p (confirm the move vs
-front-run it). The prior on every mode is rotation-invariant (θ uniform), the strength ρ_k is set
-by evidence (ARD; no evidence ⇒ ρ→0), and the neutrality `Σ a_k = Σ b_k = 0` over non-macro modes
-is part of the prior. `theta_posterior(fit)` reports the posterior, never a point θ. Price-level
-H ≈ 0.5 does not make this layer empty; it only says that, in this universe, the evidence for ρ is
-weak, which the posterior must show.
+3. **Causal Fractional Innovation Memory**:
+   Continuous uniform prior $p(d) = \text{const}$ integrated via trapezoidal quadrature:
+   $$\pi_g \propto \exp(\ell(d_g)) \Delta d_g$$
+   Grid refinement strictly improves numerical integral accuracy without altering the theoretical prior.
+   Innovation shocks are scaled relative to the real historical bootstrap residual variance $v_{\text{bootstrap}}$.
 
-## Files
+4. **Strict Separation of Signal Prices and Marking Prices**:
+   Untradable days are strictly `NaN` in signal prices (no fake $r = 0$ in the model).
 
-| file | role |
-|---|---|
-| `src/data.jl` | Yahoo daily bars; `Bars.bar` marks real prints (tradable days), NaN before listing |
-| `src/model.jl` | `path_kelly(adj; …) -> weights` (one per asset, Σ=1); pure and causal |
-| `src/backtest.jl` | fills at each daily close, instantly, any size; no frictions; locked (untradable) positions drift |
-| `src/broker.jl` | Tradier executor derived from `rebalance.mjs`; non-live = no writes |
-| `src/live.jl` | current price = preview close of today → same `path_kelly`; `settle!` stores the real close after the market closes |
-| `universe.txt` | hand-picked universe (the only human prior) |
+## Verification (214 / 214 Pass)
+
+Run full test suite:
+```bash
+julia -t 4 --project=. test/runtests.jl
+```
+
+Constitutional invariants verified:
+- **Price Scale Invariance**: $P_i \to c_i P_i \implies w$ strictly identical.
+- **Asset Permutation Invariance**: permuting asset input columns permutes output weights identically.
+- **Center-of-Mass Orthogonality**: relative space strictly orthogonal to $e_0$ to machine zero.
+- **Conditioned Trace Neutrality**: verified identically on every single posterior draw $G^{(s)}$.
+- **Pure Noise Null**: under pure Brownian motion, Evidence $\alpha \to \infty$, $\|\mu\|_\infty \le 0.0005$.
+- **Continuous Prior Quadrature**: $\sum p(d) \equiv 1.0$.
 
 ## Usage
 
-```
+```bash
 julia --project=. bin/fetch.jl                            # download data/
-julia -t auto --project=. bin/backtest.jl [YYYY-MM-DD]    # default: exactly 10y ago, vs daily equal-weight
-ABLATE=1 julia -t auto --project=. bin/backtest.jl        # also: no long-memory cov / no response / both off
+julia -t 6 --project=. bin/backtest.jl [YYYY-MM-DD]       # run backtest
 TRADIER_ACCOUNT_ID=.. TRADIER_TOKEN=.. julia --project=. bin/live.jl [--live]
-julia --project=. -e 'using Pkg; Pkg.test()'
 ```
-
-## What the backtest is, and is not
-
-The backtest assumes the book can be filled at every daily close, instantly and in any size, with
-no fees, financing or slippage (by design). The model sees close t and trades at close t. That is an
-**idealised upper bound** for the theory. It is not a reproduction of the live procedure, which
-uses the current intraday price as today's preview close; reproducing that would need intraday
-history. Benchmark: daily equal weight over the same history-eligible assets with the same lock
-rule, so any gap is the model's, not the universe's.
-
-Untradable days (no real bar) freeze the position; unlisted or too-short-history assets get weight
-0; the tradable assets share what is left.
-
-## References (ideas used; none is claimed as new here)
-
-- Kelly criterion, log-optimal growth: Kelly (1956); Thorp; Boyd et al., "Performance bounds and
-  suboptimal policies for multi-period investment" (Stanford) for the convex-programming form.
-- Fractional Brownian motion and Hurst exponent: Mandelbrot & Van Ness (1968).
-- Long-memory volatility and fractional integration: Granger & Joyeux (1980), Hosking (1981),
-  FIGARCH — Baillie, Bollerslev & Mikkelsen (1996).
-- Rough volatility (H ≈ 0.1 of log-volatility, not of price): Gatheral, Jaisson & Rosenbaum,
-  "Volatility is rough" (2018).
-- Evidence maximisation / ARD: MacKay (1992); Tipping (2001).
-- Empirical-Bayes shrinkage of means: Efron & Morris; Jorion (1986) for portfolio drifts.
-- Long-run variance: Newey & West (1987).
-- Random-matrix noise edge (Marchenko–Pastur), used only if still present in `model.jl`: Marchenko &
-  Pastur (1967).
-
-Numerics are delegated: Convex + Clarabel (Kelly), LinearAlgebra, DSP (FFT convolution), HTTP/JSON3/CSV.

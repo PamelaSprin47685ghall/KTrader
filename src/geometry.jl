@@ -1,36 +1,17 @@
 """
-KTrader V0.95: Geometry Layer
+KTrader V1.0 Final: Geometry Layer
 - Per-asset fractal ruler s_i(τ) = c_i τ^{H_i} using each asset's OWN complete history
 - Center-of-mass macro decomposition: e_0 = (1, ..., 1)' / √N
-- Fixed Numerical Gauge: Analytical Helmert basis Q (N × (N-1))
-    Q' * e0 = 0,  Q' * Q = I_{N-1}
-- Relative covariance C_Q = Q' * C_avail * Q strictly in (N-1) space with PSD repair
-- No data-dependent eigenvector tracking across folds; modes are operator spectra, not coordinate axes
+- Pure Orthogonal Complement Geometry: P_0 = I - e_0 e_0'
+    m_t = e_0' u_t (scalar macro flow)
+    u_perp_t = P_0 u_t (N-dimensional relative field with exact zero center of mass)
+- Zero coordinate-ordering bias: 100% permutation symmetric across all assets!
 """
 
 const TAUS  = 2 .^ (0:8)      # ruler fit horizons (1, 2, 4, 8, 16, 32, 64, 128, 256)
 const BANDS = 2 .^ (1:7)      # multi-scale bands (2, 4, 8, 16, 32, 64, 128)
 const BANDCOL = [findfirst(==(τ), TAUS) for τ in BANDS]
 const WARMUP = 2 * maximum(BANDS)
-
-"""
-Analytical Helmert basis matrix Q of size N × (N-1):
-Columns are strictly orthonormal and strictly orthogonal to e_0 = 1/√N.
-Deterministic, coordinate-free, invariant to sample estimation noise.
-"""
-function helmert_basis(N::Int)
-    N >= 2 || error("N must be >= 2 for relative subspace decomposition")
-    Q = zeros(Float64, N, N - 1)
-    for j in 1:(N - 1)
-        # Column j has j identical entries, one negative entry, rest zeros
-        c = 1.0 / sqrt(j * (j + 1))
-        for i in 1:j
-            Q[i, j] = c
-        end
-        Q[j + 1, j] = -j * c
-    end
-    Q
-end
 
 """
 Center-of-mass unit vector in asset space:
@@ -94,7 +75,7 @@ end
 Decompose price increments u (T × N) into:
 1. Macro center-of-mass component m_t = (1/√N_t) Σ_{j ∈ alive(t)} u_{t, j}
 2. Relative subspace u_perp_{t, j} = u_{t, j} - m_t / √N_t
-This preserves ALL history: long-history assets contribute to macro decades before newer assets list.
+Preserves ALL history: strictly zero-sum in relative space, fully permutation symmetric.
 """
 function center_of_mass_decomposition(u::AbstractMatrix{Float64})
     T, N = size(u)
@@ -119,7 +100,6 @@ end
 
 """
 Pairwise-available weighted covariance matrix on ragged data.
-w: Optional row weights.
 """
 function pairwise_covariance(X::AbstractMatrix{Float64}, w::AbstractVector{Float64} = ones(size(X, 1)))
     T, N = size(X)
@@ -154,45 +134,4 @@ function pairwise_covariance(X::AbstractMatrix{Float64}, w::AbstractVector{Float
         end
     end
     C
-end
-
-"""
-Project relative increments u_perp into the fixed Helmert gauge:
-    z_rel = u_perp * Q   (T × (N-1))
-Computes PSD-repaired covariance C_Q in the (N-1) space:
-    C_Q = Q' * C_avail * Q
-    Repaired via eigenvalues: U * max(Λ, 1e-6) * U'
-Strictly free from any e_0 zero/negative eigenvalue sorting hazard.
-"""
-function project_helmert_gauge(u_perp::AbstractMatrix{Float64}, Q::AbstractMatrix{Float64})
-    T, N = size(u_perp)
-    K_rel = N - 1
-    
-    # Project each row t into Helmert coordinates
-    z_rel = zeros(Float64, T, K_rel)
-    for t in 1:T
-        for k in 1:K_rel
-            val = 0.0
-            for j in 1:N
-                uj = u_perp[t, j]
-                if isfinite(uj)
-                    val += uj * Q[j, k]
-                end
-            end
-            z_rel[t, k] = val
-        end
-    end
-    
-    # Available-case covariance in N-space
-    C_raw = pairwise_covariance(u_perp)
-    # Strictly project into (N-1) space
-    C_Q_raw = Q' * C_raw * Q
-    
-    # Exact PSD repair in (N-1) space
-    E = eigen(Symmetric(C_Q_raw))
-    max_ev = maximum(E.values)
-    repaired_vals = max.(E.values, max(max_ev * 1e-4, 1e-6))
-    C_Q = E.vectors * Diagonal(repaired_vals) * E.vectors'
-    
-    (; z_rel, C_Q, E)
 end

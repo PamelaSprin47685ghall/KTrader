@@ -44,18 +44,19 @@ function path_kelly_v1(adj::AbstractMatrix{Float64}; S = 300, rng = Random.Merse
     r_hist = diff(log.(adj), dims=1)
     X = generate_scenarios_v1(model, r_hist; S, rng)
     
-    # If all assets are tradable or no prior holdings
-    if all(tr) || held === nothing
+    # Tradability strictly takes precedence over whether held exists
+    if all(tr) && held === nothing
         return kelly_weights_v1(X)
     end
+    h_curr = held === nothing ? zeros(Float64, N) : held
     
     # Untradable/locked positions stay fixed at held weight
-    locked = held .* .!tr
+    locked = h_curr .* .!tr
     L = sum(locked)
     free_idx = findall(tr)
     
     if isempty(free_idx) || L >= 1.0 - 1e-6
-        return copy(held)
+        return copy(h_curr)
     end
     
     budget = 1.0 - L
