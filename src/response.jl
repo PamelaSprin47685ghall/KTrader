@@ -70,7 +70,7 @@ function fill_design_matrix!(out, sums, counts, X, ts, inv_scales, bands, N, n_r
             col_p = offset + N + j
             @simd for row in 1:n_res
                 t = ts[row]
-                if t >= two_tau + 1 && isfinite(X[t,j]) && (counts[t+1,j] - counts[t+1-two_tau,j] == two_tau)
+                if t >= two_tau + 1 && (counts[t+1,j] - counts[t+1-two_tau,j] == two_tau)
                     c0 = (sums[t+1,j] - sums[t+1-tau,j]) * inv_tau
                     c1 = (sums[t+1-tau,j] - sums[t+1-two_tau,j]) * inv_tau
                     out[row, col_q] = -(X[t,j] - c0) * inv_scale
