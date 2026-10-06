@@ -2,7 +2,7 @@
 Signal prices and activity metadata are independent of marking prices and scenarios.
 """
 function backtest_v1(b::Bars; from::Date,S=300,seed=1,ridge_alpha=nothing,F_folds=3,
-                     date_tasks=Threads.nthreads(),blas_threads=1,chunk_size=4date_tasks,
+                     date_tasks=Threads.nthreads(),blas_threads=1,chunk_size=min(24, 4date_tasks),
                      adaptive=false,quadrature_tol=1e-5,max_scenarios=512)
     T,N=size(b.adj)
     i0=findfirst(>=(from),b.dates)
