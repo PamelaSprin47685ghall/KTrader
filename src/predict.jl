@@ -277,7 +277,7 @@ function fit_v1(adj::AbstractMatrix{Float64}; ridge_alpha = nothing, F_folds = 3
                                          S_xx_rel = S_xx_train, S_xy_rel = S_xy_train, S_yy_rel = S_yy_train,
                                          X_design=train_design,
                                          alpha_initial=(resp.alpha_macro, resp.alpha_rel),timing,
-                                         need_uncertainty = false)
+                                         need_uncertainty = false, workspace = workspace)
         push!(fitted_alphas,(resp_oof.alpha_macro,resp_oof.alpha_rel))
                                          
         # Predict evaluation fold rows using fast matrix-vector operations

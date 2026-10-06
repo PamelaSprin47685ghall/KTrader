@@ -418,7 +418,7 @@ end
 
 function fit_response_operator(B_m,B_rel,y_m,y_rel; ridge_alpha=nothing,ts=WARMUP:length(y_m)-1,
                                S_xx_rel=nothing,S_xy_rel=nothing,S_yy_rel=nothing,
-                               X_design=nothing,alpha_initial=(1.0,1.0),timing=nothing,dual=nothing,need_uncertainty=true)
+                               X_design=nothing,alpha_initial=(1.0,1.0),timing=nothing,dual=nothing,need_uncertainty=true,workspace=nothing)
     N=length(B_rel); n=length(ts)
     n>0 || throw(ArgumentError("response fit needs training rows"))
     Xm=B_m[ts,:]; ym=y_m[ts .+ 1]
@@ -458,7 +458,7 @@ function fit_response_operator(B_m,B_rel,y_m,y_rel; ridge_alpha=nothing,ts=WARMU
         # Fast path for OOF folds: alpha is fixed from full model, no eigensolver needed!
         # In-place Cholesky! factorizes 2.8x faster without heap matrix allocations.
         P_dim = size(S_xx_rel, 1)
-        scratch_S = Matrix{Float64}(undef, P_dim, P_dim)
+        scratch_S = matrix_buffer!(workspace, :scratch_S_oof, P_dim, P_dim)
         copyto!(scratch_S, S_xx_rel)
         @inbounds @simd for i in 1:P_dim
             scratch_S[i, i] += ridge_alpha
@@ -466,7 +466,7 @@ function fit_response_operator(B_m,B_rel,y_m,y_rel; ridge_alpha=nothing,ts=WARMU
         chol_rel = timed(timing,:eigen) do
             cholesky!(Symmetric(scratch_S, :U))
         end
-        G_t = Matrix{Float64}(undef, P_dim, N)
+        G_t = matrix_buffer!(workspace, :scratch_G_t_oof, P_dim, N)
         copyto!(G_t, S_xy_rel)
         ldiv!(chol_rel, G_t)
         G = Matrix(G_t')
