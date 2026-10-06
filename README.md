@@ -151,4 +151,6 @@ No 60-second runtime or 5.7× speedup is assumed.
   EB evidence on relative support; certified log-Kelly; spectral primal/dual
   covariance; planned dynamic FFT; batched predictive draws without shifting;
   bounded streamed backtesting; reusable workspaces and timing/topology controls;
-  opt-in nested randomized quadrature.
+  opt-in nested randomized quadrature; fast closed-form EB fixed point with stationarity
+  certificate; in-place Cholesky OOF fold solver; LAPACK syevr! for RRR eigensolve;
+  block-direct contraction for trace-neutral condition moments; memory-stride aligned buffers.
