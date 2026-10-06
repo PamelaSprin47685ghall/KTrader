@@ -141,6 +141,7 @@ function fold_sufficient_statistics(X::AbstractMatrix{Float64}, Y::AbstractMatri
         Yf=view(Y,ranges[f],:)
         if need_primal
             BLAS.syrk!('U','T',1.0,Xf,0.0,xx[f])
+            LinearAlgebra.copytri!(xx[f],'U')
         end
         BLAS.gemm!('T','N',1.0,Xf,Yf,0.0,xy[f])
         BLAS.syrk!('U','T',1.0,Yf,0.0,yy[f])
