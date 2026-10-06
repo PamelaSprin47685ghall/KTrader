@@ -7,34 +7,38 @@ module KTrader
 using LinearAlgebra, Statistics, Random, Dates
 using TimeZones
 using PrecompileTools
-using DSP
 using Convex, Clarabel
 using HTTP, JSON3, CSV
 
 include("data.jl")
-include("model.jl")
-include("modecov.jl")
+include("geometry.jl")
+include("response.jl")
+include("predict.jl")
+include("kelly.jl")
 include("backtest.jl")
 include("broker.jl")
 include("live.jl")
 
-# Compile the whole decision path at package-precompile time, so a run starts hot.
+# Precompile workload
 @compile_workload begin
     rng = MersenneTwister(0)
-    P = exp.(cumsum(0.01 .* randn(rng, 900, 4), dims = 1))
-    path_kelly(P; S = 20, rng)
-    path_kelly(P; S = 20, rng, response = false)
-    theta_posterior(fit_response(P); draws = 50)
-    path_kelly(P; S = 20, rng, tradable = [true, true, false, true], held = [0.1, 0.2, 0.3, 0.4])
-    P[1:100, 4] .= NaN                                   # ragged panel: late-listed asset
-    path_kelly(P; S = 20, rng, volmodel = false)
+    P = exp.(cumsum(0.01 .* randn(rng, 600, 4), dims = 1))
+    path_kelly_v1(P; S = 20, rng)
+    fit_v1(P)
 end
 
 export Bars, download_bars, save_bars, load_bars, load_universe,
-       path_kelly, fit_response, theta_posterior, conditional_mean, predict,
-       predictive_log_returns, kelly_weights, eligible, firstrows, scenarios, allocate, frac_weights, DGRID, is_final, settle_due,
-       mode_vol_model, draw, cond_cov,
-       backtest, equal_weights, summarize,
+       # Geometry Layer
+       TAUS, BANDS, BANDCOL, WARMUP, ruler, center_of_mass, center_of_mass_decomposition, relative_modes,
+       # Response Layer
+       path_basis_1d, build_path_basis, fit_response_operator, predict_modes, ResponseOperator,
+       # Prediction Layer
+       V1Model, fit_v1, generate_scenarios_v1,
+       # Kelly Layer
+       kelly_weights_v1, path_kelly_v1, path_kelly, is_final, settle_due,
+       # Backtest Layer
+       backtest_v1, summarize,
+       # Execution Layer
        Broker, tradier, rebalance!, tradable, held_weights, target_shares, LiveState, live_step!, settle!, preview_history
 
 end
