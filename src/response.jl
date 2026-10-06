@@ -37,29 +37,22 @@ function build_X_rel_stacked(X::AbstractMatrix{Float64}, scales::AbstractVector{
                              workspace=nothing)
     T, N = size(X)
     sums = matrix_buffer!(workspace,:path_sums,T+1,N;grow_rows=true)
-    counts = matrix_buffer!(workspace,:path_counts,T+1,N;grow_rows=true)
-    sums[1,:].=0.0; counts[1,:].=0.0
+    sums[1,:].=0.0
     @inbounds for j in 1:N
         running_sum = 0.0
-        running_cnt = 0
         @simd for t in 1:T
-            val = X[t, j]
-            if isfinite(val)
-                running_sum += val
-                running_cnt += 1
-            end
+            running_sum += X[t, j]
             sums[t+1, j] = running_sum
-            counts[t+1, j] = running_cnt
         end
     end
     out = matrix_buffer!(workspace,:design,length(ts),2length(BANDS)*N;grow_rows=true)
     fill!(out,0.0)
     inv_scales = 1.0 ./ max.(scales, 1e-6)
-    fill_design_matrix!(out, sums, counts, X, ts, inv_scales, BANDS, N, length(ts))
+    fill_design_matrix!(out, sums, X, ts, inv_scales, BANDS, N, length(ts))
     out
 end
 
-function fill_design_matrix!(out, sums, counts, X, ts, inv_scales, bands, N, n_res)
+function fill_design_matrix!(out, sums, X, ts, inv_scales, bands, N, n_res)
     @inbounds for (b,tau) in enumerate(BANDS)
         offset = (b-1)*2N
         inv_scale = inv_scales[b]
@@ -70,7 +63,7 @@ function fill_design_matrix!(out, sums, counts, X, ts, inv_scales, bands, N, n_r
             col_p = offset + N + j
             @simd for row in 1:n_res
                 t = ts[row]
-                if t >= two_tau + 1 && (counts[t+1,j] - counts[t+1-two_tau,j] == two_tau)
+                if t >= two_tau + 1
                     c0 = (sums[t+1,j] - sums[t+1-tau,j]) * inv_tau
                     c1 = (sums[t+1-tau,j] - sums[t+1-two_tau,j]) * inv_tau
                     out[row, col_q] = -(X[t,j] - c0) * inv_scale
