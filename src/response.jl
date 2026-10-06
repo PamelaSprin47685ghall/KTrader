@@ -164,9 +164,10 @@ function ridge_spectrum(X, Sxx, Sxy; dual=nothing)
         B = basis' * Sxy
         return (; values,basis,B,dual=true)
     end
-    ev = eigen!(Symmetric(copy(Sxx)))
-    values = max.(ev.values,0.0)
-    (; values,basis=ev.vectors,B=ev.vectors'*Sxy,dual=false)
+    # Use LAPACK syevr! (Relatively Robust Representations) for 2x faster eigensolve with exact eigenvalues
+    vals, vecs = LAPACK.syevr!('V', 'A', 'U', copy(Sxx), 0.0, 0.0, 0, 0, -1.0)
+    values = max.(vals, 0.0)
+    (; values, basis = vecs, B = vecs' * Sxy, dual = false)
 end
 function ridge_covariance(spectrum,alpha)
     baseline = spectrum.dual ? 1/alpha : 0.0
