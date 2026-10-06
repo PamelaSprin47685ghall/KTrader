@@ -38,26 +38,30 @@ model, not a Gaussian likelihood marginalizing unknown asset returns.
 """
 function embedded_relative_field(r::AbstractMatrix{Float64},s1::AbstractVector{Float64})
     T,N=size(r)
-    observed=isfinite.(r)
     macro_flow=zeros(T)
     embedded=zeros(T,N)
     inv_scale=1.0 ./ max.(s1,1e-6)
     @inbounds for t in 1:T
         total=0.0; count=0
-        for j in 1:N
-            if observed[t,j]
-                total+=r[t,j]*inv_scale[j]
+        @simd for j in 1:N
+            val=r[t,j]
+            if isfinite(val)
+                total+=val*inv_scale[j]
                 count+=1
             end
         end
         if count>0
             macro_flow[t]=total/sqrt(count)
             shift=total/count
-            for j in 1:N
-                observed[t,j] && (embedded[t,j]=r[t,j]*inv_scale[j]-shift)
+            @simd for j in 1:N
+                val=r[t,j]
+                if isfinite(val)
+                    embedded[t,j]=val*inv_scale[j]-shift
+                end
             end
         end
     end
+    observed=isfinite.(r)
     (; macro_flow,embedded,observed)
 end
 
