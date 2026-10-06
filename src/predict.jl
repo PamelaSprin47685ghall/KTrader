@@ -244,33 +244,36 @@ function fit_v1(adj::AbstractMatrix{Float64}; ridge_alpha = nothing, F_folds = 3
         train_design=length(train_indices)<P_features ? X_rel_stacked[train_indices,:] : nothing
         
         # Fit response operator on train fold: independent EB alpha_m and alpha_rel!
-        # Warm-started from full model's optimal alphas for fast 1-2 iteration convergence.
+        # Fixed at full model's optimal alpha (Phase 4), solved via fast Cholesky.
         resp_oof = fit_response_operator(B_m, fill(Float64[], N), m, relative_embedding;
-                                         ridge_alpha = nothing, ts = train_ts,
+                                         ridge_alpha = resp.alpha_rel, ts = train_ts,
                                          S_xx_rel = S_xx_train, S_xy_rel = S_xy_train, S_yy_rel = S_yy_train,
                                          X_design=train_design,
-                                         alpha_initial=(resp.alpha_macro, resp.alpha_rel),timing)
+                                         alpha_initial=(resp.alpha_macro, resp.alpha_rel),timing,
+                                         need_uncertainty = false)
         push!(fitted_alphas,(resp_oof.alpha_macro,resp_oof.alpha_rel))
                                          
         # Predict evaluation fold rows using fast matrix-vector operations
         eval_start=time_ns()
         X_eval = view(X_rel_stacked, fold_eval, :) # n_eval × P_features
         mu_rel_eval = X_eval * resp_oof.G_c_mean'  # n_eval × N
+        eval_ts = ts_total[fold_eval]
+        mu_m_eval = view(B_m, eval_ts, :) * resp_oof.G_macro # length n_eval
+        row_means = vec(mean(mu_rel_eval, dims=2))          # length n_eval
         
         for (local_idx, global_idx) in enumerate(fold_eval)
-            t = ts_total[global_idx]
-            # Basis row t contains returns through t; the training target is r[t+1].
-            Nt = count(isfinite,view(r,t+1,:))
-            mu_m_val = dot(resp_oof.G_macro, view(B_m,t,:))
-            row=view(mu_rel_eval,local_idx,:)
-            shift=mean(row)
-            macro_shift=Nt>0 ? mu_m_val/sqrt(Nt) : 0.0
+            t = eval_ts[local_idx]
+            inv_sqrt = history_cache === nothing ? 
+                ( (cnt = count(isfinite, view(r, t+1, :))) > 0 ? 1.0 / sqrt(cnt) : 0.0 ) :
+                history_cache.inv_sqrt_alive[t + 1]
+            macro_shift = mu_m_eval[local_idx] * inv_sqrt
+            shift = row_means[local_idx]
             
             # Match the same next-return index used by Y_target_rel and the macro fit.
-            for j in 1:N
+            @simd for j in 1:N
                 rt = r[t + 1, j]
                 if isfinite(rt)
-                    prediction=(macro_shift+row[j]-shift)*s1[j]
+                    prediction=(macro_shift + mu_rel_eval[local_idx, j] - shift) * s1[j]
                     res_history[global_idx, j] = rt-prediction
                 end
             end
@@ -307,9 +310,9 @@ function fit_v1(adj::AbstractMatrix{Float64}; ridge_alpha = nothing, F_folds = 3
     # 8. Causal Fractional Likelihood on Macro Residual via FFT
     # ----------------------------------------------------
     e_res_m = Vector{Float64}(undef,n_res)
-    for idx in 1:n_res
+    @inbounds for idx in 1:n_res
         total=0.0; count=0
-        for j in 1:N
+        @simd for j in 1:N
             value=res_history[idx,j]
             if isfinite(value)
                 total+=value

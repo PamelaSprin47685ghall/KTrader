@@ -38,6 +38,8 @@ struct PriceHistoryCache
     returns::Matrix{Float64}
     first_price::Vector{Int}
     first_return::Vector{Int}
+    alive_returns::Vector{Int}
+    inv_sqrt_alive::Vector{Float64}
 end
 function PriceHistoryCache(prices::AbstractMatrix{Float64})
     T, N = size(prices)
@@ -45,7 +47,9 @@ function PriceHistoryCache(prices::AbstractMatrix{Float64})
     returns = diff(logs; dims=1)
     first_price = [something(findfirst(isfinite, view(logs, :, j)), T + 1) for j in 1:N]
     first_return = [something(findfirst(isfinite, view(returns, :, j)), T) for j in 1:N]
-    PriceHistoryCache(logs, returns, first_price, first_return)
+    alive_returns = [count(isfinite, view(returns, t, :)) for t in 1:(T - 1)]
+    inv_sqrt_alive = [cnt > 0 ? 1.0 / sqrt(cnt) : 0.0 for cnt in alive_returns]
+    PriceHistoryCache(logs, returns, first_price, first_return, alive_returns, inv_sqrt_alive)
 end
 
 # A spectral representation of (X'X + alpha I)^-1, including the dual null space.

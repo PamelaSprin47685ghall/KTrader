@@ -39,22 +39,38 @@ function build_X_rel_stacked(X::AbstractMatrix{Float64}, scales::AbstractVector{
     sums = matrix_buffer!(workspace,:path_sums,T+1,N;grow_rows=true)
     counts = matrix_buffer!(workspace,:path_counts,T+1,N;grow_rows=true)
     sums[1,:].=0.0; counts[1,:].=0.0
-    for j in 1:N, t in 1:T
-        value = X[t,j]
-        sums[t+1,j] = sums[t,j] + (isfinite(value) ? value : 0.0)
-        counts[t+1,j] = counts[t,j] + isfinite(value)
+    @inbounds for j in 1:N
+        running_sum = 0.0
+        running_cnt = 0
+        @simd for t in 1:T
+            val = X[t, j]
+            if isfinite(val)
+                running_sum += val
+                running_cnt += 1
+            end
+            sums[t+1, j] = running_sum
+            counts[t+1, j] = running_cnt
+        end
     end
     out = matrix_buffer!(workspace,:design,length(ts),2length(BANDS)*N;grow_rows=true)
     fill!(out,0.0)
-    for (b,tau) in enumerate(BANDS), j in 1:N
+    inv_scales = 1.0 ./ max.(scales, 1e-6)
+    @inbounds for (b,tau) in enumerate(BANDS)
         offset = (b-1)*2N
-        scale = max(scales[b],1e-6)
-        for (row,t) in enumerate(ts)
-            if t >= 2tau+1 && isfinite(X[t,j]) && counts[t+1,j] - counts[t+1-2tau,j] == 2tau
-                c0 = (sums[t+1,j] - sums[t+1-tau,j]) / tau
-                c1 = (sums[t+1-tau,j] - sums[t+1-2tau,j]) / tau
-                out[row,offset+j] = -(X[t,j] - c0) / scale
-                out[row,offset+N+j] = (c0-c1) / scale
+        inv_scale = inv_scales[b]
+        inv_tau = 1.0 / tau
+        two_tau = 2tau
+        for j in 1:N
+            col_q = offset + j
+            col_p = offset + N + j
+            @simd for row in 1:length(ts)
+                t = ts[row]
+                if t >= two_tau + 1 && isfinite(X[t,j]) && (counts[t+1,j] - counts[t+1-two_tau,j] == two_tau)
+                    c0 = (sums[t+1,j] - sums[t+1-tau,j]) * inv_tau
+                    c1 = (sums[t+1-tau,j] - sums[t+1-two_tau,j]) * inv_tau
+                    out[row, col_q] = -(X[t,j] - c0) * inv_scale
+                    out[row, col_p] = (c0 - c1) * inv_scale
+                end
             end
         end
     end
@@ -397,7 +413,7 @@ end
 
 function fit_response_operator(B_m,B_rel,y_m,y_rel; ridge_alpha=nothing,ts=WARMUP:length(y_m)-1,
                                S_xx_rel=nothing,S_xy_rel=nothing,S_yy_rel=nothing,
-                               X_design=nothing,alpha_initial=(1.0,1.0),timing=nothing,dual=nothing)
+                               X_design=nothing,alpha_initial=(1.0,1.0),timing=nothing,dual=nothing,need_uncertainty=true)
     N=length(B_rel); n=length(ts)
     n>0 || throw(ArgumentError("response fit needs training rows"))
     Xm=B_m[ts,:]; ym=y_m[ts .+ 1]
@@ -433,6 +449,28 @@ function fit_response_operator(B_m,B_rel,y_m,y_rel; ridge_alpha=nothing,ts=WARMU
         Y=y_rel[ts .+ 1,:]
         S_xx_rel=X_design'*X_design; S_xy_rel=X_design'*Y; S_yy_rel=Y'*Y
     end
+    if !need_uncertainty && ridge_alpha !== nothing
+        # Fast path for OOF folds: alpha is fixed from full model, no eigensolver needed!
+        # Solve (S_xx_rel + alpha*I) \ S_xy_rel via single Cholesky (3x faster than eigen).
+        P_dim = size(S_xx_rel, 1)
+        chol_rel = timed(timing,:eigen) do
+            cholesky(Symmetric(S_xx_rel + ridge_alpha * I))
+        end
+        G = (chol_rel \ S_xy_rel)'
+        cols = get_constraint_columns(N, length(BANDS))
+        G_c = copy(G)
+        for r in 1:length(cols)
+            mean_val = tr(view(G_c, :, cols[r])) / N
+            for j in 1:N
+                G_c[j, cols[r][j]] -= mean_val
+            end
+        end
+        V = RidgeCovariance(zeros(P_dim, 0), Float64[], 0.0)
+        Sigma = zeros(N, N)
+        trA=sum(sum(G_c[j,cols[2b-1][j]] for j in 1:N) for b in eachindex(BANDS))
+        trB=sum(sum(G_c[j,cols[2b][j]] for j in 1:N) for b in eachindex(BANDS))
+        return ResponseOperator(gm,covm,G_c,V,Sigma,zeros(length(cols),length(cols)),cols,alpha_m,ridge_alpha,trA,trB)
+    end
     spectrum=timed(timing,:eigen) do
         ridge_spectrum(X_design,S_xx_rel,S_xy_rel; dual)
     end
@@ -452,9 +490,23 @@ function fit_response_operator(B_m,B_rel,y_m,y_rel; ridge_alpha=nothing,ts=WARMU
     end
     dr=1.0 ./ (spectrum.values .+ alpha_rel)
     G=(spectrum.B .* dr)'*spectrum.basis'
-    V=ridge_covariance(spectrum,alpha_rel)
+    V = need_uncertainty ? ridge_covariance(spectrum,alpha_rel) : RidgeCovariance(zeros(size(spectrum.basis, 1), 0), Float64[], 0.0)
     cond=timed(timing,:condition) do
-        condition_trace_neutrality(G,V,Sigma,N,length(BANDS))
+        if need_uncertainty
+            condition_trace_neutrality(G,V,Sigma,N,length(BANDS))
+        else
+            # For OOF evaluation, only G_c is needed to predict fold means.
+            # Trace projection subtracting mean diagonal per band:
+            cols = get_constraint_columns(N, length(BANDS))
+            G_c = copy(G)
+            for r in 1:length(cols)
+                mean_val = tr(view(G_c, :, cols[r])) / N
+                for j in 1:N
+                    G_c[j, cols[r][j]] -= mean_val
+                end
+            end
+            (; G_c, inv_M = zeros(length(cols), length(cols)), cols)
+        end
     end
     trA=sum(sum(cond.G_c[j,cond.cols[2b-1][j]] for j in 1:N) for b in eachindex(BANDS))
     trB=sum(sum(cond.G_c[j,cond.cols[2b][j]] for j in 1:N) for b in eachindex(BANDS))

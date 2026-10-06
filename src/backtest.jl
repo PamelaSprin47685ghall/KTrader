@@ -22,29 +22,29 @@ function backtest_v1(b::Bars; from::Date,S=300,seed=1,ridge_alpha=nothing,F_fold
     try
         for start in 1:chunk_size:K
             stop=min(K,start+chunk_size-1)
-            results=Vector{Any}(undef,stop-start+1)
-            @sync for worker in 1:min(date_tasks,length(results))
-                Threads.@spawn for local_index in worker:date_tasks:length(results)
-                    k=start+local_index-1; t=ds[k]
+            n_items = stop - start + 1
+            results = Vector{Any}(undef, n_items)
+            Threads.@threads :greedy for local_index in 1:n_items
+                worker = (Threads.threadid() - 1) % date_tasks + 1
+                k = start + local_index - 1; t = ds[k]
                     timing=DecisionTiming()
                     model=fit_v1(view(signal,1:t,:); ridge_alpha,F_folds,ruler_stats,
                                  history_cache=cache,alpha_initial=warm[worker],timing,workspace=workspaces[worker])
                     free=falses(N)
                     for j in model.active_indices
                         free[j]=b.bar[t,j]
-                    end
+                end
                     rng=MersenneTwister(seed+t)
                     if adaptive
                         results[local_index]=(; model,X=nothing,w=nothing,active=model.active_indices,free,timing)
                     else
                         X=timed(timing,:scenario) do
                             generate_scenarios_v1(model; S,rng)
-                        end
+                    end
                         w=timed(timing,:Kelly) do
                             scenario_weights(X,model.active_indices,free)
-                        end
-                        results[local_index]=(; model=nothing,X,w,active=model.active_indices,free,timing)
                     end
+                        results[local_index]=(; model=nothing,X,w,active=model.active_indices,free,timing)
                 end
             end
             for local_index in eachindex(results)
