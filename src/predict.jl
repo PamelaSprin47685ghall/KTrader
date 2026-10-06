@@ -241,7 +241,7 @@ function fit_v1(adj::AbstractMatrix{Float64}; ridge_alpha = nothing, F_folds = 3
     P_features = 2 * n_bands * N
     
     X_rel_stacked = build_X_rel_stacked(X_rel, s_perp, ts_total;workspace)
-    Y_target_rel = relative_embedding[ts_total .+ 1, :] # Field targets, not imputed asset returns
+    Y_target_rel = view(relative_embedding, ts_total .+ 1, :) # Field targets, not imputed asset returns
     timing === nothing || (timing.seconds[2]+=(time_ns()-basis_start)*1e-9)
     stats=timed(timing,:gram) do
         fold_sufficient_statistics(X_rel_stacked,Y_target_rel,F_folds;workspace)
