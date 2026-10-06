@@ -55,6 +55,11 @@ function build_X_rel_stacked(X::AbstractMatrix{Float64}, scales::AbstractVector{
     out = matrix_buffer!(workspace,:design,length(ts),2length(BANDS)*N;grow_rows=true)
     fill!(out,0.0)
     inv_scales = 1.0 ./ max.(scales, 1e-6)
+    fill_design_matrix!(out, sums, counts, X, ts, inv_scales, BANDS, N, length(ts))
+    out
+end
+
+function fill_design_matrix!(out, sums, counts, X, ts, inv_scales, bands, N, n_res)
     @inbounds for (b,tau) in enumerate(BANDS)
         offset = (b-1)*2N
         inv_scale = inv_scales[b]
@@ -63,7 +68,7 @@ function build_X_rel_stacked(X::AbstractMatrix{Float64}, scales::AbstractVector{
         for j in 1:N
             col_q = offset + j
             col_p = offset + N + j
-            @simd for row in 1:length(ts)
+            @simd for row in 1:n_res
                 t = ts[row]
                 if t >= two_tau + 1 && isfinite(X[t,j]) && (counts[t+1,j] - counts[t+1-two_tau,j] == two_tau)
                     c0 = (sums[t+1,j] - sums[t+1-tau,j]) * inv_tau
@@ -74,7 +79,6 @@ function build_X_rel_stacked(X::AbstractMatrix{Float64}, scales::AbstractVector{
             end
         end
     end
-    out
 end
 function compute_B_rel_at_t(X::AbstractMatrix{Float64}, scales::AbstractVector{Float64}, t::Int)
     N = size(X,2)
