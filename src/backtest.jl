@@ -1,151 +1,107 @@
+"""Bounded parallel decisions, consumed in date order before the next chunk.
+Signal prices and activity metadata are independent of marking prices and scenarios.
 """
-KTrader V0.95: Backtest Engine
-- Live/Backtest Isomorphism: tracks real drifted holdings h_{t, j}
-- Strict separation of Marking Prices and Signal Prices:
-    Signal prices strictly NaN on untradable days (no fake zero returns)
-- Stage 1: multi-threaded embarrassingly parallel scenario generation
-- Stage 2: sequential stateful account evolution
-- Exact Locked-Risk Kelly: locked assets carry their true scenario return shocks
-- Benchmark: daily equal-weight rebalancing under identical lock semantics
-"""
-
-function backtest_v1(b::Bars; from::Date, S = 300, seed = 1, ridge_alpha = nothing)
-    T, N = size(b.adj)
-    i0 = findfirst(>=(from), b.dates)
-    (i0 === nothing || i0 == T) && error("no decision day on/after $from")
-    ds = i0:T-1
-    K = length(ds)
-    
-    # Pre-extract signal prices (strictly NaN when bar[t, j] == false)
-    sig_prices = signal_prices(b)
-    
-    scenarios_list = Vector{Matrix{Float64}}(undef, K)
-    unconstrained_w = Vector{Vector{Float64}}(undef, K)
-    
-    # ----------------------------------------------------
-    # Stage 1: Embarrassingly Parallel Model & Scenario Fitting
-    # ----------------------------------------------------
-    Threads.@threads :greedy for k in 1:K
-        t = ds[k]
-        sub_signal = @view sig_prices[1:t, :]
-        rng = Random.MersenneTwister(seed + t)
-        is_tr = b.bar[t, :]
-        
-        # Fit model on signal prices and generate scenarios
-        model = fit_v1(sub_signal; ridge_alpha)
-        r_hist = diff(log.(sub_signal), dims=1)
-        X = generate_scenarios_v1(model, r_hist; S, rng)
-        
-        # Stage 1: Solve Kelly strictly over free (tradable) assets
-        free_idx = findall(is_tr)
-        w_raw = zeros(Float64, N)
-        if !isempty(free_idx)
-            X_free = X[:, free_idx]
-            w_free = kelly_weights_v1(X_free)
-            w_raw[free_idx] .= w_free
-        else
-            w_raw .= fill(1.0 / N, N)
-        end
-        
-        scenarios_list[k] = X
-        unconstrained_w[k] = w_raw
-    end
-    
-    # ----------------------------------------------------
-    # Stage 2: Sequential Stateful Account Evolution
-    # ----------------------------------------------------
-    W = zeros(Float64, K, N)
-    We = zeros(Float64, K, N)
-    ret = zeros(Float64, K)
-    ew = zeros(Float64, K)
-    
-    h = nothing
-    he = nothing
-    locked_days = 0
-    locked_days_ew = 0
-    
-    for k in 1:K
-        t = ds[k]
-        is_tradable = b.bar[t, :]
-        X = scenarios_list[k]
-        w_raw = unconstrained_w[k]
-        
-        has_locked = false
-        if h !== nothing
-            lk = h .* .!is_tradable
-            if any(>(0.0), lk)
-                locked_days += 1
-                has_locked = true
+function backtest_v1(b::Bars; from::Date,S=300,seed=1,ridge_alpha=nothing,F_folds=3,
+                     date_tasks=Threads.nthreads(),blas_threads=1,chunk_size=2date_tasks,
+                     adaptive=false,quadrature_tol=1e-5,max_scenarios=512)
+    T,N=size(b.adj)
+    i0=findfirst(>=(from),b.dates)
+    (i0 === nothing || i0==T) && error("no decision day on/after $from")
+    date_tasks>0 && blas_threads>0 && chunk_size>0 || throw(ArgumentError("invalid execution topology"))
+    ds=i0:T-1; K=length(ds)
+    signal=signal_prices(b)
+    cache=PriceHistoryCache(signal)
+    ruler_stats=build_prefix_ruler_stats(cache.log_prices,cache.first_price)
+    W=zeros(K,N); We=zeros(K,N); ret=zeros(K); ew=zeros(K)
+    timings=zeros(K,length(TIMING_BUCKETS)); scenario_counts=zeros(Int,K)
+    h=nothing; he=nothing; locked_days=0; locked_days_ew=0
+    warm=[fill((1.0,1.0),F_folds+1) for _ in 1:date_tasks]
+    workspaces=[FitWorkspace() for _ in 1:date_tasks]
+    original=BLAS.get_num_threads()
+    BLAS.set_num_threads(blas_threads)
+    try
+        for start in 1:chunk_size:K
+            stop=min(K,start+chunk_size-1)
+            results=Vector{Any}(undef,stop-start+1)
+            @sync for worker in 1:min(date_tasks,length(results))
+                Threads.@spawn for local_index in worker:date_tasks:length(results)
+                    k=start+local_index-1; t=ds[k]
+                    timing=DecisionTiming()
+                    model=fit_v1(view(signal,1:t,:); ridge_alpha,F_folds,ruler_stats,
+                                 history_cache=cache,alpha_initial=warm[worker],timing,workspace=workspaces[worker])
+                    free=falses(N)
+                    for j in model.active_indices
+                        free[j]=b.bar[t,j]
+                    end
+                    rng=MersenneTwister(seed+t)
+                    if adaptive
+                        results[local_index]=(; model,X=nothing,w=nothing,active=model.active_indices,free,timing)
+                    else
+                        X=timed(timing,:scenario) do
+                            generate_scenarios_v1(model; S,rng)
+                        end
+                        w=timed(timing,:Kelly) do
+                            scenario_weights(X,model.active_indices,free)
+                        end
+                        results[local_index]=(; model=nothing,X,w,active=model.active_indices,free,timing)
+                    end
+                end
+            end
+            for local_index in eachindex(results)
+                k=start+local_index-1; t=ds[k]
+                decision=results[local_index]
+                free=decision.free; timing=decision.timing
+                has_locked=h !== nothing && any(j -> !free[j] && h[j]>0,1:N)
+                has_locked && (locked_days+=1)
+                he !== nothing && any(j -> !free[j] && he[j]>0,1:N) && (locked_days_ew+=1)
+                if adaptive
+                    result=timed(timing,:scenario) do
+                        adaptive_scenario_weights(decision.model,free,h;
+                            rng=MersenneTwister(seed+t),tol=quadrature_tol,max_scenarios)
+                    end
+                    w=result.weights
+                    scenario_counts[k]=result.S
+                else
+                    w=has_locked ? timed(timing,:Kelly) do
+                        scenario_weights(decision.X,decision.active,free,h)
+                    end : decision.w
+                    scenario_counts[k]=S
+                end
+                sum(w)>0 || error("no modeled tradable asset for initial portfolio on $(b.dates[t])")
+                we=equal_weights_v1(free,he)
+                gross=b.adj[t+1,:]./b.adj[t,:]
+                gross_clean=ifelse.(isfinite.(gross),gross,1.0)
+                ret[k]=dot(w,gross_clean)-1
+                ew[k]=dot(we,gross_clean)-1
+                W[k,:].=w; We[k,:].=we
+                h=(w.*gross_clean)./(1+ret[k])
+                he=(we.*gross_clean)./(1+ew[k])
+                timings[k,:].=timing.seconds
+                results[local_index]=nothing
             end
         end
-        if he !== nothing
-            lke = he .* .!is_tradable
-            any(>(0.0), lke) && (locked_days_ew += 1)
-        end
-        
-        w = if !has_locked || h === nothing
-            w_raw
-        else
-            locked = h .* .!is_tradable
-            L = sum(locked)
-            free_idx = findall(is_tradable)
-            if isempty(free_idx) || L >= 1.0 - 1e-6
-                copy(h)
-            else
-                budget = 1.0 - L
-                base = X[:, .!is_tradable] * locked[.!is_tradable]
-                X_free = X[:, free_idx]
-                w_free = kelly_weights_v1(X_free; budget, base)
-                out = copy(locked)
-                out[free_idx] .= w_free
-                out
-            end
-        end
-        
-        we = equal_weights_v1(is_tradable, he)
-        
-        # Realized gross return on MARKING prices
-        gross = b.adj[t+1, :] ./ b.adj[t, :]
-        gross_clean = ifelse.(isfinite.(gross), gross, 1.0)
-        
-        ret_k = dot(w, gross_clean) - 1.0
-        ew_k  = dot(we, gross_clean) - 1.0
-        
-        W[k, :]  .= w
-        We[k, :] .= we
-        ret[k] = ret_k
-        ew[k]  = ew_k
-        
-        # Drift holdings
-        h  = (w  .* gross_clean) ./ (1.0 + ret_k)
-        he = (we .* gross_clean) ./ (1.0 + ew_k)
+    finally
+        BLAS.set_num_threads(original)
     end
-    
-    wealth(r) = [1.0; cumprod(1.0 .+ r)]
-    (dates = b.dates[ds], symbols = b.symbols, weights = W, weights_ew = We,
-     ret = ret, ew = ew, locked_days = locked_days, locked_days_ew = locked_days_ew,
-     wealth = wealth(ret), wealth_ew = wealth(ew))
+    wealth(r)=[1.0;cumprod(1.0.+r)]
+    (; dates=b.dates[ds],symbols=b.symbols,weights=W,weights_ew=We,ret,ew,locked_days,locked_days_ew,
+       wealth=wealth(ret),wealth_ew=wealth(ew),timing_buckets=TIMING_BUCKETS,timings,scenario_counts)
 end
 
-function equal_weights_v1(free::AbstractVector{Bool}, he)
-    N = length(free)
-    fi = findall(free)
-    locked = he === nothing ? zeros(Float64, N) : he .* .!free
-    L = sum(locked)
-    
-    if isempty(fi) || L >= 1.0 - 1e-6
-        return he === nothing ? fill(1.0 / N, N) : copy(he)
-    end
-    
-    out = copy(locked)
-    budget = 1.0 - L
-    out[fi] .= budget / length(fi)
+function equal_weights_v1(free::AbstractVector{Bool},held)
+    N=length(free)
+    indices=findall(free)
+    current=held === nothing ? zeros(N) : held
+    locked=current.*.!free
+    budget=1-sum(locked)
+    (isempty(indices) || budget<=1e-12) && return copy(current)
+    out=copy(locked)
+    out[indices].=budget/length(indices)
     out
 end
 
-function summarize(r::AbstractVector; periods = 252)
-    w = [1.0; cumprod(1.0 .+ r)]
-    (cagr = expm1(mean(log1p.(r)) * periods), vol = std(r) * sqrt(periods),
-     sharpe = mean(r) / std(r) * sqrt(periods),
-     maxdd = maximum(1.0 .- w ./ accumulate(max, w)), final = w[end])
+function summarize(r::AbstractVector; periods=252)
+    w=[1.0;cumprod(1.0.+r)]
+    (; cagr=expm1(mean(log1p.(r))*periods),vol=std(r)*sqrt(periods),
+       sharpe=mean(r)/std(r)*sqrt(periods),maxdd=maximum(1.0.-w./accumulate(max,w)),final=w[end])
 end

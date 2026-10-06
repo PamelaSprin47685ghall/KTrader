@@ -1,13 +1,24 @@
 # Usage: julia -t 6 --project=. bin/backtest.jl [YYYY-MM-DD]
 using KTrader, Dates, Statistics, LinearAlgebra, Printf
-BLAS.set_num_threads(1)
 
 b = load_bars(joinpath(@__DIR__, "..", "data"))
 from = isempty(ARGS) ? today() - Year(10) : Date(ARGS[1])
 S = parse(Int, get(ENV, "SCENARIOS", "300"))
+date_tasks = parse(Int,get(ENV,"DATE_TASKS",string(Threads.nthreads())))
+blas_threads = parse(Int,get(ENV,"BLAS_THREADS","1"))
+adaptive = get(ENV,"ADAPTIVE_SCENARIOS","false") == "true"
 
 println("Running Path Kelly V1 Backtest from $from...")
-bt = backtest_v1(b; from, S)
+started = time()
+bt = backtest_v1(b; from, S, date_tasks, blas_threads, adaptive)
+elapsed = time()-started
+@printf("Runtime %.3f s; %.2f days/s; date_tasks=%d BLAS=%d\n",elapsed,length(bt.ret)/elapsed,date_tasks,blas_threads)
+for rows in (1:length(bt.ret),max(1,length(bt.ret)-499):length(bt.ret))
+    println("Timing CPU-seconds, decisions $(first(rows)):$(last(rows))")
+    for (i,bucket) in enumerate(bt.timing_buckets)
+        @printf("  %-10s %.3f\n",bucket,sum(view(bt.timings,rows,i)))
+    end
+end
 
 println("\n==========================================================================")
 println("Path Kelly V1 Performance: $(bt.dates[1]) to $(bt.dates[end]) ($(length(bt.ret)) daily decisions, $(length(b.symbols)) symbols)")

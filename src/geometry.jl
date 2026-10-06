@@ -23,30 +23,34 @@ center_of_mass(N::Int) = fill(1.0 / sqrt(N), N)
 Per-asset fractal ruler s_i(τ) on TAUS: power-law fit of weighted RMS τ-increments.
 Uses ALL of asset j's own available history.
 """
-function ruler(x::AbstractMatrix{Float64}, f::AbstractVector{<:Integer}, w::AbstractVector{Float64})
+function ruler(x::AbstractMatrix{Float64}, f::AbstractVector{<:Integer},
+               w::Union{Nothing,AbstractVector{Float64}} = nothing)
     T, N = size(x)
     Ntaus = length(TAUS)
     out = Matrix{Float64}(undef, N, Ntaus)
     lτ = log.(TAUS)
     L_buf = zeros(Float64, Ntaus)
+    tau_buf = similar(L_buf)
     for j in 1:N
         n_use = 0; sum_l = 0.0; sum_log_tau = 0.0; fj = f[j]
         for a in 1:Ntaus
             τ = TAUS[a]
             if 4τ <= T - fj + 1
-                n_use += 1
                 acc = 0.0; ws = 0.0
                 @inbounds @simd for t in (fj + τ):T
                     x1 = x[t, j]; x0 = x[t - τ, j]
                     if isfinite(x1) && isfinite(x0)
                         d = x1 - x0
-                        wt = w[t]
+                        wt = w === nothing ? 1.0 : w[t]
                         acc += wt * d * d
                         ws += wt
                     end
                 end
+                ws > 0 || continue
+                n_use += 1
                 val = log(sqrt(max(acc / max(ws, 1e-12), 1e-12)))
                 L_buf[n_use] = val
+                tau_buf[n_use] = lτ[a]
                 sum_l += val
                 sum_log_tau += lτ[a]
             end
@@ -56,7 +60,89 @@ function ruler(x::AbstractMatrix{Float64}, f::AbstractVector{<:Integer}, w::Abst
             m_tau = sum_log_tau / n_use
             num = 0.0; den = 0.0
             for a in 1:n_use
-                d_tau = lτ[a] - m_tau
+                d_tau = tau_buf[a] - m_tau
+                num += (L_buf[a] - m_l) * d_tau
+                den += d_tau * d_tau
+            end
+            H = num / max(den, 1e-12)
+            for a in 1:Ntaus
+                out[j, a] = exp(m_l + H * (lτ[a] - m_tau))
+            end
+        else
+            out[j, :] .= 1.0
+        end
+    end
+    out
+end
+
+"""
+Prefix statistics for O(1) fractal ruler evaluations across decision days:
+acc[t, j, a]: cumulative sum of (x[s, j] - x[s - τ, j])^2 for s <= t
+cnt[t, j, a]: count of valid pairs
+"""
+struct PrefixRulerStats
+    acc::Array{Float64, 3}  # T × N × Ntaus
+    cnt::Array{Int32, 3}    # T × N × Ntaus
+end
+
+function build_prefix_ruler_stats(x::AbstractMatrix{Float64}, f::AbstractVector{<:Integer})
+    T, N = size(x)
+    Ntaus = length(TAUS)
+    acc = zeros(Float64, T, N, Ntaus)
+    cnt = zeros(Int32, T, N, Ntaus)
+    for j in 1:N
+        fj = f[j]
+        for (a, τ) in enumerate(TAUS)
+            running_acc = 0.0
+            running_cnt = Int32(0)
+            for t in (fj + τ):T
+                x1 = x[t, j]; x0 = x[t - τ, j]
+                if isfinite(x1) && isfinite(x0)
+                    d = x1 - x0
+                    running_acc += d * d
+                    running_cnt += Int32(1)
+                end
+                acc[t, j, a] = running_acc
+                cnt[t, j, a] = running_cnt
+            end
+        end
+    end
+    PrefixRulerStats(acc, cnt)
+end
+
+function ruler_from_stats(stats::PrefixRulerStats, t::Int, f::AbstractVector{<:Integer},
+                          columns::AbstractVector{<:Integer} = collect(eachindex(f)))
+    N = length(f)
+    length(columns) == N || throw(DimensionMismatch("ruler column mapping"))
+    Ntaus = length(TAUS)
+    out = Matrix{Float64}(undef, N, Ntaus)
+    lτ = log.(TAUS)
+    L_buf = zeros(Float64, Ntaus)
+    tau_buf = similar(L_buf)
+    for j in 1:N
+        fj = f[j]
+        column = columns[j]
+        n_use = 0; sum_l = 0.0; sum_log_tau = 0.0
+        for a in 1:Ntaus
+            τ = TAUS[a]
+            if 4τ <= t - fj + 1
+                c = stats.cnt[t, column, a]
+                if c > 0
+                    n_use += 1
+                    val = log(sqrt(max(stats.acc[t, column, a] / c, 1e-12)))
+                    L_buf[n_use] = val
+                    tau_buf[n_use] = lτ[a]
+                    sum_l += val
+                    sum_log_tau += lτ[a]
+                end
+            end
+        end
+        if n_use >= 2
+            m_l = sum_l / n_use
+            m_tau = sum_log_tau / n_use
+            num = 0.0; den = 0.0
+            for a in 1:n_use
+                d_tau = tau_buf[a] - m_tau
                 num += (L_buf[a] - m_l) * d_tau
                 den += d_tau * d_tau
             end

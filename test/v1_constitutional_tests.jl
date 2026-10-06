@@ -1,76 +1,62 @@
 using Test, LinearAlgebra, Statistics, Random
-using Convex, Clarabel
+using KTrader
 
-include("../src/geometry.jl")
-include("../src/response.jl")
-include("../src/predict.jl")
-include("../src/kelly.jl")
-
-@testset "Path Kelly V1.0: Constitutional Invariant & Freeze Suite" begin
-    rng = MersenneTwister(2026)
-    T, N = 1200, 6
-    
-    r_base = 0.01 .* randn(rng, T, N)
-    adj_base = exp.(cumsum(r_base, dims=1))
-    
-    # ----------------------------------------------------
-    # Constitution 1: Price Scale Invariance (P_i -> c_i * P_i)
-    # ----------------------------------------------------
-    scales = exp.(randn(rng, N))
-    adj_scaled = adj_base .* scales'
-    
-    w_base = path_kelly_v1(adj_base; S = 300, rng = MersenneTwister(1))
-    w_scaled = path_kelly_v1(adj_scaled; S = 300, rng = MersenneTwister(1))
-    
-    @test isapprox(w_base, w_scaled, atol = 0.005)
-    println("✓ Constitution 1 Passed: Price Scale Invariance holds.")
-
-    # ----------------------------------------------------
-    # Constitution 2: Asset Permutation Invariance
-    # ----------------------------------------------------
-    perm = randperm(rng, N)
-    adj_perm = adj_base[:, perm]
-    
-    w_perm = path_kelly_v1(adj_perm; S = 300, rng = MersenneTwister(1))
-    @test isapprox(w_perm, w_base[perm], atol = 0.005)
-    println("✓ Constitution 2 Passed: Asset Permutation Invariance holds strictly.")
-
-    # ----------------------------------------------------
-    # Constitution 3: Center-of-Mass Orthogonality
-    # ----------------------------------------------------
-    decomp = center_of_mass_decomposition(r_base)
-    @test abs(sum(decomp.m)) > 0.0
-    @test maximum(abs.(sum(decomp.u_perp, dims=2))) < 1e-12
-    println("✓ Constitution 3 Passed: Center-of-Mass Orthogonality holds strictly.")
-
-    # ----------------------------------------------------
-    # Constitution 4: Exact Conditioned Trace Neutrality on Support
-    # ----------------------------------------------------
-    model = fit_v1(adj_base)
-    @test abs(model.resp.trace_real) < 1e-10
-    @test abs(model.resp.trace_imag) < 1e-10
-    
-    # Verify that sampled G^(s) strictly satisfies trace neutrality across all bands
-    for s in 1:20
-        pred_sample = predict_modes(model.resp, model.basis_now.B_m_now, model.basis_now.B_rel_now; sample_posterior = true, rng)
-        # All relative predictions in zero-sum space strictly orthogonal to center of mass
-        @test isfinite(pred_sample.mu_m)
-        @test all(isfinite, pred_sample.mu_rel)
-        P0 = I - fill(1.0 / N, N, N); @test abs(sum(P0 * pred_sample.mu_rel)) < 1e-12
+@testset "Path Kelly distribution invariants" begin
+    rng=MersenneTwister(2026)
+    T,N=600,4
+    P=exp.(cumsum(0.01randn(rng,T,N),dims=1))
+    model=fit_v1(P)
+    @testset "Price units and asset coordinates" begin
+        scaled=fit_v1(P.*exp.(randn(rng,N))')
+        @test scaled.mu_pred ≈ model.mu_pred atol=1e-10
+        @test scaled.pred_moments.L_rel*scaled.pred_moments.L_rel' ≈ model.pred_moments.L_rel*model.pred_moments.L_rel' atol=1e-9
+        perm=[3,1,4,2]
+        other=fit_v1(P[:,perm])
+        @test other.mu_pred ≈ model.mu_pred[perm] atol=1e-9
+        @test other.res_history ≈ model.res_history[:,perm] atol=1e-8
+        covariance=model.pred_moments.L_rel*model.pred_moments.L_rel'
+        @test other.pred_moments.L_rel*other.pred_moments.L_rel' ≈ covariance[perm,perm] atol=1e-8
+        @test maximum(abs,model.mu_pred)<0.005
     end
-    println("✓ Constitution 4 Passed: Exact Conditioned Trace Neutrality holds identically on all posterior draws.")
-
-    # ----------------------------------------------------
-    # Constitution 5: Pure Noise Null & Evidence Shrinkage
-    # ----------------------------------------------------
-    @test maximum(abs.(model.mu_pred)) < 0.005
-    println("✓ Constitution 5 Passed: Pure Noise Null (||μ||_∞ = ", round(maximum(abs.(model.mu_pred)), digits=5), " ≈ 0).")
-
-    # ----------------------------------------------------
-    # Constitution 6: d-Grid Refinement Convergence (Continuous Prior)
-    # ----------------------------------------------------
-    e_res = randn(rng, 1000)
-    post_base = causal_fractional_posterior(e_res)
-    @test isapprox(sum(post_base.p_d), 1.0, atol=1e-8)
-    println("✓ Constitution 6 Passed: Continuous prior quadrature integration is valid.")
+    @testset "Trace-neutral support and macro decomposition" begin
+        for cols in model.resp.constraint_cols
+            @test abs(sum(model.resp.G_c_mean[j,cols[j]] for j in 1:N))<1e-9
+        end
+        decomposition=center_of_mass_decomposition(diff(log.(P);dims=1))
+        @test vec(sum(decomposition.u_perp;dims=2)) ≈ zeros(T-1) atol=1e-14
+    end
+    @testset "Inactive assets cannot become risk-free competitors" begin
+        ragged=hcat(P[:,1],fill(NaN,T),P[:,2:end],vcat(fill(NaN,T-1),1.0))
+        fit=fit_v1(ragged)
+        @test fit.active_indices==[1,3,4,5]
+        @test fit.mu_pred[fit.active_indices] ≈ model.mu_pred atol=1e-10
+        X=generate_scenarios_v1(fit;S=64,rng=MersenneTwister(4))
+        @test all(isnan,view(X,:,[2,6]))
+        w=KTrader.scenario_weights(X,fit.active_indices,trues(6))
+        @test w[2]==w[6]==0.0
+        @test sum(w) ≈ 1.0 atol=1e-10
+        # Two consecutive prices are the activation boundary, not one observed bar.
+        ragged[end-1,6]=0.99
+        @test 6 in active_universe_indices(ragged)
+        with_return=fit_v1(ragged)
+        @test with_return.own_res_rows[end]==[size(with_return.res_history,1)]
+    end
+    @testset "Prefix ruler preserves missing pairs and universe mapping" begin
+        ragged=hcat(P[:,1],fill(NaN,T),P[:,2:end])
+        ragged[100:103,3].=NaN
+        logs=log.(ragged)
+        first=[1,T+1,1,1,1]
+        stats=build_prefix_ruler_stats(logs,first)
+        for prefix in (300,T)
+            columns=[4,1,3,5]
+            direct=ruler(logs[1:prefix,columns],first[columns],ones(prefix))
+            cached=ruler_from_stats(stats,prefix,first[columns],columns)
+            @test cached ≈ direct atol=1e-12
+            @test stats.cnt[prefix,3,1]==count(t -> isfinite(logs[t,3])&&isfinite(logs[t-1,3]),2:prefix)
+        end
+        cached_model=fit_v1(ragged;ruler_stats=stats)
+        direct_model=fit_v1(ragged)
+        @test cached_model.mu_pred ≈ direct_model.mu_pred atol=1e-10
+        @test cached_model.s1 ≈ direct_model.s1 atol=1e-12
+    end
 end
