@@ -202,16 +202,29 @@ function fit_v1(adj::AbstractMatrix{Float64}; ridge_alpha = nothing, F_folds = 3
     relative_embedding=field.embedded
     
     # 4. Cumulative level coordinates & Gauge-Invariant Scalar Ruler s_perp(τ)
-    X_m = cumsum(m)
-    X_rel = cumsum(relative_embedding, dims=1)
+    X_m = matrix_buffer!(workspace, :X_m, length(m), 1; grow_rows=true)
+    X_rel = matrix_buffer!(workspace, :X_rel, size(relative_embedding, 1), N; grow_rows=true)
+    running_m = 0.0
+    @inbounds for t in 1:length(m)
+        running_m += m[t]
+        X_m[t, 1] = running_m
+    end
+    @inbounds for j in 1:N
+        running_rel = 0.0
+        for t in 1:size(relative_embedding, 1)
+            running_rel += relative_embedding[t, j]
+            X_rel[t, j] = running_rel
+        end
+    end
+    X_m_vec = view(X_m, 1:length(m), 1)
     
     timing === nothing || (timing.seconds[1]+=(time_ns()-prep_start)*1e-9)
     basis_start=time_ns()
-    s_m = fast_s_m(X_m)
+    s_m = fast_s_m(X_m_vec)
     
     s_perp = compute_s_perp(X_rel)
     
-    B_m = path_basis_1d(X_m, s_m)
+    B_m = path_basis_1d(X_m_vec, s_m)
     
     # ----------------------------------------------------
     # 5. Shared Sufficient Statistics across full & folds
@@ -272,20 +285,21 @@ function fit_v1(adj::AbstractMatrix{Float64}; ridge_alpha = nothing, F_folds = 3
         mul!(mu_m_eval, view(B_m, eval_ts, :), resp_oof.G_macro)
         inv_N = 1.0 / N
         
-        for (local_idx, global_idx) in enumerate(fold_eval)
+        @inbounds for local_idx in 1:length(fold_eval)
+            global_idx = fold_eval[local_idx]
             t = eval_ts[local_idx]
             inv_sqrt = history_cache === nothing ? 
                 ( (cnt = count(isfinite, view(r, t+1, :))) > 0 ? 1.0 / sqrt(cnt) : 0.0 ) :
                 history_cache.inv_sqrt_alive[t + 1]
             macro_shift = mu_m_eval[local_idx, 1] * inv_sqrt
             sum_row = 0.0
-            @inbounds @simd for j in 1:N
+            @simd for j in 1:N
                 sum_row += mu_rel_eval[local_idx, j]
             end
             shift = sum_row * inv_N
             
             # Match the same next-return index used by Y_target_rel and the macro fit.
-            @inbounds @simd for j in 1:N
+            @simd for j in 1:N
                 rt = r[t + 1, j]
                 if isfinite(rt)
                     prediction=(macro_shift + mu_rel_eval[local_idx, j] - shift) * s1[j]
