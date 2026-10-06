@@ -19,7 +19,8 @@ function matrix_buffer!(workspace::Union{Nothing,FitWorkspace},name::Symbol,rows
         storage=Matrix{Float64}(undef,capacity,columns)
         workspace.matrices[key]=storage
     end
-    view(storage,1:rows,:)
+    # Return the exact storage matrix when dimensions match exactly, avoiding SubArray wrapper heap allocations
+    size(storage, 1) == rows ? storage : view(storage, 1:rows, :)
 end
 
 function timed(f, timing::Union{Nothing,DecisionTiming}, bucket::Symbol)

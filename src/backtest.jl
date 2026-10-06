@@ -2,7 +2,7 @@
 Signal prices and activity metadata are independent of marking prices and scenarios.
 """
 function backtest_v1(b::Bars; from::Date,S=300,seed=1,ridge_alpha=nothing,F_folds=3,
-                     date_tasks=Threads.nthreads(),blas_threads=1,chunk_size=2date_tasks,
+                     date_tasks=Threads.nthreads(),blas_threads=1,chunk_size=4date_tasks,
                      adaptive=false,quadrature_tol=1e-5,max_scenarios=512)
     T,N=size(b.adj)
     i0=findfirst(>=(from),b.dates)
@@ -16,7 +16,9 @@ function backtest_v1(b::Bars; from::Date,S=300,seed=1,ridge_alpha=nothing,F_fold
     timings=zeros(K,length(TIMING_BUCKETS)); scenario_counts=zeros(Int,K)
     h=nothing; he=nothing; locked_days=0; locked_days_ew=0
     warm=[fill((1.0,1.0),F_folds+1) for _ in 1:date_tasks]
-    workspaces=[FitWorkspace() for _ in 1:date_tasks]
+    # Each OS thread gets its own FitWorkspace to prevent shared memory race conditions
+    n_threads = Threads.maxthreadid()
+    workspaces=[FitWorkspace() for _ in 1:n_threads]
     original=BLAS.get_num_threads()
     BLAS.set_num_threads(blas_threads)
     try
@@ -25,11 +27,12 @@ function backtest_v1(b::Bars; from::Date,S=300,seed=1,ridge_alpha=nothing,F_fold
             n_items = stop - start + 1
             results = Vector{Any}(undef, n_items)
             Threads.@threads :greedy for local_index in 1:n_items
-                worker = (Threads.threadid() - 1) % date_tasks + 1
+                tid = Threads.threadid()
+                worker = (tid - 1) % date_tasks + 1
                 k = start + local_index - 1; t = ds[k]
                     timing=DecisionTiming()
                     model=fit_v1(view(signal,1:t,:); ridge_alpha,F_folds,ruler_stats,
-                                 history_cache=cache,alpha_initial=warm[worker],timing,workspace=workspaces[worker])
+                                 history_cache=cache,alpha_initial=warm[worker],timing,workspace=workspaces[tid])
                     free=falses(N)
                     for j in model.active_indices
                         free[j]=b.bar[t,j]

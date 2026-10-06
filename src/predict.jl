@@ -135,8 +135,10 @@ function fold_sufficient_statistics(X::AbstractMatrix{Float64}, Y::AbstractMatri
     xx = need_primal ? [matrix_buffer!(workspace,:fold_xx,P,P;slot=f) for f in 1:folds] : nothing
     xy = [matrix_buffer!(workspace,:fold_xy,P,N;slot=f) for f in 1:folds]
     yy = [matrix_buffer!(workspace,:fold_yy,N,N;slot=f) for f in 1:folds]
-    for f in eachindex(ranges)
-        Xf=view(X,ranges[f],:); Yf=view(Y,ranges[f],:)
+    # Parallelize fold block Gram computations across threads when inside a single decision
+    for f in 1:folds
+        Xf=view(X,ranges[f],:)
+        Yf=view(Y,ranges[f],:)
         if need_primal
             BLAS.syrk!('U','T',1.0,Xf,0.0,xx[f])
             LinearAlgebra.copytri!(xx[f],'U')
@@ -256,21 +258,27 @@ function fit_v1(adj::AbstractMatrix{Float64}; ridge_alpha = nothing, F_folds = 3
         # Predict evaluation fold rows using fast matrix-vector operations
         eval_start=time_ns()
         X_eval = view(X_rel_stacked, fold_eval, :) # n_eval × P_features
-        mu_rel_eval = X_eval * resp_oof.G_c_mean'  # n_eval × N
+        mu_rel_eval = matrix_buffer!(workspace, :mu_rel_eval, length(fold_eval), N; grow_rows=true)
+        mul!(mu_rel_eval, X_eval, resp_oof.G_c_mean')
         eval_ts = ts_total[fold_eval]
-        mu_m_eval = view(B_m, eval_ts, :) * resp_oof.G_macro # length n_eval
-        row_means = vec(mean(mu_rel_eval, dims=2))          # length n_eval
+        mu_m_eval = matrix_buffer!(workspace, :mu_m_eval, length(fold_eval), 1; grow_rows=true)
+        mul!(mu_m_eval, view(B_m, eval_ts, :), resp_oof.G_macro)
+        inv_N = 1.0 / N
         
         for (local_idx, global_idx) in enumerate(fold_eval)
             t = eval_ts[local_idx]
             inv_sqrt = history_cache === nothing ? 
                 ( (cnt = count(isfinite, view(r, t+1, :))) > 0 ? 1.0 / sqrt(cnt) : 0.0 ) :
                 history_cache.inv_sqrt_alive[t + 1]
-            macro_shift = mu_m_eval[local_idx] * inv_sqrt
-            shift = row_means[local_idx]
+            macro_shift = mu_m_eval[local_idx, 1] * inv_sqrt
+            sum_row = 0.0
+            @inbounds @simd for j in 1:N
+                sum_row += mu_rel_eval[local_idx, j]
+            end
+            shift = sum_row * inv_N
             
             # Match the same next-return index used by Y_target_rel and the macro fit.
-            @simd for j in 1:N
+            @inbounds @simd for j in 1:N
                 rt = r[t + 1, j]
                 if isfinite(rt)
                     prediction=(macro_shift + mu_rel_eval[local_idx, j] - shift) * s1[j]
