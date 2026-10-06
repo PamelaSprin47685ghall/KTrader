@@ -141,7 +141,6 @@ function fold_sufficient_statistics(X::AbstractMatrix{Float64}, Y::AbstractMatri
         Yf=view(Y,ranges[f],:)
         if need_primal
             BLAS.syrk!('U','T',1.0,Xf,0.0,xx[f])
-            LinearAlgebra.copytri!(xx[f],'U')
         end
         BLAS.gemm!('T','N',1.0,Xf,Yf,0.0,xy[f])
         BLAS.syrk!('U','T',1.0,Yf,0.0,yy[f])
@@ -150,11 +149,19 @@ function fold_sufficient_statistics(X::AbstractMatrix{Float64}, Y::AbstractMatri
     full_xx=need_primal ? matrix_buffer!(workspace,:full_xx,P,P) : nothing
     full_xy=matrix_buffer!(workspace,:full_xy,P,N)
     full_yy=matrix_buffer!(workspace,:full_yy,N,N)
-    full_xx === nothing || fill!(full_xx,0.0)
-    fill!(full_xy,0.0);fill!(full_yy,0.0)
-    for f in 1:folds
-        full_xx === nothing || (full_xx .+= xx[f])
-        full_xy .+= xy[f];full_yy .+= yy[f]
+    if need_primal
+        copyto!(full_xx, xx[1])
+        for f in 2:folds
+            BLAS.axpy!(1.0, xx[f], full_xx)
+        end
+        # Only copytri! once on the final full matrix for routines that require full symmetry
+        LinearAlgebra.copytri!(full_xx, 'U')
+    end
+    copyto!(full_xy, xy[1])
+    copyto!(full_yy, yy[1])
+    for f in 2:folds
+        BLAS.axpy!(1.0, xy[f], full_xy)
+        BLAS.axpy!(1.0, yy[f], full_yy)
     end
     (; ranges,xx,xy,yy,full_xx,full_xy,full_yy)
 end
