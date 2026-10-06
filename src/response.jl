@@ -489,7 +489,11 @@ function fit_response_operator(B_m,B_rel,y_m,y_rel; ridge_alpha=nothing,ts=WARMU
         end
     end
     dr=1.0 ./ (spectrum.values .+ alpha_rel)
-    G=(spectrum.B .* dr)'*spectrum.basis'
+    # In-place GEMM: G = (spectrum.B .* dr)' * spectrum.basis' = B_scaled' * spectrum.basis'
+    B_scaled_G = spectrum.B .* dr
+    P_dim = size(spectrum.basis, 1)
+    G = zeros(N, P_dim)
+    BLAS.gemm!('T', 'T', 1.0, B_scaled_G, spectrum.basis, 0.0, G)
     V = need_uncertainty ? ridge_covariance(spectrum,alpha_rel) : RidgeCovariance(zeros(size(spectrum.basis, 1), 0), Float64[], 0.0)
     cond=timed(timing,:condition) do
         if need_uncertainty

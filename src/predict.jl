@@ -143,7 +143,7 @@ function fold_sufficient_statistics(X::AbstractMatrix{Float64}, Y::AbstractMatri
             BLAS.syrk!('U','T',1.0,Xf,0.0,xx[f])
             LinearAlgebra.copytri!(xx[f],'U')
         end
-        mul!(xy[f],Xf',Yf)
+        BLAS.gemm!('T','N',1.0,Xf,Yf,0.0,xy[f])
         BLAS.syrk!('U','T',1.0,Yf,0.0,yy[f])
         LinearAlgebra.copytri!(yy[f],'U')
     end
@@ -259,7 +259,7 @@ function fit_v1(adj::AbstractMatrix{Float64}; ridge_alpha = nothing, F_folds = 3
         eval_start=time_ns()
         X_eval = view(X_rel_stacked, fold_eval, :) # n_eval × P_features
         mu_rel_eval = matrix_buffer!(workspace, :mu_rel_eval, length(fold_eval), N; grow_rows=true)
-        mul!(mu_rel_eval, X_eval, resp_oof.G_c_mean')
+        BLAS.gemm!('N', 'T', 1.0, X_eval, resp_oof.G_c_mean, 0.0, mu_rel_eval)
         eval_ts = ts_total[fold_eval]
         mu_m_eval = matrix_buffer!(workspace, :mu_m_eval, length(fold_eval), 1; grow_rows=true)
         mul!(mu_m_eval, view(B_m, eval_ts, :), resp_oof.G_macro)
