@@ -1,0 +1,24 @@
+Julia=1.12.7 CPU=znver4 BLAS=LBTConfig([ILP64] libopenblas64_.so) date_tasks=1 BLAS_threads=6 source=087b1d0885d10918de7265bb14c6ffb23b5fdf7b4674f6d3ed8d71d95aae984d
+EXPLICIT synthetic startup: T340/N3/F3/S300/default EB, two days; excluded from measured real history
+synthetic_startup (seconds = 3.5500832, bytes = 850366256, gc = 0.260220897, compile = 3.518657982, recompile = 0.0, stages = [0.168467328, 0.0, 0.0, 0.0, 0.0, 1.534008971, 0.39435044], wall = 3.5500646500000004)
+BEGIN real warm-up; N65 histories 1:14308 and 1:14309, dates=[Date("2026-09-30"), Date("2026-10-01")]
+real_warmup (seconds = 4.230109881, bytes = 3855216024, gc = 1.128661536, compile = 0.0, recompile = 0.0, stages = [0.015708470000000002, 0.0, 0.0, 0.0, 0.0, 4.1490759200000005, 0.007926675000000001], wall = 4.230104391)
+BEGIN measured replay; resets holdings and EB initials
+measured (seconds = 3.872951531, bytes = 3848733904, gc = 0.89793597, compile = 0.0, recompile = 0.0, stages = [0.011002997, 0.0, 0.0, 0.0, 0.0, 3.796456532, 0.007916965], wall = 3.8729455410000004) two_day_rate=0.5164020215568249
+Test Summary:                                               | Pass  Total  Time
+Real two-day replay, complete price prefixes and accounting |    9      9  0.1s
+daily prep [0.008455876000000001, 0.008408005000000001]
+daily basis [0.017529151, 0.015395420000000002]
+daily gram [0.06439972100000001, 0.054897815]
+daily eigen [0.03529779300000001, 0.037790804000000004]
+daily EB [0.20632449000000003, 0.155653829]
+daily condition [0.010691286, 0.007455635]
+daily fracFFT [0.001555371, 0.001571831]
+daily scenario [0.030374230000000002, 0.026636377000000003]
+daily Kelly [0.004062733000000001, 0.0038289720000000004]
+daily OOF_fit [1.587798656, 1.53581604]
+daily OOF_predict [0.001241331, 0.0012217900000000002]
+daily OOF_residual [0.017246260000000003, 0.01657854]
+persisted=window_b6.jls sha256=b3d3d71729dd7c90db1317f1b818eae5c2b8986cd5b2989ca9c5721596b958d3; one measured window, not long-run throughput
+all source hashes unchanged; no production-default topology changed
+scoped_run: rc=0 elapsed=22s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=1774MiB

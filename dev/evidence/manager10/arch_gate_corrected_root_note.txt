@@ -1,0 +1,1 @@
+=== arch gate retry with corrected ROOT (first attempt rc=1 was parameter-scope: repo root triggers fixture-root scan, srcmap keys get src/ prefix, bare 'KTrader.jl' key absent — test semantics expect ROOT=<repo>/src real-tree mode) ===

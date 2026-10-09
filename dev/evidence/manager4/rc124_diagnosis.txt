@@ -1,0 +1,4 @@
+# diagnosis 2026-10-08T02:43:48+08:00
+# DISCIPLINE CORRECTIONS: (1) grep-signature only != full static review (budget-driven shortcut, retracted); (2) downstream history_cache ran after arch RC124 - gate order violated; (3) RC124 root cause UNKNOWN (no compile metering this run; cold-precompile attribution was Chronicle-extrapolated, retracted). Logs preserved as-is.
+# next narrow action (NOT run): single arch command with 45s deadline incl ~10s reap margin, standalone; only after real RC0 run history_cache standalone <=45s; no batch packing.
+# registry-first check: whether verify_required_contract_files output appears in arch log above (see cat).

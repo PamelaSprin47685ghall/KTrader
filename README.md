@@ -1,156 +1,94 @@
-# KTrader — Path Kelly 1.0 (Julia)
+# KTrader 2.0.0 Final — CPU
 
-Price history → center-of-mass macro field and relative field → causal multiscale
-path coordinates → trace-neutral response posterior → fractional innovation
-mixture → posterior-predictive gross returns → exact sample log-Kelly → execution.
+价格历史 → 因果多尺度特征 → 独立 OOF 后验 → 收益场景 → 原始对数 Kelly → 执行。
 
-The account problem is long-only, fully invested, leverage one, with **no cash
-asset**. Fees and execution friction do not enter the theoretical objective.
+2.0.0 是 CPU 正式版本。保留原 1.0 数学定义和已有 `*_v1` API；GPU 属于
+[2.1](ROADMAP_2_1.md)，不是本版本依赖或发布门槛。
 
-## Statistical definitions
+## 安装与版本校验
 
-- Signal prices and raw returns retain `NaN` for unobserved bars. Marking prices
-  are separate. Prefix rulers count only observed endpoint pairs, use each
-  asset's entire available prefix, and map active columns to original-universe
-  columns explicitly.
-- An asset enters the model only after its first observed consecutive-price
-  return. Activity comes from `model.active_indices`, never from scenario values.
-  Inactive scenario columns are `NaN`, not risk-free assets. A genuinely held
-  inactive asset with no predictive law raises an error rather than receiving an
-  invented constant return.
-- For observed normalized returns, the macro field is their sum divided by the
-  square root of the observed count. The relative field subtracts their observed
-  mean. **The current model explicitly defines absent relative-field components
-  as zero in the common coordinate embedding.** Raw returns remain missing, and
-  `model.relative_observed` retains their mask. The cumulative embedded field is
-  not an inferred latent price path. This chooses the explicit-zero-embedding
-  branch; it is **not** a mask-marginalized asset-return likelihood. Such a
-  likelihood would not retain a shared Matrix-Normal `V ⊗ Sigma` posterior.
-- Relative output covariance lives in the exact `N-1` dimensional zero-sum
-  subspace. A Helmert basis is only a numerical coordinate system; its choice
-  does not define sectors or affect asset-coordinate predictions. The existing
-  `1e-8` covariance floor applies inside that subspace, not to an artificial
-  noisy macro direction. With one asset the relative space is exactly empty.
-- Each multiscale relative operator has zero trace in both channels, imposed on
-  the Gaussian parameter support. Empirical Bayes optimizes the corresponding
-  conditional-support evidence:
+验证环境为 Julia 1.12.7、OpenBLAS、Linux。使用随包提供的 Manifest 锁定依赖。
+以下安装命令会按需要下载依赖，不会下载行情或连接交易账户：
 
-  $$\log p(Y\mid Cg=0)=\log p(Y)+\log p(Cg=0\mid Y)-\log p(Cg=0).$$
-
-  Alpha searches use the existing `[1e-4, 1e6]` bounds and bracketed stationary
-  points. Covariance updates and scalar roots have explicit convergence checks;
-  failures are errors, not silently accepted fits. As with empirical Bayes
-  generally, this is not a proof of a global optimum of a nonconvex evidence.
-- OOF folds have independent macro and relative EB fits. `F_folds` supports any
-  value from two through the number of training rows. Residuals use the same
-  **next-return index** as the regression target. Missing realized returns never
-  become bootstrap observations.
-- The fractional parameter has the existing trapezoidal-quadrature prior on
-  `DGRID_V1`. Gaussian predictive uncertainty, discrete fractional mixture, and
-  joint residual-row bootstrap define the predictive law. Missing members of a
-  sampled row are drawn from that asset's observed residual rows.
-
-## Exact numerical implementation
-
-These choices concern calculation, not historical-performance tuning:
-
-- Compute each fold's sufficient statistics once; full statistics are their sum.
-  Do not repeat a full-panel `SYRK`. When `n < P`, use the dual `XX'` spectrum;
-  otherwise use the primal `X'X` spectrum.
-- Store ridge covariance spectrally, including dual prior null-space variance.
-  No dense `P × P` posterior inverse is formed.
-- Feature columns are grouped by **band, channel, asset**, making constraint
-  blocks contiguous. This is a coordinate permutation of the same regression.
-- Reuse task-owned design, prefix-sum, and sufficient-statistic buffers. Tasks
-  can migrate between Julia threads, so mutable workspaces are not indexed by
-  `threadid()`.
-- Fractional convolution uses `nextpow(2, 2T)` FFT padding, leased buffers and
-  cached plans/kernels. There is no fixed 16,384-observation history limit.
-  Native FFT plans are cleared on module initialization after precompilation.
-- Gaussian scenarios use a single batched matrix multiplication. Relative
-  projection uses `v - mean(v)`, not a dense projection matrix. **No scenario
-  mean shifting** is applied; the IID mode samples the unmodified predictive law.
-- Backtests compute, consume in date order, and discard each bounded chunk.
-  They precompute log prices, raw returns, and first-observation metadata without
-  using future values in any decision prefix. Full/fold scalar warm starts use
-  identical brackets and tolerances; covariance initialization is schedule
-  independent.
-
-### Kelly certificate
-
-For free weights, locked scenario wealth `base`, and budget `b`, maximize
-
-$$F(w)=\frac1S\sum_s\log(\mathrm{base}_s+X_sw),\quad w\ge0,\quad\sum_jw_j=b.$$
-
-The custom solver must satisfy original-objective simplex feasibility and KKT
-complementarity, and the concavity bound
-
-$$F(w^*)-F(w)\le b\max_j g_j-g^Tw,\qquad g=\nabla F(w).$$
-
-The default tolerance is `1e-8`. An uncertified custom result invokes Clarabel
-for **the same log-Kelly objective**, and its result is certified as well. Gross
-returns are never raised to a positivity floor; invalid inputs are rejected.
-Only nonzero genuinely held columns enter locked wealth, avoiding `0 * NaN`.
-
-### Optional adaptive quadrature
-
-`path_kelly_v1(...; adaptive=true)` and `backtest_v1(...; adaptive=true)` use
-nested randomly shifted Halton points and refinements `64 → 128 → 256 → 512`.
-The same point coordinates map to Gaussian, fractional-mixture, residual-row,
-and asset-specific residual draws. Halton quadrature is not IID sampling.
-
-Refinement requires both an L1 weight change below `1e-3` and the previous
-solution's original-objective gap on the refined quadrature below `1e-5`.
-These are numerical convergence checks, not held-out Sharpe selection or a
-statistical confidence interval. Reaching the configured maximum without
-convergence raises an error. High-dimensional quadrature is not guaranteed to
-converge at 512 points. Fixed `S=300` IID sampling remains the default/reference;
-no silent reduction in sample count is made.
-
-## Run and verify
-
-```bash
-julia --project=. bin/fetch.jl
-julia -t 4 --project=. test/runtests.jl
-julia -t 6 --project=. bin/backtest.jl [YYYY-MM-DD]
-TRADIER_ACCOUNT_ID=.. TRADIER_TOKEN=.. julia --project=. bin/live.jl [--live]
+```sh
+julia --project=. -e 'using Pkg; Pkg.instantiate()'
+julia --startup-file=no --project=. bin/verify_release.jl
+julia --startup-file=no --project=. -e 'using KTrader; println(Base.pkgversion(KTrader))'
 ```
 
-Tests cover distribution invariance under price-unit and asset-coordinate
-changes; interleaved inactive assets; missing-pair prefix rulers; arbitrary
-folds; primal/dual null-space uncertainty; conditional evidence against dense
-Gaussian oracles; causal FFT convolution beyond the old history limit; original
-Kelly certificates and exact-objective fallback; nested quadrature; and chunk
-schedule independence. They do not equate identical seeded Monte Carlo draws
-under a basis change with invariance of the predictive distribution.
+版本应为 `2.0.0`。校验器核对已验收的 CPU 源码、测试、锁定依赖和验收凭据，
+并验证此次版本号变更是唯一 Project 元数据变化。它不跑拟合、不加载 GPU，
+也不把哈希校验冒充新的数值测试。
 
-## Performance measurement
+## 使用
 
-```bash
-BENCH_DAYS=500 DATE_TASKS=6 BLAS_THREADS=1 julia -t 6 --project=. bin/bench.jl
-BENCH_DAYS=500 DATE_TASKS=3 BLAS_THREADS=2 julia -t 6 --project=. bin/bench.jl
-BENCH_DAYS=500 DATE_TASKS=2 BLAS_THREADS=3 julia -t 6 --project=. bin/bench.jl
-ADAPTIVE_SCENARIOS=true julia -t 6 --project=. bin/backtest.jl
+`data/close.csv`、`data/adj.csv` 使用 `date` 列加资产列；未观察价格用 `NaN`。
+行情、账户信息和已拟合模型不随源码包发布。
+
+```julia
+using KTrader, Random, LinearAlgebra
+
+BLAS.set_num_threads(6)
+bars = load_bars("data")
+prices = signal_prices(bars)   # 缺失交易日保持 NaN，不用前向填充价格推断
+prepared = prepare_reference(prices; F_folds=3)
+model = solve(prepared)
+scenarios = generate_scenarios_v1(model; S=300, rng=MersenneTwister(1))
+weights = KTrader.scenario_weights(
+    scenarios, model.active_indices, bars.bar[end, :], nothing)
 ```
 
-Both scripts report wall time and days/second. Nine per-decision timing buckets
-are accumulated: `prep`, `basis`, `gram`, `eigen`, `EB`, `condition`, `fracFFT`,
-`scenario`, and `Kelly`; `condition` also includes OOF and decision projections.
-They report totals and the last 500 decisions. Summed parallel CPU seconds are
-not wall time. Adaptive generation/optimization is timed together in `scenario`.
+完整回测命令：
 
-A ten-year **decision range** is not a ten-year **input history**: all earlier
-available observations remain in every prefix. FFT size and Gram work must be
-estimated from the actual history, not just the number of backtested decisions.
-No 60-second runtime or 5.7× speedup is assumed.
+```sh
+DATE_TASKS=1 BLAS_THREADS=6 ENGINE=batch SCENARIOS=300 \
+  julia -t 1 --project=. bin/backtest.jl 2026-09-22
+```
 
-## Changes
+起始日期由本地数据决定；不要把短窗口计时外推为长回测耗时。本版本的已验证
+资源配置是一日期任务／BLAS6／默认 GC。双任务曾接近 2 GiB 护栏，未作为
+稳定内存配置推荐，也没有修改原 CLI 默认值。
 
-- 2026-10-06: correct prefix missingness and active-column mapping; explicit
-  activity and ragged field semantics; general fold-only statistics; conditional
-  EB evidence on relative support; certified log-Kelly; spectral primal/dual
-  covariance; planned dynamic FFT; batched predictive draws without shifting;
-  bounded streamed backtesting; reusable workspaces and timing/topology controls;
-  opt-in nested randomized quadrature; fast closed-form EB fixed point with stationarity
-  certificate; in-place Cholesky OOF fold solver; LAPACK syevr! for RRR eigensolve;
-  block-direct contraction for trace-neutral condition moments; memory-stride aligned buffers.
+## 数学与实现边界
+
+`prepare_reference → PreparedProblem → solve` 是主路径。增量准备最终也进入
+同一个求解器；资源预算只选择准备路径，不改变结果。full 和每个 OOF 折
+独立拟合。所有返回仍须原 alpha、协方差和 Kelly 证书通过，失败即报错。
+
+2.0 优化了拟合内几何和工作数组复用、按需梯度、同 alpha 证书计算、稀疏
+观察掩码遍历、增量列拷贝和 Kelly 矩阵布局。没有缩历史、截秩、减折或
+降精度。`*_v1` 名称描述数学/API 兼容性，不是残留的包版本号。
+
+核心层次：`data / geometry / numerics / response / residual_oracle / prepare /
+predict / incremental / kelly / backtest / broker / live`。生产模块不加载
+`dev/` 中的诊断或 GPU 原型。执行入口需要账户授权，本次发布不会调用它们。
+
+## 验证与已知限制
+
+已验收 CPU 源码的 41 个标准文件、22 个分组全部通过；两个不重叠的 N65
+八日窗口已验证。较早窗口的独立逐日模型和两次进程输出比较，仓位 L1 和
+收益差异均为 0。详细证据与边界见 [CPU 2.0 交付](RELEASE_CPU_2_0.md)。
+
+测试入口和有界执行示例：
+
+```sh
+julia --project=. test/runtests.jl
+bash bin/scoped_run.sh 45 /tmp/ktrader-architecture.log --rss-guard=2048 \
+  julia --startup-file=no --project=. test/runtests.jl --architecture-only
+```
+
+历史完整覆盖采用分组运行，不是单进程全套；数值／数据／执行模拟组使用
+`-O1` 控制测试编译成本，其余组与正式性能测量使用默认优化级别。局部验证
+不保证任意历史都收敛，也不证明 CPU 已无优化空间。42 days/s 的性能目标
+尚未达到。源码校验和测试不替代部署前对自有数据与执行环境的验证。
+
+## 发布内容
+
+[RELEASE.toml](RELEASE.toml) 固定 Final 版本与验收来源；
+[CHANGELOG.md](CHANGELOG.md) 汇总变化；[ROADMAP_2_1.md](ROADMAP_2_1.md) 记录 GPU 范围。
+源码归档包含完整测试和必要开发测试库，不包含行情、拟合快照、GPU 二进制
+或逐轮开发历史。仓库中的原始证据保留，旧 README 位于
+`dev/evidence/final_2_0_0_20261009/README.pre-final.md`。
+
+本仓库未配置远端；此版本的交付是本地发布提交、`v2.0.0` 标签和源码归档，
+不表示已上传 GitHub 或 Julia 注册表。许可范围不因本次封版而另行扩大。

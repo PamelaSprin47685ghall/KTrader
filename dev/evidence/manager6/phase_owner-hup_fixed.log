@@ -1,0 +1,41 @@
+ERROR: LoadError: Some tests did not pass: 1 passed, 0 failed, 1 errored, 0 broken.
+in expression starting at /home/kunweiz/Desktop/vibe/KTrader/test/scoped_run_tests.jl:549
+[phase=owner-hup] begin — scope: SIGHUP to wrapper PID only; asserts wrapper natural rc=128+1 via direct wait, CANCELLED-BY-SIGNAL sig=HUP, owned PGID (leader-recorded) has no live member, sentinel PID untouched, no TIMEOUT (cancel at ~1.5s << hard)
+[phase=owner-hup] owner cancel: SIGHUP to wrapper only: Error During Test at /home/kunweiz/Desktop/vibe/KTrader/test/scoped_run_tests.jl:240
+  Got exception outside of a @test
+  FieldError: type Base.Process has no field `status`, available fields: `cmd`, `handle`, `in`, `out`, `err`, `syncd`, `exitcode`, `termsignal`, `exitnotify`
+  Stacktrace:
+   [1] macro expansion
+     @ ~/Desktop/vibe/KTrader/test/scoped_run_tests.jl:275 [inlined]
+   [2] macro expansion
+     @ /usr/share/julia/stdlib/v1.12/Test/src/Test.jl:1777 [inlined]
+   [3] phase_owner(sig::Int64, name::String)
+     @ Main ~/Desktop/vibe/KTrader/test/scoped_run_tests.jl:241
+   [4] (::var"#11#12")()
+     @ Main ~/Desktop/vibe/KTrader/test/scoped_run_tests.jl:538
+   [5] run_phase(p::String)
+     @ Main ~/Desktop/vibe/KTrader/test/scoped_run_tests.jl:546
+   [6] top-level scope
+     @ ~/Desktop/vibe/KTrader/test/scoped_run_tests.jl:555
+  
+  caused by: UndefVarError: `process_status` not defined in `Main`
+  Suggestion: check for spelling errors or missing imports.
+  Stacktrace:
+   [1] wait_bounded(proc::Base.Process; window::Float64)
+     @ Main ~/Desktop/vibe/KTrader/test/scoped_run_tests.jl:123
+   [2] macro expansion
+     @ ~/Desktop/vibe/KTrader/test/scoped_run_tests.jl:258 [inlined]
+   [3] macro expansion
+     @ /usr/share/julia/stdlib/v1.12/Test/src/Test.jl:1777 [inlined]
+   [4] phase_owner(sig::Int64, name::String)
+     @ Main ~/Desktop/vibe/KTrader/test/scoped_run_tests.jl:241
+   [5] (::var"#11#12")()
+     @ Main ~/Desktop/vibe/KTrader/test/scoped_run_tests.jl:538
+   [6] run_phase(p::String)
+     @ Main ~/Desktop/vibe/KTrader/test/scoped_run_tests.jl:546
+   [7] top-level scope
+     @ ~/Desktop/vibe/KTrader/test/scoped_run_tests.jl:555
+Test Summary:                                          | Pass  Error  Total  Time
+[phase=owner-hup] owner cancel: SIGHUP to wrapper only |    1      1      2  1.6s
+RNG of the outermost testset: Random.Xoshiro(0xa00164958a9cef1c, 0x96701566a40fcb0d, 0x8ba24fe0c8b6d2f6, 0x2379bd393501e989, 0x15d160bdd56bd1d0)
+scoped_run: rc=1 elapsed=3s deadline=20 killed=0 cancelled=none rss_guard=2048 rss_peak=355MiB

@@ -1,0 +1,30 @@
+Julia=1.12.7 CPU=znver4 BLAS=LBTConfig([ILP64] libopenblas64_.so) date_tasks=2 BLAS_threads=1 source=087b1d0885d10918de7265bb14c6ffb23b5fdf7b4674f6d3ed8d71d95aae984d
+EXPLICIT synthetic startup: T340/N3/F3/S300/default EB, two days; excluded from measured real history
+synthetic_startup (seconds = 2.884653131, bytes = 850419128, gc = 0.191241055, compile = 5.672320605, recompile = 0.0, stages = [0.168671381, 0.0, 0.0, 0.0, 0.0, 2.271635774, 0.39222533800000003], wall = 2.884635501)
+BEGIN real warm-up; N65 histories 1:14308 and 1:14309, dates=[Date("2026-09-30"), Date("2026-10-01")]
+real_warmup (seconds = 2.710822391, bytes = 3826404296, gc = 0.667541664, compile = 0.0, recompile = 0.0, stages = [0.01460458, 0.0, 0.0, 0.0, 0.0, 5.057902610000001, 0.008642538000000002], wall = 2.7108162510000002)
+BEGIN measured replay; resets holdings and EB initials
+measured (seconds = 2.442362947, bytes = 3819919744, gc = 0.394742254, compile = 0.0, recompile = 0.0, stages = [0.015103944000000001, 0.0, 0.0, 0.0, 0.0, 4.722885205000001, 0.008707527], wall = 2.442356438) two_day_rate=0.8188791115000486
+Test Summary:                                               | Pass  Total  Time
+Real two-day replay, complete price prefixes and accounting |    9      9  0.1s
+daily prep [0.008419121, 0.008416061]
+daily basis [0.023627374000000003, 0.024131617]
+daily gram [0.20493229400000001, 0.203043519]
+daily eigen [0.07344214800000001, 0.07384346300000001]
+daily EB [0.355102582, 0.23335966900000002]
+daily condition [0.011467092, 0.11565578200000001]
+daily fracFFT [0.00150324, 0.001504221]
+daily scenario [0.029151364000000003, 0.032858306000000004]
+daily Kelly [0.004564101, 0.004112426000000001]
+daily OOF_fit [1.6842510230000003, 1.6483648260000001]
+daily OOF_predict [0.001268384, 0.001325833]
+daily OOF_residual [0.017179358, 0.015603129]
+persisted=window_p2.jls sha256=d5ddb6ef13052c33315ad6d06e0eb2476c9a8d51f0acc3be8dbc7c73694575d2; one measured window, not long-run throughput
+Test Summary:                       | Pass  Total  Time
+Thread topology comparison b1 vs p2 |    3      3  0.1s
+cross_config=b1 weight_L1_max=0.0
+Test Summary:                       | Pass  Total  Time
+Thread topology comparison b6 vs p2 |    3      3  0.0s
+cross_config=b6 weight_L1_max=1.3086346284605208e-8
+all source hashes unchanged; no production-default topology changed
+scoped_run: rc=0 elapsed=18s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=1978MiB

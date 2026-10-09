@@ -1,0 +1,11 @@
+BEGIN group=reference snapshot=31e1c48729147d5022a0b5f894c23afece80cd0bb9a596161fd7619c359e3f17 entries=["reference_isolation_tests.jl"]
+FILE reference_isolation_tests.jl
+[refiso][R1-end] 1.791515135858332e9
+[refiso][R2-solve-begin] 1.791515136020087e9
+[refiso][R2-end] 1.791515140660454e9
+[refiso][R3-begin] 1.791515140660473e9
+[refiso][R3-return] 1.791515149972508e9
+Test Summary:           | Pass  Total   Time
+Release group reference |   57     57  16.0s
+END group=reference passed=true counts=Test.TestCounts(true, 0, 0, 0, 0, 57, 0, 0, 0, "16.0s")
+scoped_run: rc=0 elapsed=21s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=993MiB

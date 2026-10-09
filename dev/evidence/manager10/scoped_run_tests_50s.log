@@ -1,0 +1,126 @@
+deadline 100 exceeds the 60s hard cap; refusing to start
+kill: sending signal to -207002 failed: No such process
+kill: sending signal to -207228 failed: No such process
+kill: sending signal to -207441 failed: No such process
+kill: sending signal to -207669 failed: No such process
+kill: sending signal to -209533 failed: No such process
+kill: sending signal to -210190 failed: No such process
+kill: sending signal to -210296 failed: No such process
+kill: sending signal to -210939 failed: No such process
+kill: sending signal to -212436 failed: No such process
+kill: sending signal to -212482 failed: No such process
+kill: sending signal to -212540 failed: No such process
+kill: sending signal to -212589 failed: No such process
+kill: sending signal to -212673 failed: No such process
+
+[201161] signal 15: Terminated
+in expression starting at /home/kunweiz/Desktop/vibe/KTrader/test/scoped_run_tests.jl:991
+unknown function (ip: 0x7f66b86d2950) at /usr/bin/../lib/libc.so.6
+unknown function (ip: 0x7f66b86c6cd8) at /usr/bin/../lib/libc.so.6
+pthread_cond_wait at /usr/bin/../lib/libc.so.6 (unknown line)
+uv_cond_wait at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+ijl_task_get_next at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+unknown function (ip: 0x7f66a06ea09e) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f66a2757fbf) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f66a0fc003f) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f66a12cb5fd) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f66a05c7f21) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f66a268c9f5) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f66a24bafee) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f66b7d40e01) at /usr/bin/../lib/julia/libjulia-internal.so.1.12
+unknown function (ip: (nil)) at (unknown file)
+unknown function (ip: 0x7f66b86d2952) at /usr/bin/../lib/libc.so.6
+epoll_pwait at /usr/bin/../lib/libc.so.6 (unknown line)
+unknown function (ip: 0x7f66b7e2e664) at /usr/bin/../lib/julia/libjulia-internal.so.1.12
+uv_run at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+ijl_task_get_next at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+unknown function (ip: 0x7f66a06ea09e) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f66a2757fbf) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f66a0fc003f) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f66a139bfdd) at /usr/lib/julia/sys.so
+wait at ./asyncevent.jl:202 [inlined]
+sleep at ./asyncevent.jl:312 [inlined]
+#wait_bounded#2 at /home/kunweiz/Desktop/vibe/KTrader/test/scoped_run_tests.jl:136
+wait_bounded at /home/kunweiz/Desktop/vibe/KTrader/test/scoped_run_tests.jl:133
+unknown function (ip: 0x7f662fc155ca) at (unknown file)
+macro expansion at /home/kunweiz/Desktop/vibe/KTrader/test/scoped_run_tests.jl:863 [inlined]
+macro expansion at /build/julia/src/julia-1.12.7/usr/share/julia/stdlib/v1.12/Test/src/Test.jl:1777 [inlined]
+phase_clock_windowpoll at /home/kunweiz/Desktop/vibe/KTrader/test/scoped_run_tests.jl:842
+unknown function (ip: 0x7f662fc52743) at (unknown file)
+run_phase at /home/kunweiz/Desktop/vibe/KTrader/test/scoped_run_tests.jl:988
+top-level scope at /home/kunweiz/Desktop/vibe/KTrader/test/scoped_run_tests.jl:994
+jl_toplevel_eval_flex at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+jl_toplevel_eval_flex at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+ijl_toplevel_eval at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+ijl_toplevel_eval_in at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+unknown function (ip: 0x7f66a0efc5c2) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f66a12b40bf) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f66a06e3e9a) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f66a0e1b1ab) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f66a0e200f3) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f66a0d21b4b) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f66a1631dc3) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f66b7d87e27) at /usr/bin/../lib/julia/libjulia-internal.so.1.12
+jl_repl_entrypoint at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+main at julia (unknown line)
+unknown function (ip: 0x7f66b8659780) at /usr/bin/../lib/libc.so.6
+__libc_start_main at /usr/bin/../lib/libc.so.6 (unknown line)
+_start at julia (unknown line)
+unknown function (ip: (nil)) at (unknown file)
+Allocations: 5322463 (Pool: 5322351; Big: 112); GC: 6
+[phase=ALL] running all phases: selftest, baseline, owner-term, owner-int, owner-hup, clock-mutant, clock-mono, clock-fail, clock-saturate, clock-start, clock-cleanup, clock-elapsed, clock-transient, clock-window-poll, clock-negctl, command-admission
+[phase=selftest] begin — scope: bash --self-test regression (success/timeout/leader-exit-first/term-resistant + ALL PASS, no FAIL)
+Test Summary:                                | Pass  Total   Time
+[phase=selftest] bash --self-test regression |    6      6  11.2s
+[phase=selftest] end
+[phase=baseline] begin — scope: G1 TERM-exit-0 LOCKED (child_rc=0 present, child_rc=137 absent), G2 >60s refuse-to-start, G3 rc passthrough
+Test Summary:                               | Pass  Total  Time
+[phase=baseline] G1/G2/G3 (locked contract) |    6      6  5.1s
+[phase=baseline] end
+[phase=owner-term] begin — scope: SIGTERM to wrapper PID only; asserts wrapper natural rc=128+15 via direct wait, CANCELLED-BY-SIGNAL sig=TERM, owned PGID (leader-recorded) has no live member, sentinel PID untouched, no TIMEOUT (cancel at ~1.5s << hard)
+Test Summary:                                            | Pass  Total  Time
+[phase=owner-term] owner cancel: SIGTERM to wrapper only |    6      6  0.7s
+[phase=owner-term] end
+[phase=owner-int] begin — scope: SIGINT to wrapper PID only; asserts wrapper natural rc=128+2 via direct wait, CANCELLED-BY-SIGNAL sig=INT, owned PGID (leader-recorded) has no live member, sentinel PID untouched, no TIMEOUT (cancel at ~1.5s << hard)
+Test Summary:                                          | Pass  Total  Time
+[phase=owner-int] owner cancel: SIGINT to wrapper only |    6      6  0.7s
+[phase=owner-int] end
+[phase=owner-hup] begin — scope: SIGHUP to wrapper PID only; asserts wrapper natural rc=128+1 via direct wait, CANCELLED-BY-SIGNAL sig=HUP, owned PGID (leader-recorded) has no live member, sentinel PID untouched, no TIMEOUT (cancel at ~1.5s << hard)
+Test Summary:                                          | Pass  Total  Time
+[phase=owner-hup] owner cancel: SIGHUP to wrapper only |    6      6  0.7s
+[phase=owner-hup] end
+[phase=clock-mutant] begin — scope: date-mutant (mono_ms→date) under fake wall-clock rollback must FAIL its deadline — no TIMEOUT-EXCEEDED by 6s checkpoint, harness TERM finishes it (rc=143); owned group cleaned
+Test Summary:                                            | Pass  Total  Time
+[phase=clock-mutant] date-mutant red under fake rollback |    5      5  6.2s
+[phase=clock-mutant] end
+[phase=clock-mono] begin — scope: production script under the SAME fake wall clock — /proc/uptime monotonic source fires at hard (2s) → rc=124 + TIMEOUT-EXCEEDED, no CANCELLED; owned group cleaned
+Test Summary:                                                 | Pass  Total  Time
+[phase=clock-mono] monotonic source green under fake rollback |    5      5  2.1s
+[phase=clock-mono] end
+[phase=clock-fail] begin — scope: counting fake awk (forwards first FAKE_AWK_OK_CALLS then fails) → rc=125 + MONO-CLOCK-FAILED phase=monitor, elapsed < deadline (fail-closed, not clock-dead hang); owned group cleaned
+Test Summary:                                                 | Pass  Total  Time
+[phase=clock-fail] controlled clock failure → fail-closed 125 |    7      7  0.2s
+[phase=clock-fail] end
+[phase=clock-saturate] begin — scope: fake awk simulates mawk %d 32-bit saturation (constant 2147483647) for %d programs, forwards %.0f — production must fire at hard (2s) → rc=124 + TIMEOUT-EXCEEDED, no CANCELLED; owned group cleaned; no real /proc touched by the saturation branch
+Test Summary:                                                | Pass  Total  Time
+[phase=clock-saturate] %.0f survives large-uptime saturation |    6      6  2.2s
+[phase=clock-saturate] end
+[phase=clock-start] begin — scope: stub-copy start-boundary clock failure → fail-closed 125 with bounded leader confirmation and full group reap (old defect: KILL delivered then Cleaned=1 with no confirmation); pidfile PGID real and observable
+Test Summary:                                                     | Pass  Total  Time
+[phase=clock-start] start clock failure → 125 + confirmed cleanup |    9      9  5.2s
+[phase=clock-start] end
+[phase=clock-cleanup] begin — scope: stub-copy cleanup-window boundary failure (monitor healthy) → late-stage failure must carry through to 125 for BOTH child rc sources — 0 (the old false-green proper: a successful command washed to rc=0 + elapsed=0) and 7 (non-zero passthrough equally swallowed)
+Test Summary:                                                 | Pass  Total  Time
+[phase=clock-cleanup] late cleanup-window clock failure → 125 |   14     14  0.2s
+[phase=clock-cleanup] end
+[phase=clock-elapsed] begin — scope: stub-copy final-elapsed boundary failure → 125 + elapsed=unknown for BOTH child rc sources — 0 (old false-green proper: success washed to rc=0 + elapsed=0) and 7 (non-zero swallowed)
+Test Summary:                                                     | Pass  Total  Time
+[phase=clock-elapsed] final elapsed clock failure → 125 + unknown |   14     14  0.3s
+[phase=clock-elapsed] end
+[phase=clock-transient] begin — scope: stub-copy transient monitor failure (fails exactly once, then recovers) → sticky SCOPE_ClockFailed still ends 125; recovered clock yields real measured elapsed (not unknown)
+Test Summary:                                                       | Pass  Total  Time
+[phase=clock-transient] one-shot monitor clock failure → sticky 125 |    7      7  0.1s
+[phase=clock-transient] end
+[phase=clock-window-poll] begin — scope: stub-copy cleanup_window_exceeded poll-boundary failure with an owned live TERM-resistant child — the grace loop MUST actually poll (group not empty, not skipped), window degrades to shared no-clock rounds, 125 + phase=window-poll, group confirmed clean
+TIMEOUT-EXCEEDED pgid=201161 deadline=50s child_rc=143 (timeout is never success)
+scoped_run: rc=124 elapsed=40s deadline=50 killed=1 cancelled=none rss_guard=2048 rss_peak=354MiB

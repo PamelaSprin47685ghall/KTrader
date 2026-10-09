@@ -1,0 +1,6 @@
+counts = "Test.TestCounts(true, 0, 0, 0, 0, 34, 0, 0, 0, \"1.9s\")"
+entries = ["v1_constitutional_tests.jl"]
+julia = "1.12.7"
+opt_level = 2
+passed = true
+snapshot = "31e1c48729147d5022a0b5f894c23afece80cd0bb9a596161fd7619c359e3f17"

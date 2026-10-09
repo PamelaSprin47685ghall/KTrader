@@ -1,0 +1,15 @@
+Test Summary:                                                                                               | Pass  Total  Time
+M1-A/B/C: production include tree AST scan — real tree (expected GREEN: the probe dev-migration has landed) |    3      3  0.6s
+Test Summary:                                                             | Pass  Total  Time
+M1-D: PreparedProblem typed boundary with single solve (runtime metadata) |    2      2  0.0s
+Test Summary:                                                  | Pass  Total  Time
+M1-E: profiling types absent from production runtime namespace |    2      2  0.0s
+Test Summary:                                                        | Pass  Total  Time
+M1 gate self-check: known-bad fixtures go red via the same primitive |   15     15  0.1s
+Test Summary:                                           | Pass  Total  Time
+M1 gate self-check: legal minimal structure stays green |    3      3  0.0s
+Test Summary:                                              | Pass  Total  Time
+Packed scalar tensors: original products and scalar search | 2888   2888  2.9s
+Test Summary:                                                      | Pass  Total  Time
+Packed tensor producer: empty spectral space and no input mutation |    4      4  0.1s
+scoped_run: rc=0 elapsed=9s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=945MiB

@@ -1,0 +1,6 @@
+kill: sending signal to -230309 failed: No such process
+[phase=clock-transient] begin — scope: stub-copy transient monitor failure (fails exactly once, then recovers) → sticky SCOPE_ClockFailed still ends 125; recovered clock yields real measured elapsed (not unknown)
+Test Summary:                                                       | Pass  Total  Time
+[phase=clock-transient] one-shot monitor clock failure → sticky 125 |    7      7  0.1s
+[phase=clock-transient] end
+scoped_run: rc=0 elapsed=0s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=335MiB

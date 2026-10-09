@@ -1,0 +1,6 @@
+dev/hip_core_micro.cpp:5:10: fatal error: 'hip/hip_runtime.h' file not found
+    5 | #include <hip/hip_runtime.h>
+      |          ^~~~~~~~~~~~~~~~~~~
+1 error generated when compiling for gfx1030.
+failed to execute:/opt/rocm/lib/llvm/bin/clang++  --offload-arch=gfx1030 --driver-mode=g++ --hip-link  -O3 -ffp-contract=off -x hip dev/hip_core_micro.cpp -lhipblas -o "dev/evidence/earlier_closure_20261009/hip_core_micro"
+scoped_run: rc=1 elapsed=0s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=125MiB

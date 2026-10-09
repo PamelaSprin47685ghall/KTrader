@@ -1,0 +1,3 @@
+Test Summary:                               | Pass  Total  Time
+2.0.0 Final loaded package and CPU pipeline |   13     13  1.1s
+scoped_run: rc=0 elapsed=4s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=705MiB

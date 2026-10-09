@@ -1,0 +1,35 @@
+consumed=prepared.jls sha256=82b18e9b0283aa5aa9ef31e95e99d4870b5af49e70d800029d9fda8e2e4bfedc
+full authenticated prefix T=14309 N=65 F=3 row_limit=4096 gram_budget=536870912 source=5ec389eee53d48ba3c732f98297bc00b89cbc9904319952b04d114aeea037e3e
+single init + single prepare; cold code allowed, no numerical warmup or fit
+BEGIN initialize_inference
+END initialize_inference seconds=8.146654075 allocated_bytes=7633238864 gc_seconds=3.653340447
+initialize_inference compile_time=1.161446823
+initialize_inference recompile_time=0.0
+before=(day = 14309, active = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65], counters = Dict(:fast => 0, :embeds => 59, :solves => 0, :advances => 0, :fallback => 0, :rebuilds => 0, :async_rows => 13848), fallback_reasons = Dict{Symbol, Int64}(), last_reason = nothing, training_rows = 14052, boundary_moves = 14051, runs = 60, unique_masks = 60, materialized_rows = 7803, gram_bytes = 146016000, resource_limited = false, async_rows = 13848, async_seen = false)
+BEGIN prepare_incremental
+END prepare_incremental seconds=0.275989989 allocated_bytes=185332232 gc_seconds=0.192367113
+prepare_incremental compile_time=0.0
+prepare_incremental recompile_time=0.0
+after=(day = 14309, active = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65], counters = Dict(:fast => 0, :embeds => 59, :solves => 0, :advances => 0, :fallback => 1, :rebuilds => 0, :async_rows => 13848), fallback_reasons = Dict(:resource_budget => 1), last_reason = :resource_budget, training_rows = 14052, boundary_moves = 14051, runs = 60, unique_masks = 60, materialized_rows = 7803, gram_bytes = 146016000, resource_limited = false, async_rows = 13848, async_seen = false)
+s1 max_abs=0.0
+s_m max_abs=0.0
+s_perp max_abs=0.0
+full_xx relative_frobenius=0.0
+full_xy relative_frobenius=0.0
+full_yy relative_frobenius=0.0
+Test Summary:                                            | Pass  Total  Time
+N65 preparation route against authenticated batch fields |   28     28  0.4s
+timing prep=0.009216962
+timing basis=0.20884770600000002
+timing gram=0.053970220000000006
+timing eigen=0.0
+timing EB=0.0
+timing condition=0.0
+timing fracFFT=0.0
+timing scenario=0.0
+timing Kelly=0.0
+timing OOF_fit=0.0
+timing OOF_predict=0.0
+timing OOF_residual=0.0
+source_after=5ec389eee53d48ba3c732f98297bc00b89cbc9904319952b04d114aeea037e3e all runtime hashes unchanged
+scoped_run: rc=0 elapsed=21s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=1925MiB

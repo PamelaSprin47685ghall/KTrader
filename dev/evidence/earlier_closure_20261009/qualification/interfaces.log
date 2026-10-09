@@ -1,0 +1,20 @@
+BEGIN group=interfaces snapshot=31e1c48729147d5022a0b5f894c23afece80cd0bb9a596161fd7619c359e3f17 entries=["timed_passthrough_tests.jl", "model_api_micro_tests.jl", "ceiling_admission_tests.jl", "cli_boundary_contract_tests.jl", "ceiling_probes.jl", "artifact_replay_contract_tests.jl"]
+FILE timed_passthrough_tests.jl
+FILE model_api_micro_tests.jl
+FILE ceiling_admission_tests.jl
+FILE cli_boundary_contract_tests.jl
+FILE ceiling_probes.jl
+[stage:prep][start] t_star=399 history_rows=399 universe=3 folds=3 mode=- run=1/1
+[stage:prep][bucket:start] gram t_star=399
+[stage:prep][bucket:stop] gram t_star=399
+[stage:prep][end] t_star=399 history_rows=399 universe=3 active_assets=3 elapsed_s=0.009 prep_s=0.0 basis_s=0.0 gram_s=0.0
+  fallback: 0/1 solves (0.00%) [fast=1 (100.0%)]
+  partial return rows (decision span, universe-wide): 0
+  core rebuilds (decision span): 0
+  coordinator advances: 0
+  rebuilds/decision: 0.000  partial-rows/decision: 0.000
+FILE artifact_replay_contract_tests.jl
+Test Summary:            | Pass  Total   Time
+Release group interfaces |  438    438  14.9s
+END group=interfaces passed=true counts=Test.TestCounts(true, 0, 0, 0, 0, 438, 0, 0, 0, "14.9s")
+scoped_run: rc=0 elapsed=20s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=1007MiB

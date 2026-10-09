@@ -1,1 +1,16 @@
 data/
+
+# Local credentials, diagnostics and generated release output.
+.env
+.env.*
+!.env.example
+.wanxiangshu/
+dist/
+
+# Preserve textual evidence, not local fitted models or device executables.
+dev/evidence/**/*.jls
+dev/evidence/**/*.jl2s
+dev/evidence/**/*.bin
+dev/evidence/**/hip_core_micro
+dev/evidence/**/*.so
+dev/evidence/**/*.o

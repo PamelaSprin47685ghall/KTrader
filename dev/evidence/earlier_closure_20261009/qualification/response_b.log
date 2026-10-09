@@ -1,0 +1,11 @@
+BEGIN group=response_b snapshot=31e1c48729147d5022a0b5f894c23afece80cd0bb9a596161fd7619c359e3f17 entries=["conditioned_lazy_gradient_tests.jl", "scalar_tensor_tests.jl", "conditioned_certificate_reuse_tests.jl", "conditioned_certificate_cache_tests.jl", "conditioned_storage_tests.jl", "conditioned_contraction_kernel_tests.jl"]
+FILE conditioned_lazy_gradient_tests.jl
+FILE scalar_tensor_tests.jl
+FILE conditioned_certificate_reuse_tests.jl
+FILE conditioned_certificate_cache_tests.jl
+FILE conditioned_storage_tests.jl
+FILE conditioned_contraction_kernel_tests.jl
+Test Summary:            | Pass  Total  Time
+Release group response_b | 6703   6703  7.1s
+END group=response_b passed=true counts=Test.TestCounts(true, 0, 0, 0, 0, 6703, 0, 0, 0, "7.1s")
+scoped_run: rc=0 elapsed=13s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=924MiB

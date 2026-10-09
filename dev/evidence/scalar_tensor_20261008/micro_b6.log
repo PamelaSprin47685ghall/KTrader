@@ -1,0 +1,13 @@
+Julia=1.12.7 CPU=znver4 BLAS=LBTConfig([ILP64] libopenblas64_.so) threads=6
+source_before_sha256=c0d005c5c4d9abde3fb93397af6549f111268e73da0e5b034e85fb538b49ecc2
+synthetic N65/P910/rank910; 33 node evidence and derivatives exact; fixed geometry excluded on BOTH sides
+cache_before_A (median_seconds = 0.003728643, minimum_seconds = 0.002702204, median_bytes = 8.556392e6)
+cache_after_B (median_seconds = 0.004341991, minimum_seconds = 0.002582586, median_bytes = 1.835824e6)
+cache_after_B2 (median_seconds = 0.002482656, minimum_seconds = 0.002422685, median_bytes = 1.835824e6)
+cache_before_A2 (median_seconds = 0.003742783, minimum_seconds = 0.002476876, median_bytes = 8.556392e6)
+build_and_33_derivatives_before (median_seconds = 0.003650154, minimum_seconds = 0.003306724, median_bytes = 9.531136e6)
+build_and_33_derivatives_after (median_seconds = 0.003610564, minimum_seconds = 0.003371055, median_bytes = 2.810568e6)
+derivatives_only_before (median_seconds = 0.001012128, minimum_seconds = 0.000813718, median_bytes = 974744.0)
+derivatives_only_after (median_seconds = 0.000994898, minimum_seconds = 0.000960399, median_bytes = 974744.0)
+source_after_sha256=c0d005c5c4d9abde3fb93397af6549f111268e73da0e5b034e85fb538b49ecc2
+scoped_run: rc=0 elapsed=8s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=926MiB

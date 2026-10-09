@@ -1,0 +1,12 @@
+source=96faa12404dcb22094b21eb77b14907f20acb237833048b3e0e755c5903488d2 Julia=1.12.7 CPU=znver4 BLAS=LBTConfig([ILP64] libopenblas64_.so) threads=6
+consumed=prepared.jls sha256=82b18e9b0283aa5aa9ef31e95e99d4870b5af49e70d800029d9fda8e2e4bfedc
+consumed=model.jls sha256=691c3297813f2511efaffbee276c11274fb4ce03f32b19bf9cd5fa8eb0cd3577
+actual full local-panel statistics T=14309 N=65 F=3; one spectral decomposition, zero posterior fit
+all certificate fields exact and valid; fit-owned geometry excluded on reused side
+before_A (median_seconds = 0.013845373, minimum_seconds = 0.013251642, median_bytes = 4.154388e7)
+after_B (median_seconds = 0.016411545, minimum_seconds = 0.011803571, median_bytes = 2.0883592e7)
+after_B2 (median_seconds = 0.015848575, minimum_seconds = 0.01147507, median_bytes = 2.0883592e7)
+before_A2 (median_seconds = 0.015460255, minimum_seconds = 0.014312762, median_bytes = 4.154388e7)
+public_fresh (median_seconds = 0.02125876, minimum_seconds = 0.013191462, median_bytes = 3.4566016e7)
+source_after=96faa12404dcb22094b21eb77b14907f20acb237833048b3e0e755c5903488d2
+scoped_run: rc=0 elapsed=16s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=1540MiB

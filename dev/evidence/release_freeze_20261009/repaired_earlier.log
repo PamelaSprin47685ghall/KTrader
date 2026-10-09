@@ -1,0 +1,63 @@
+phase=earlier source=b11c015a3a0a6c67750cfa4b306e4ce42a3b62173fa1b8d1c2d579d0a0f36e19 response_source=b8ca4dc26ee3f05444f456a29bf7608f3a38565f797c1f57d973eb623bc828d7 first_decision=2026-09-18 last_decision=2026-09-21
+synthetic API startup completed; BEGIN real two-day warmup
+BEGIN repaired eight-day window [Date("2026-09-10"), Date("2026-09-11"), Date("2026-09-14"), Date("2026-09-15"), Date("2026-09-16"), Date("2026-09-17"), Date("2026-09-18"), Date("2026-09-21")]
+
+[1287913] signal 15: Terminated
+in expression starting at /home/kunweiz/Desktop/vibe/KTrader/dev/release_failure_probe.jl:91
+unknown function (ip: 0x7fa09ad7c952) at /usr/bin/../lib/libc.so.6
+epoll_wait at /usr/bin/../lib/libc.so.6 (unknown line)
+_backend_poll_once! at /home/kunweiz/.julia/packages/Reseau/tHzjm/src/iopoll/epoll.jl:268
+_poller_thread_main! at /home/kunweiz/.julia/packages/Reseau/tHzjm/src/iopoll/runtime.jl:460
+_poller_thread_entry at /home/kunweiz/.julia/packages/Reseau/tHzjm/src/iopoll/runtime.jl:482
+jlcapi__poller_thread_entry_20137 at /home/kunweiz/.julia/compiled/v1.12/Reseau/vKBJ8_6N9Xv.so (unknown line)
+unknown function (ip: 0x7fa09ad740a1) at /usr/bin/../lib/libc.so.6
+unknown function (ip: 0x7fa09adfc80b) at /usr/bin/../lib/libc.so.6
+unknown function (ip: (nil)) at (unknown file)
++ at ./int.jl:87 [inlined]
+_sub2ind_recurse at ./abstractarray.jl:3084 [inlined]
+_sub2ind at ./abstractarray.jl:3068 [inlined]
+_sub2ind at ./abstractarray.jl:3052 [inlined]
+_to_linear_index at ./abstractarray.jl:1377 [inlined]
+getindex at ./array.jl:929 [inlined]
+getindex at ./multidimensional.jl:743 [inlined]
+_broadcast_getindex at ./broadcast.jl:665 [inlined]
+_getindex at ./broadcast.jl:695 [inlined]
+_broadcast_getindex at ./broadcast.jl:671 [inlined]
+_getindex at ./broadcast.jl:620 [inlined]
+getindex at ./broadcast.jl:616 [inlined]
+macro expansion at ./broadcast.jl:995 [inlined]
+macro expansion at ./simdloop.jl:77 [inlined]
+copyto! at ./broadcast.jl:994 [inlined]
+copyto! at ./broadcast.jl:947 [inlined]
+materialize! at ./broadcast.jl:905 [inlined]
+materialize! at ./broadcast.jl:902 [inlined]
+conditioned_constraint_jacobian at /home/kunweiz/Desktop/vibe/KTrader/src/response.jl:616
+frozen_step at /home/kunweiz/Desktop/vibe/KTrader/src/response.jl:892
+#sigma_stationary_fixed_point#94 at /home/kunweiz/Desktop/vibe/KTrader/src/response.jl:913
+sigma_stationary_fixed_point at /home/kunweiz/Desktop/vibe/KTrader/src/response.jl:886 [inlined]
+#optimize_conditioned_eb#96 at /home/kunweiz/Desktop/vibe/KTrader/src/response.jl:976
+optimize_conditioned_eb at /home/kunweiz/Desktop/vibe/KTrader/src/response.jl:934
+jfptr_optimize_conditioned_eb_12672 at /home/kunweiz/.julia/compiled/v1.12/KTrader/bPeQu_6N9Xv.so (unknown line)
+#113 at /home/kunweiz/Desktop/vibe/KTrader/src/response.jl:1180
+timed at /home/kunweiz/Desktop/vibe/KTrader/src/numerics.jl:79
+jfptr_timed_12927 at /home/kunweiz/.julia/compiled/v1.12/KTrader/bPeQu_6N9Xv.so (unknown line)
+#fit_response_operator#97 at /home/kunweiz/Desktop/vibe/KTrader/src/response.jl:1178
+fit_response_operator at /home/kunweiz/Desktop/vibe/KTrader/src/response.jl:1124 [inlined]
+#166 at /home/kunweiz/Desktop/vibe/KTrader/src/predict.jl:437 [inlined]
+timed at /home/kunweiz/Desktop/vibe/KTrader/src/numerics.jl:91
+unknown function (ip: 0x7fa019444684) at (unknown file)
+#solve#159 at /home/kunweiz/Desktop/vibe/KTrader/src/predict.jl:436
+solve at /home/kunweiz/Desktop/vibe/KTrader/src/predict.jl:349 [inlined]
+#fit_v1#157 at /home/kunweiz/Desktop/vibe/KTrader/src/predict.jl:331 [inlined]
+fit_v1 at /home/kunweiz/Desktop/vibe/KTrader/src/predict.jl:328
+unknown function (ip: 0x7fa01942bdc2) at (unknown file)
+#286 at /home/kunweiz/Desktop/vibe/KTrader/src/backtest.jl:237
+backtest_timed at /home/kunweiz/Desktop/vibe/KTrader/src/backtest.jl:23
+unknown function (ip: 0x7fa0194296cb) at (unknown file)
+#282 at /home/kunweiz/Desktop/vibe/KTrader/src/backtest.jl:233
+unknown function (ip: 0x7fa0194293c3) at (unknown file)
+unknown function (ip: 0x7fa09a3eae01) at /usr/bin/../lib/julia/libjulia-internal.so.1.12
+unknown function (ip: (nil)) at (unknown file)
+Allocations: 53604623 (Pool: 53603904; Big: 719); GC: 229
+TIMEOUT-EXCEEDED pgid=1287913 deadline=45s child_rc=143 (timeout is never success)
+scoped_run: rc=124 elapsed=35s deadline=45 killed=1 cancelled=none rss_guard=2048 rss_peak=1684MiB

@@ -1,0 +1,33 @@
+=== scoped_run boundary recheck 2026-10-08 12:01:13 CST ===
+phases: clock-start, clock-window-poll, clock-transient, command-admission (3rd-manager boundaries)
+
+########## phase=clock-start (outer rc=0) ##########
+kill: sending signal to -317841 failed: No such process
+[phase=clock-start] begin — scope: stub-copy start-boundary clock failure → fail-closed 125 with bounded leader confirmation and full group reap (old defect: KILL delivered then Cleaned=1 with no confirmation); pidfile PGID real and observable
+Test Summary:                                                     | Pass  Total  Time
+[phase=clock-start] start clock failure → 125 + confirmed cleanup |    9      9  5.3s
+[phase=clock-start] end
+scoped_run: rc=0 elapsed=6s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=330MiB
+
+########## phase=clock-window-poll (outer rc=0) ##########
+kill: sending signal to -319484 failed: No such process
+[phase=clock-window-poll] begin — scope: stub-copy cleanup_window_exceeded poll-boundary failure with an owned live TERM-resistant child — the grace loop MUST actually poll (group not empty, not skipped), window degrades to shared no-clock rounds, 125 + phase=window-poll, group confirmed clean
+Test Summary:                                                                 | Pass  Total  Time
+[phase=clock-window-poll] window-poll clock failure during live cleanup → 125 |    9      9  7.2s
+[phase=clock-window-poll] end
+scoped_run: rc=0 elapsed=8s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=334MiB
+
+########## phase=clock-transient (outer rc=0) ##########
+kill: sending signal to -321545 failed: No such process
+[phase=clock-transient] begin — scope: stub-copy transient monitor failure (fails exactly once, then recovers) → sticky SCOPE_ClockFailed still ends 125; recovered clock yields real measured elapsed (not unknown)
+Test Summary:                                                       | Pass  Total  Time
+[phase=clock-transient] one-shot monitor clock failure → sticky 125 |    7      7  0.1s
+[phase=clock-transient] end
+scoped_run: rc=0 elapsed=1s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=329MiB
+
+########## phase=command-admission (outer rc=0) ##########
+[phase=command-admission] begin — scope: --rss-guard shifted away leaves no command → RC2 refused before spawn AND before logfile creation
+Test Summary:                                                      | Pass  Total  Time
+[phase=command-admission] no command after options → pre-spawn RC2 |    4      4  0.2s
+[phase=command-admission] end
+scoped_run: rc=0 elapsed=0s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=330MiB

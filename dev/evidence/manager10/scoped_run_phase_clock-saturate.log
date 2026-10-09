@@ -1,0 +1,6 @@
+kill: sending signal to -227370 failed: No such process
+[phase=clock-saturate] begin — scope: fake awk simulates mawk %d 32-bit saturation (constant 2147483647) for %d programs, forwards %.0f — production must fire at hard (2s) → rc=124 + TIMEOUT-EXCEEDED, no CANCELLED; owned group cleaned; no real /proc touched by the saturation branch
+Test Summary:                                                | Pass  Total  Time
+[phase=clock-saturate] %.0f survives large-uptime saturation |    6      6  2.2s
+[phase=clock-saturate] end
+scoped_run: rc=0 elapsed=3s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=352MiB

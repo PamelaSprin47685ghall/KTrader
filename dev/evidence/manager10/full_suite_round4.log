@@ -1,0 +1,78 @@
+deadline 100 exceeds the 60s hard cap; refusing to start
+kill: sending signal to -312063 failed: No such process
+kill: sending signal to -312115 failed: No such process
+kill: sending signal to -312158 failed: No such process
+kill: sending signal to -312207 failed: No such process
+kill: sending signal to -312624 failed: No such process
+kill: sending signal to -312737 failed: No such process
+kill: sending signal to -312776 failed: No such process
+kill: sending signal to -312900 failed: No such process
+kill: sending signal to -313142 failed: No such process
+kill: sending signal to -313158 failed: No such process
+kill: sending signal to -313174 failed: No such process
+kill: sending signal to -313190 failed: No such process
+kill: sending signal to -313210 failed: No such process
+kill: sending signal to -313238 failed: No such process
+kill: sending signal to -313417 failed: No such process
+[refiso][R1-end] 1.791431371400987e9
+[refiso][R2-solve-begin] 1.79143137149949e9
+[refiso][R2-end] 1.791431375906302e9
+[refiso][R3-begin] 1.79143137590633e9
+[refiso][R3-return] 1.791431383021798e9
+[stage:prep][start] t_star=399 history_rows=399 universe=3 folds=3 mode=- run=1/1
+[stage:prep][bucket:start] gram t_star=399
+[stage:prep][bucket:stop] gram t_star=399
+[stage:prep][end] t_star=399 history_rows=399 universe=3 active_assets=3 elapsed_s=0.008 prep_s=0.0 basis_s=0.0 gram_s=0.0
+Test Summary:                                                                                               | Pass  Total  Time
+M1-A/B/C: production include tree AST scan — real tree (expected GREEN: the probe dev-migration has landed) |    3      3  0.7s
+Test Summary:                                                             | Pass  Total  Time
+M1-D: PreparedProblem typed boundary with single solve (runtime metadata) |    2      2  0.0s
+Test Summary:                                                  | Pass  Total  Time
+M1-E: profiling types absent from production runtime namespace |    2      2  0.0s
+Test Summary:                                                        | Pass  Total  Time
+M1 gate self-check: known-bad fixtures go red via the same primitive |   15     15  0.1s
+Test Summary:                                           | Pass  Total  Time
+M1 gate self-check: legal minimal structure stays green |    3      3  0.0s
+[phase=ALL] running all phases: selftest, baseline, owner-term, owner-int, owner-hup, clock-mutant, clock-mono, clock-fail, clock-saturate, clock-start, clock-cleanup, clock-elapsed, clock-transient, clock-window-poll, clock-negctl, command-admission
+[phase=selftest] begin — scope: bash --self-test regression (success/timeout/leader-exit-first/term-resistant + ALL PASS, no FAIL)
+[phase=selftest] end
+[phase=baseline] begin — scope: G1 TERM-exit-0 LOCKED (child_rc=0 present, child_rc=137 absent), G2 >60s refuse-to-start, G3 rc passthrough
+[phase=baseline] end
+[phase=owner-term] begin — scope: SIGTERM to wrapper PID only; asserts wrapper natural rc=128+15 via direct wait, CANCELLED-BY-SIGNAL sig=TERM, owned PGID (leader-recorded) has no live member, sentinel PID untouched, no TIMEOUT (cancel at ~1.5s << hard)
+[phase=owner-term] end
+[phase=owner-int] begin — scope: SIGINT to wrapper PID only; asserts wrapper natural rc=128+2 via direct wait, CANCELLED-BY-SIGNAL sig=INT, owned PGID (leader-recorded) has no live member, sentinel PID untouched, no TIMEOUT (cancel at ~1.5s << hard)
+[phase=owner-int] end
+[phase=owner-hup] begin — scope: SIGHUP to wrapper PID only; asserts wrapper natural rc=128+1 via direct wait, CANCELLED-BY-SIGNAL sig=HUP, owned PGID (leader-recorded) has no live member, sentinel PID untouched, no TIMEOUT (cancel at ~1.5s << hard)
+[phase=owner-hup] end
+[phase=clock-mutant] begin — scope: date-mutant (mono_ms→date) under fake wall-clock rollback must FAIL its deadline — no TIMEOUT-EXCEEDED by 6s checkpoint, harness TERM finishes it (rc=143); owned group cleaned
+[phase=clock-mutant] end
+[phase=clock-mono] begin — scope: production script under the SAME fake wall clock — /proc/uptime monotonic source fires at hard (2s) → rc=124 + TIMEOUT-EXCEEDED, no CANCELLED; owned group cleaned
+[phase=clock-mono] end
+[phase=clock-fail] begin — scope: counting fake awk (forwards first FAKE_AWK_OK_CALLS then fails) → rc=125 + MONO-CLOCK-FAILED phase=monitor, elapsed < deadline (fail-closed, not clock-dead hang); owned group cleaned
+[phase=clock-fail] end
+[phase=clock-saturate] begin — scope: fake awk simulates mawk %d 32-bit saturation (constant 2147483647) for %d programs, forwards %.0f — production must fire at hard (2s) → rc=124 + TIMEOUT-EXCEEDED, no CANCELLED; owned group cleaned; no real /proc touched by the saturation branch
+[phase=clock-saturate] end
+[phase=clock-start] begin — scope: stub-copy start-boundary clock failure → fail-closed 125 with bounded leader confirmation and full group reap (old defect: KILL delivered then Cleaned=1 with no confirmation); pidfile PGID real and observable
+[phase=clock-start] end
+[phase=clock-cleanup] begin — scope: stub-copy cleanup-window boundary failure (monitor healthy) → late-stage failure must carry through to 125 for BOTH child rc sources — 0 (the old false-green proper: a successful command washed to rc=0 + elapsed=0) and 7 (non-zero passthrough equally swallowed)
+[phase=clock-cleanup] end
+[phase=clock-elapsed] begin — scope: stub-copy final-elapsed boundary failure → 125 + elapsed=unknown for BOTH child rc sources — 0 (old false-green proper: success washed to rc=0 + elapsed=0) and 7 (non-zero swallowed)
+[phase=clock-elapsed] end
+[phase=clock-transient] begin — scope: stub-copy transient monitor failure (fails exactly once, then recovers) → sticky SCOPE_ClockFailed still ends 125; recovered clock yields real measured elapsed (not unknown)
+[phase=clock-transient] end
+[phase=clock-window-poll] begin — scope: stub-copy cleanup_window_exceeded poll-boundary failure with an owned live TERM-resistant child — the grace loop MUST actually poll (group not empty, not skipped), window degrades to shared no-clock rounds, 125 + phase=window-poll, group confirmed clean
+[phase=clock-window-poll] end
+[phase=clock-negctl] begin — scope: mutation negative control — stub copy with the run_scoped clock fail-closed block stripped (swallowed-clock mutant) — the SAME 125 assertion used in clock-cleanup MUST go red on this mutant; the expectation is not rewritten to the passthrough value — this proves the rejection power of the assertion itself
+[phase=clock-negctl] end
+[phase=command-admission] begin — scope: --rss-guard shifted away leaves no command → RC2 refused before spawn AND before logfile creation
+[phase=command-admission] end
+  fallback: 0/1 solves (0.00%) [fast=1 (100.0%)]
+  partial return rows (decision span, universe-wide): 0
+  core rebuilds (decision span): 0
+  coordinator advances: 0
+  rebuilds/decision: 0.000  partial-rows/decision: 0.000
+Test Summary:                        |  Pass  Total     Time
+KTrader V1.0 Complete Rigorous Suite | 12307  12307  2m28.9s
+FULLSUITE_R4_RC=0 ELAPSED_SECONDS=153 RSS_PEAK_KB=1942380
+=== round4 closure 2026-10-08 11:50:12 CST ===
+ALL-GREEN: 12307/12307 Pass, 0 fail, 0 error, rc=0, 153s, RSS peak ~1897MiB (under 2048); 23-item REQUIRED + all other tests in ONE standard-entry run on fixed response.jl (4e2064...); PRE/POST snapshot sha binding confirmed

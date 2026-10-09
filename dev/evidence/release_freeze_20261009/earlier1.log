@@ -1,0 +1,26 @@
+RUN earlier1 Julia=1.12.7 CPU=znver4 BLAS=LBTConfig([ILP64] libopenblas64_.so) threads=6 full_rows=14302 dates=[Date("2026-09-10"), Date("2026-09-11"), Date("2026-09-14"), Date("2026-09-15"), Date("2026-09-16"), Date("2026-09-17"), Date("2026-09-18"), Date("2026-09-21")]
+synthetic_startup seconds=3.483718421 compile=3.452008379
+ERROR: LoadError: InvalidStateException: Channel is closed.
+Stacktrace:
+  [1] take!
+    @ ./channels.jl:526 [inlined]
+  [2] (::KTrader.var"#take_from#282"{Vector{Any}})(channel::Channel{Int64}, block::Int64, k::Int64)
+    @ KTrader ~/Desktop/vibe/KTrader/src/backtest.jl:198
+  [3] macro expansion
+    @ ~/Desktop/vibe/KTrader/src/backtest.jl:272 [inlined]
+  [4] macro expansion
+    @ ./task.jl:662 [inlined]
+  [5] backtest_v1(b::Bars; from::Date, S::Int64, seed::Int64, ridge_alpha::Nothing, F_folds::Int64, date_tasks::Int64, blas_threads::Int64, chunk_size::Int64, adaptive::Bool, quadrature_tol::Float64, max_scenarios::Int64, engine::Symbol, execution_timing::KTrader.BacktestExecutionTiming, _spool_parent::Nothing)
+    @ KTrader ~/Desktop/vibe/KTrader/src/backtest.jl:206
+  [6] backtest_v1
+    @ ~/Desktop/vibe/KTrader/src/backtest.jl:101 [inlined]
+  [7] macro expansion
+    @ ./timing.jl:697 [inlined]
+  [8] rf_run(bars::Bars, days::Int64)
+    @ Main ~/Desktop/vibe/KTrader/dev/release_freeze.jl:54
+  [9] rf_main()
+    @ Main ~/Desktop/vibe/KTrader/dev/release_freeze.jl:111
+ [10] top-level scope
+    @ ~/Desktop/vibe/KTrader/dev/release_freeze.jl:163
+in expression starting at /home/kunweiz/Desktop/vibe/KTrader/dev/release_freeze.jl:163
+scoped_run: rc=1 elapsed=19s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=1515MiB

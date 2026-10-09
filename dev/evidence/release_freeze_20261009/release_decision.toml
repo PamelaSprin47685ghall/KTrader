@@ -1,0 +1,45 @@
+target = "Path Kelly 2.0"
+release_ready = false
+version_or_tag_changed = false
+reason = "A disjoint production window exposed a real OOF refusal. The known refusal is repaired, but the complete earlier window still times out and new error-delivery tests have not run."
+
+[before_repair]
+standard_files = 40
+groups_passed = 21
+qualification_sha256 = "680f1494d2d435847af2b4972d8be440e9f4f519fb2af0889789e302dbabeeba"
+frozen_latest_replays = 2
+earlier_window_passed = false
+
+[after_repair]
+standard_files = 41
+groups_registered = 22
+whole_current_suite_passed = false
+eb_assertions_passed = 145
+timeblock_assertions_passed = 604
+architecture_assertions_passed = 25
+latest_window_assertions_passed = 10
+latest_window_weight_l1 = 0.0
+latest_window_return_difference = 0.0
+known_failure_date = "2026-09-21"
+known_failure_direct_reproduction_now_passes = true
+earlier_eight_day_window_passed = false
+new_failure_delivery_test = "tool-blocked; not run"
+runtime_backtest_sha256 = "b11c015a3a0a6c67750cfa4b306e4ce42a3b62173fa1b8d1c2d579d0a0f36e19"
+runtime_response_sha256 = "b8ca4dc26ee3f05444f456a29bf7608f3a38565f797c1f57d973eb623bc828d7"
+qualification_sha256 = "5ba9407e8b27eee1982008da8f5d277fa0be3e586a9766093f4d5fcdd3e51600"
+
+[gpu]
+inventory_command_succeeded = true
+reported_device = "AMD Radeon RX 6800"
+reported_agent = "gfx1030"
+ktrader_gpu_benchmark_performed = false
+
+[[remaining]]
+id = "correctness"
+requirement = "Run the new producer-failure contracts and complete repaired-source release regression without reducing test strength."
+[[remaining]]
+id = "representative_execution"
+requirement = "Complete and independently replay the earlier full-history window within the existing numerical and resource limits."
+[[remaining]]
+id = "acceleration_decision"
+requirement = "Resolve remaining CPU/incremental opportunities and the conditional GPU layer under AGENTS sections80–82 with measured evidence."

@@ -1,0 +1,108 @@
+# M1 replay evidence manifest — recorded 2026-10-07 (DevOps, static evidence only).
+# Full 64-hex sha256 + byte sizes, captured in ONE sampling pass at manifest
+# creation. This is a RECORD, not a math/architecture change: no binary is
+# copied, no old artifact overwritten. Owner: DevOps (this file only);
+# EvidenceDocs does not modify it.
+#
+# SOURCE-HASH SAMPLING CAVEAT (read first): the src/*.jl hashes below are the
+# CURRENT tree at manifest time. The tree was still receiving engineer edits
+# while artifacts below were produced; several src files changed AFTER the
+# artifacts were measured (e.g. backtest.jl close!/counting fixes). These
+# current hashes therefore DO NOT retroactively certify old measurements —
+# they only identify the tree as of this manifest. Old-measurement source
+# identity is carried per-run inside each artifact's own metadata (e.g.
+# model wrappers record src hashes at solve time) and in the historical
+# logs listed below. Where no such evidence exists we write "unknown"
+# rather than guess.
+
+[meta]
+recorded = "2026-10-07"
+purpose = "artifact-only replay boundary for EvidenceDocs dev replay"
+old_panel_hash = "unknown"  # data/adj.csv + data/close.csv: no hash was taken
+# at prepare/solve time; artifacts embed their own input snapshots instead.
+
+[artifacts]  # /tmp, full sha256, bytes
+prep_t14309_jls            = { sha256 = "e943bd8dc67dca3dc36f0cca6f356054d791757173ed1c8c6e4fd7404ef59156", bytes = 169730020, role = "batch prepare (t14309 full prefix)" }
+model_t14309_jls           = { sha256 = "96ff735218333639e594b1a68e36321460a419005e04b55c026e5278db81eb01", bytes = 28630041, role = "early batch cold solve model" }
+model_t14309_new_jls       = { sha256 = "cee737b4661285d6f3ff70a67ec91a875bbb3b0d82e23906a819c2b63ae164fa", bytes = 28630713, role = "pre-M-optimization baseline model" }
+model_t14309_final_jls     = { sha256 = "529bafed55516672235ac8b6e4661a5bf713131e7180ba7f5808db836d5d4e0c", bytes = 28629868, role = "batch baseline (M-optimized source)" }
+model_t14309_inc_jls       = { sha256 = "b90376dd81423f3cb9ad89fe7ab40c5812477be4f42bd859616504148ebab7b7", bytes = 28629962, role = "I0 incremental-path model" }
+model_t14309_ports_jls     = { sha256 = "e73e32f96ef0ce1e9193a0568631d7f21df980cb1786e125f67845079cb427ab", bytes = 28630589, role = "ports/shadow-diagnostic model" }
+prep_inc_t14309_jls        = { sha256 = "5e39231eb084c22e9c8704146b06742e09c9dfe47f6110ac6d218bbaa86c01f1", bytes = 67438530, role = "incremental prepare (old 22-key NamedTuple)" }
+model_m1_t14309_jls        = { sha256 = "a2e063440365d9804b2daaca24ca4a19c26a60b5ecd746d4fd40a8ababc4174d", bytes = 28629945, role = "M1 typed-conversion cold solve model" }
+canonical_Xw_sidecar_jls   = { sha256 = "dd24786ccddc748faf58d304b60f4e7876e599f6fbd29135aca5cdc81a9468ee", bytes = 313407, role = "same-seed S300 scenarios + weights" }
+ports_sidecar_primitives   = { sha256 = "2ac127d504cae01d1a3857bd0fffb4b882bd526e2a333212f423d37613adf278", bytes = 941, role = "ports primitive counters/timing copy" }
+kelly_t14309_jls           = { sha256 = "58d241542ef04b653e7c4cb3d1961071661d20ea902a12e87e59c5c08c96d48a", bytes = 722, role = "Kelly weights artifact" }
+scenario_kelly_t14309_new  = { sha256 = "fc2a591f430b1070e8f5e92a0d08b1051ee5d8239e7a773a4052221db16c40ff", bytes = 156969, role = "canonical scenario+Kelly (new source)" }
+scenario_t14309_jls        = { sha256 = "5c78aa5d826e4b2625738840ba1ad21a78c9a58e8c87bcf065793233752775dd", bytes = 156902, role = "canonical scenario artifact" }
+
+[artifacts.solveonce]  # 2026-10-07 late addition; four core records above unchanged
+path = "/tmp/model_solveonce_t14309.jl2s"
+sha256 = "ae54c564f3005cff022703a15637f21be4c0a44f6261c92791c3948db0a2016c"
+bytes = 28629959
+role = "solve-once single cold fit (current source tree), persisted with safe no-overwrite guard"
+solve_seconds = 8.336
+mode = "cold-default-EB (no warmup, no repeats)"
+source_prep = "/tmp/prep_inc_t14309.jls"
+history_note = "an earlier 7.202s solve-once ran but its model object was NOT persisted (stdout-only) and was lost at process exit; that rework fact is preserved, not erased. This artifact is the persisted replacement fit."
+comparison = "sameSeed1/S300 vs /tmp/model_m1_t14309.jls: X maxdiff=0.0, w_L1=0.0, both certs identical (kkt 9.999999780184511e-11, gap 6.286799747456939e-9, obj 0.0059360586699638545), obj diff=0.0, swap-loss 0.0 both directions. Direct vs inc: X maxdiff=0.0, w_L1=0.0, kkt/obj identical, swap 0.0. Direct vs batch: X maxdiff=9.769962616701378e-14, w_L1=2.3051322735999887e-12, swap ±2.5e-17. No further fit or comparison reruns."
+
+[diagnostics.ragged_mask_stats]  # 2026-10-07 late; artifact-only, zero solve/prepare/scenario/fit
+purpose = "real ragged ceiling evidence gap: observed-mask statistics on the true historical prefix"
+input_artifact = "/tmp/prep_inc_t14309.jls"   # sha256 5e39231eb084c22e9c8704146b06742e09c9dfe47f6110ac6d218bbaa86c01f1
+panel = "p.adj_act, T=14309 rows x N=65, 530055 NaN cells (input missingness only — NOT by itself proof of signal vs carried-marking provenance)"
+provenance = "no surviving prepare script/log for this artifact records the original signal_prices/bar-mask call chain; original panel source = unknown. This is an artifact-limited terminal-mask measurement, NOT a verified signal-source proof."
+sentinel = "one NaN row appended at T+1 as an INDEX SENTINEL (never read as a price; asserted invariant: mutating that row does not change transitions/unique_masks). Original 14309 data rows fully preserved."
+initial_mask_note = "the historical 0.563 rho_256 was computed under the OLD activation/initial-mask convention (T=14310 prefix, different initial-mask and observation metrics); the exact cause of the .5454 vs .563 delta (~1.8pp, far larger than 1/14308) is UNKNOWN without re-running the old baseline — recorded as unknown, not explained by the 1-bar difference."
+stats_from2 = { K = 14308, rho_256 = "7803/14308 = 0.5453592395862454", boundary_cost_256 = "7803/14308 (same)", transitions = 59, rate = 0.004124, unique_masks = 60, run_median = 121.5, run_p90 = 617.3, run_max = 1966, reported_rho_rounded = 0.5454 }
+stats_last2000_from12310 = { K = 2000, rho_256 = "1508/2000 = 0.754", boundary_cost_256 = "1507/2000 = 0.7535", transitions = 8, rate = 0.004, unique_masks = 9, run_median = 239.0, run_p90 = 441.6, run_max = 460, reported_rho_rounded = 0.754 }
+script_log = "inline -e command recorded in /tmp/ragged6.log (rounded) + /tmp/exact_cnt.log (exact integer coverage, single pure-mask O(TN) re-observation, scoped_run 50s/RSS2048, RC=0); no second artifact truth-source created"
+measurement_hashes = { prepare_jl = "48d3844facf0923f", incremental_jl = "9e4f391c2d1a9f", dev_probes_jl = "21805d6c68fabd78" }
+scope_note = "diagnostic statistics only; NOT a throughput or CPU-ceiling claim"
+
+[old_prep_schema]  # verified by static probe log /tmp/probe_inc.log (not memory)
+wrapper_keys = ["prep", "fast", "prepare_seconds", "limit", "peak_rss_kb"]
+prep_keys_22 = ["active_idx", "N_universe", "adj_act", "T", "N", "r", "s1", "field", "m", "relative_embedding", "X_rel", "s_m", "s_perp", "B_m", "ts_total", "n_res", "n_bands", "P_features", "X_rel_stacked", "Y_target_rel", "stats", "macro_stats"]
+note = "observed mask is nested inside `field` (macro_flow/embedded/observed); stats/macro_stats are old NamedTuple shapes; typed conversion uses production to_fold_statistics + MacroFoldBlock re-wrap (pure, zero numeric change)."
+
+[checker_commands]  # /tmp scripts, static-read; seeds and exact calls as run
+m1_convert = { path = "/tmp/m1_convert.jl", sha256 = "09308441f88d05c1437b11303ce5c8d08ac83ee3850750acc0ed47ccc1f1b8a5", call = "KTrader.solve(prep)  # cold, DEFAULT EB, no warmup, F_folds=3, ws_owner=nothing gen=0", baselines = ["/tmp/model_t14309_inc.jls", "/tmp/model_t14309_final.jls"] }
+m1_canon   = { path = "/tmp/m1_canon.jl", sha256 = "57a450ea57be0c3c21ab931a759df796e8a20a6607608d8810acd9857b6887dd", call = "generate_scenarios_v1(model; S=300, rng=MersenneTwister(1))  # seed 1; scenario_weights; kelly_certificate" }
+m1_rescheck= { path = "/tmp/m1_rescheck.jl", sha256 = "2253aa2de4ccac05d6fc43098e2ed1ad090ebec4c994fc5da58cd812b683bb9d", call = "residual_rows(A, rows)  # rows = per-fold first/mid/last from prep.stats.ranges; isfinite mask isequal; finite-intersection absdiff tol 1e-9" }
+i0_fit     = { path = "/tmp/i0_fit.jl", sha256 = "d67e322d491e170cc3a60c67adda316cfa774e8512046cdba87f1b5291447fa1", call = "solve_stage_probe(prep; t_star=prep.T, mode=:cold, F_folds=length(prep.stats.ranges))" }
+
+[historical_logs]  # preserved, evidence for the numbers quoted in reports
+solve_final = "/tmp/solve_final.log"      # batch cold solve 24.825s, 7 buckets
+i0_fit2     = "/tmp/i0_fit2.log"          # I0 incremental cold solve 22.805s
+m1c         = "/tmp/m1c.log"              # M1 typed solve 7.449s + field diffs
+m1canon     = "/tmp/m1canon.log"          # canonical S300/Kelly comparison
+m1res       = "/tmp/m1res.log"            # residual row-block checker (NaN-correct)
+refiso      = "/tmp/refiso.log"           # reference isolation 52-pass (pre-fix red preserved)
+tb3         = "/tmp/tb3.log"              # timeblock 604/604 final green
+
+[source_tree_at_manifest]  # CURRENT tree, sha256 — see meta caveat above
+backtest_jl        = "31cd670411fd0f00a5b4e5105ff18b42e1d9ce7f85e98859965e705a668d41aa"
+broker_jl          = "8aa7fea2f6b7223d56ddec23ec199510cf00a5676f6794e59aad417a4b0ab6dd"
+data_jl            = "84dfb8148864ddcd55475c81b49ca8f13b0cb86b45dadc7dd80078b66ec84e14"
+geometry_jl        = "f5b305838eb7fbef6ddeb06ada023c3b2bcdc4c1f89edcba0315604dce675976"
+incremental_jl     = "9e4f391c2d1a9f5e00f3cee5826290d160a28033997ff852a9bb3b1ee5fb047d"
+kelly_jl           = "6ed02e86c46310c2e9d35aaa62963ede927eda4faeeeed893a0c781b897e16e1"
+KTrader_jl         = "8edde0defde2d8e57c9d1549685ff3769f2d948beb4c46df6b54e4281b946555"
+live_jl            = "a9f275db29ec74689130a2bbc388cfde94c4c28a9c028da4f42b871595550b38"
+numerics_jl        = "15a1f828810c070bc2e218cccc38bce15d1fb72158b4a9226ad0553c56a7cbe1"
+predict_jl         = "14ab8a479f9e9b622ea80d407cfb1aa81b56ee6c3d62ed93814af7b9567e4160"
+prepare_jl         = "48d3844facf0923f77b9932af89a37a8ec2ea32a3d39cd2039234bd74e57432d"
+residual_oracle_jl = "42be78f6a8008289d5975dd74e3e4fff9fc91f8a7e7ce52ffd7ef3e4874cb1b2"
+response_jl        = "0bd633efc3d5e1928cb11c8211f28ba6b4942c69941d3d3260f38048cbd0f874"
+runtests_jl        = "d416fa61b5b69310a1c84644e6d1f2b50c2d271679a54df1b1e77ac40ae4d306"
+contract_registry  = "25d195e506e1984c38211ade42cf662efca8986b305270db8108d74a9c23ceec"
+dev_probes_jl      = "82a18f79974fe3f96937f1b41d441b7fb498b5a15f29861229c953e7729e54ca"
+scoped_run_sh      = "c3d776e40f39a32f0a144e3749a7ba2c3a9ccc6c7ddb3d4610d28277d04a26d6"
+scoped_run_tests   = "eb9dec1b71982ab5d639c42c912a3020526c1d383c9201bb7dcd23006a8eac5f"
+m1_typed_replay_md = "f73ca1557c603839c120985357ca898a2977f59951811569479ac4ec14185266"
+
+[guard_final_run]  # /tmp/gw3.log tail, verbatim
+command_line = "bash bin/scoped_run.sh 50 /tmp/gw3.log --rss-guard=2048 env JULIA_NUM_THREADS=1 JULIA_PKG_PRECOMPILE_AUTO=0 julia --startup-file=no --compiled-modules=existing --pkgimages=existing --project=. test/scoped_run_tests.jl"
+result_line  = "scoped_run: rc=0 elapsed=15s deadline=50 killed=0 rss_guard=2048 rss_peak=321MiB"
+script_self_test_scenarios = 9   # success/timeout/leader-exit-first/term-resistant/error-exit/rss-exceeded/rss-ok/rss-bad-param/rss-over-cap; "ALL PASS" is the SUMMARY line, not a 10th scenario
+julia_wrapper_assertions = 8    # 3 self-test output matches + G1 TERM-exit-0 -> 124 + G2 >60s refuse + G3 passthrough 0; final 8/8 PASS, RC=0

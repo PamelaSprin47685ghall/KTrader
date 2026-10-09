@@ -1,0 +1,20 @@
+┌ Warning: Assignment to `c` in soft scope is ambiguous because a global variable by the same name exists: `c` will be treated as a new local. Disambiguate by using `local c` to suppress this warning or `global c` to assign to the existing global variable.
+└ @ ~/Desktop/vibe/KTrader/dev/eb_convergence_probe.jl:83
+[probe] fixture ready: N=3, n=120, size(X)=(120, 42) (对照测试 L50-52)
+[probe] step1: iters=2000 (test default was 200)
+[probe] step1 RESULT: CONVERGED, iterations=264
+[probe]   certificate.valid=true  alpha=0.2812091957754426
+[probe]   alpha cert: valid=true location=interior slope=2.8112725170004182e-6 rel_res=5.036232258715154e-8
+[probe]   cov cert: symmetry=1.068358663907132e-16 support=3.330812675868399e-16 min_eig=0.05976974887897857
+[probe]   cov cert: projected_residual=9.968866313439217e-7 active_directions=0 free_rms=9.968866321646938e-7
+[probe]   evidence=-277.9779661702665
+[probe] VERDICT: 在途慢收敛——200 迭代预算不足，2000 内收敛。修复方向=迭代预算。
+[probe] step2: iters ladder (free_rms / evidence trajectory)
+[probe]   iters | converged | free_rms        | evidence
+[probe]     200 | THREW       | 9.89572449766086e-6 | -277.97797282003586
+[probe]     400 | CONVERGED(iter=264) | 9.968866321646938e-7 | -277.9779661702665
+[probe]     800 | CONVERGED(iter=264) | 9.968866321646938e-7 | -277.9779661702665
+[probe]    1600 | CONVERGED(iter=264) | 9.968866321646938e-7 | -277.9779661702665
+[probe]    3200 | CONVERGED(iter=264) | 9.968866321646938e-7 | -277.9779661702665
+[probe] done.
+scoped_run: rc=0 elapsed=10s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=727MiB

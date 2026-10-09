@@ -1,0 +1,15 @@
+Test Summary:                                                     | Pass  Total  Time
+Fixed-alpha Jacobian core cache: exact Sigma-iteration identities |  113    113  8.6s
+Test Summary:                                                        | Pass  Total  Time
+cross-core symmetry: deterministic 2x1 counterexample (kernel owner) |    5      5  0.1s
+Test Summary:                                                           | Pass  Total  Time
+Lazy optimizer gradient: eager formula, floor, gauge and dual agreement |  960    960  0.7s
+Test Summary:                                                      | Pass  Total  Time
+Fit-local scalar geometry: reuse changes no evidence or derivative |  244    244  0.7s
+Test Summary:                                                            | Pass  Total  Time
+Residual mask scratch: recurrent masks, empty rows and independent calls |    7      7  0.9s
+Test Summary:                                          | Pass  Total  Time
+Inference panel packing preserves values and ownership |    6      6  0.1s
+Test Summary:                            | Pass  Total  Time
+Relative support witness：解析消元、通用回退与表示不变性 |   15     15  1.2s
+scoped_run: rc=0 elapsed=18s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=936MiB

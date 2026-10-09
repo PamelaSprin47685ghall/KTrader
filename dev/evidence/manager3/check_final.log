@@ -1,0 +1,15 @@
+[manifest] /home/kunweiz/Desktop/vibe/KTrader/dev/m1_replay_manifest.toml (recorded 2026-10-07; old_panel_hash=unknown - artifact-only comparisons stand, panel provenance NOT certified)
+[manifest] verified /tmp/prep_inc_t14309.jls sha256 5e39231eb084c22e9c8704146b06742e09c9dfe47f6110ac6d218bbaa86c01f1 bytes 67438530 (incremental prepare (old 22-key NamedTuple))
+[manifest] verified /tmp/model_m1_t14309.jls sha256 a2e063440365d9804b2daaca24ca4a19c26a60b5ecd746d4fd40a8ababc4174d bytes 28629945 (M1 typed-conversion cold solve model)
+[manifest] verified /tmp/model_t14309_inc.jls sha256 b90376dd81423f3cb9ad89fe7ab40c5812477be4f42bd859616504148ebab7b7 bytes 28629962 (I0 incremental-path model)
+[manifest] verified /tmp/model_t14309_final.jls sha256 529bafed55516672235ac8b6e4661a5bf713131e7180ba7f5808db836d5d4e0c bytes 28629868 (batch baseline (M-optimized source))
+[check] static schema cross-check PASS: wrapper 5 keys, prep 22 keys
+[check] checker scripts of record (manifest [checker_commands]):
+  m1_convert -> /tmp/m1_convert.jl sha256 09308441f88d05c1437b11303ce5c8d08ac83ee3850750acc0ed47ccc1f1b8a5
+  m1_canon -> /tmp/m1_canon.jl sha256 57a450ea57be0c3c21ab931a759df796e8a20a6607608d8810acd9857b6887dd
+  m1_rescheck -> /tmp/m1_rescheck.jl sha256 2253aa2de4ccac05d6fc43098e2ed1ad090ebec4c994fc5da58cd812b683bb9d
+  i0_fit -> /tmp/i0_fit.jl sha256 d67e322d491e170cc3a60c67adda316cfa774e8512046cdba87f1b5291447fa1
+[check] NO deserialization in this phase: model artifacts contain KTrader types and need those bindings - that is the rewrap/solve-once/model-only/residual-sample phases' responsibility.
+[check] scope: hash verification covers the FOUR core input artifacts of record (of the 13 in the manifest); the checker script sha256 values above are DISPLAYED only, not verified - no extra verification framework is added to reach the full list.
+phase 'check' completed - report the run honestly; green requires an authorized run, never an assumption.
+scoped_run: rc=0 elapsed=3s deadline=50 killed=0 rss_guard=0 rss_peak=0MiB

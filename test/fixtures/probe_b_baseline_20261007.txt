@@ -1,0 +1,31 @@
+# PROBES=B observed-mask baseline — 2026-10-07, DevOps 快照测量
+#
+# 复现（绕行模块，因当时 incremental.jl 处于写入中间态；统一快照后可直接：
+#   PROBES=b julia --project=. bin/ceiling_probes.jl
+# 等价脚本存于会话 /tmp/probe_b_run.jl：include geometry+data+numerics+
+# ceiling_probes 后对 data/ 真实面板逐跨度调 mask_transition_coverage）。
+#
+# 环境：Julia 1.12.7, 1 Julia thread, OpenBLAS ILP64 (BLAS 线程数不影响 B 的
+# 纯整数/布尔统计)。
+#
+# 面板：T=14310 交易日 (1970-01-02..2026-10-02), N=65 资产,
+#       signal observed fraction = 0.4301。
+#
+# 跨度 | K | H | rate | unique_masks | median/p90/max/min | rho_256
+# -----+-----+----+------+-------+--------------------+--------
+#    500 |  500 |  1 | 0.0020 |  2 | 250/418/460/40   | 0.512
+#   1000 | 1000 |  2 | 0.0020 |  3 | 437/455/460/103  | 0.589
+#   2000 | 2000 |  8 | 0.0040 |  9 | 239/442/926/7    | 0.754
+#   5000 | 5000 | 20 | 0.0040 | 21 | 203/437/926/7    | 0.715
+#  10000 |10000 | 53 | 0.0053 | 54 | 110/423/926/1    | 0.692
+# 全跨度 |14308 | 60 | 0.0042 | 60 | 122/617/1966/1   | 0.563
+#
+# 路线含义（ragged incremental 引擎可行性）：
+#   - transition 稀疏：0.2%–0.5% 决策日；stable run 长（median 110–437 天）。
+#   - rho_256 全前缀 0.563 / 末 2000 天 0.754。
+#   - 注意：unique_masks=H+1 与 union-only 单调语义一致，但"仅 60 次激活"
+#     的单调性主张需 actual mask membership 逐日证实后方可作为结论引用
+#     （Manager 裁断）；本表只报告计数事实。
+#
+# 附：targeted ceiling tests（collector + 全部 Probe B 场景，行 1–244 可运行段）
+# 于绕行模块下 108/108 通过（2026-10-07）。

@@ -1,0 +1,6 @@
+counts = "standard architecture entry in log"
+entries = ["architecture_contract_tests.jl"]
+julia = "1.12.7"
+opt_level = 2
+passed = true
+snapshot = "98475a7e88d9660806420b53967c882c0df51d490f5a9d3f5a12a4874fd04d8b"

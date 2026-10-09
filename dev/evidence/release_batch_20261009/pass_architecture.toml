@@ -1,0 +1,4 @@
+counts = "standard architecture entry in log"
+entries = ["architecture_contract_tests.jl"]
+passed = true
+snapshot = "f7a11d7ea1f7b40e58244d8a6bf12957ddb4285ba67a97eeccef2fcf707b8304"

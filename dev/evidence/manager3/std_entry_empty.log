@@ -1,0 +1,60 @@
+[ Info: M1 fixture-root mode: tree scan consumes /tmp/se4/empty; KTrader is NOT loaded; runtime namespace checks (M1-D/E) apply only to the real module and are out of scope here
+┌ Warning: M1 architecture violations (the probe dev-migration has landed; the real tree is expected GREEN — these are real regressions)
+│   violations =
+│    1-element Vector{String}:
+│     "include target not present in" ⋯ 27 bytes ⋯ "t): KTrader.jl -> KTrader.jl"
+└ @ Main ~/Desktop/vibe/KTrader/test/architecture_contract_tests.jl:361
+ERROR: LoadError: Some tests did not pass: 0 passed, 3 failed, 0 errored, 0 broken.
+in expression starting at /home/kunweiz/Desktop/vibe/KTrader/test/architecture_contract_tests.jl:353
+in expression starting at /home/kunweiz/Desktop/vibe/KTrader/test/runtests.jl:106
+src tree non-empty and module file present (fail-closed): Test Failed at /home/kunweiz/Desktop/vibe/KTrader/test/architecture_contract_tests.jl:356
+  Expression: length(srcmap) > 0
+   Evaluated: 0 > 0
+
+Stacktrace:
+ [1] top-level scope
+   @ ~/Desktop/vibe/KTrader/test/architecture_contract_tests.jl:354
+ [2] macro expansion
+   @ /usr/share/julia/stdlib/v1.12/Test/src/Test.jl:1777 [inlined]
+ [3] macro expansion
+   @ ~/Desktop/vibe/KTrader/test/architecture_contract_tests.jl:356 [inlined]
+ [4] macro expansion
+   @ /usr/share/julia/stdlib/v1.12/Test/src/Test.jl:1777 [inlined]
+ [5] macro expansion
+   @ ~/Desktop/vibe/KTrader/test/architecture_contract_tests.jl:356 [inlined]
+ [6] macro expansion
+   @ /usr/share/julia/stdlib/v1.12/Test/src/Test.jl:680 [inlined]
+src tree non-empty and module file present (fail-closed): Test Failed at /home/kunweiz/Desktop/vibe/KTrader/test/architecture_contract_tests.jl:357
+  Expression: haskey(srcmap, "KTrader.jl")
+
+Stacktrace:
+ [1] top-level scope
+   @ ~/Desktop/vibe/KTrader/test/architecture_contract_tests.jl:354
+ [2] macro expansion
+   @ /usr/share/julia/stdlib/v1.12/Test/src/Test.jl:1777 [inlined]
+ [3] macro expansion
+   @ ~/Desktop/vibe/KTrader/test/architecture_contract_tests.jl:356 [inlined]
+ [4] macro expansion
+   @ /usr/share/julia/stdlib/v1.12/Test/src/Test.jl:1777 [inlined]
+ [5] macro expansion
+   @ ~/Desktop/vibe/KTrader/test/architecture_contract_tests.jl:357 [inlined]
+ [6] macro expansion
+   @ /usr/share/julia/stdlib/v1.12/Test/src/Test.jl:680 [inlined]
+M1-A/B/C: production include tree AST scan — fixture root: /tmp/se4/empty: Test Failed at /home/kunweiz/Desktop/vibe/KTrader/test/architecture_contract_tests.jl:363
+  Expression: violations == String[]
+   Evaluated: ["include target not present in source map (path must exist): KTrader.jl -> KTrader.jl"] == String[]
+
+Stacktrace:
+ [1] top-level scope
+   @ ~/Desktop/vibe/KTrader/test/architecture_contract_tests.jl:354
+ [2] macro expansion
+   @ /usr/share/julia/stdlib/v1.12/Test/src/Test.jl:1777 [inlined]
+ [3] macro expansion
+   @ ~/Desktop/vibe/KTrader/test/architecture_contract_tests.jl:363 [inlined]
+ [4] macro expansion
+   @ /usr/share/julia/stdlib/v1.12/Test/src/Test.jl:680 [inlined]
+Test Summary:                                                             | Fail  Total  Time
+M1-A/B/C: production include tree AST scan — fixture root: /tmp/se4/empty |    3      3  1.5s
+  src tree non-empty and module file present (fail-closed)                |    2      2  1.3s
+RNG of the outermost testset: Random.Xoshiro(0x5dc64eb47a3bb013, 0x190f3838b167d429, 0xbfdc45d13338ef17, 0x738c14948be6406c, 0x9115e48461db9af5)
+scoped_run: rc=1 elapsed=3s deadline=25 killed=0 rss_guard=0 rss_peak=0MiB

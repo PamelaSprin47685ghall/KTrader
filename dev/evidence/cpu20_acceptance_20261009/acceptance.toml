@@ -1,0 +1,93 @@
+audit_driver_sha256 = "cff49b9b8c8b9e67a9c4937ca70116d3a0c5e2cef87da9b7fd7f4544c8313c04"
+cpu_engineering_acceptance_passed = true
+gpu_blocks_cpu20 = false
+gpu_release = "2.1"
+groups_passed = 22
+limits = ["Evidence is from local N65 windows, not all-history convergence or long-run throughput.", "Two-date-task memory headroom is inadequate as a default; no parallel guarantee.", "42 days/s mission is not met and is not asserted as a CPU release gate.", "This engineering acceptance does not publish a package, create a tag, or claim all CPU optimizations are exhausted."]
+milestone = "Path Kelly 2.0 CPU"
+package_metadata_version = "0.1.0"
+published = false
+qualification_sha256 = "31e1c48729147d5022a0b5f894c23afece80cd0bb9a596161fd7619c359e3f17"
+single_process_full_suite_run = false
+standard_files = 41
+tag_created = false
+
+[evidence_sha256]
+"dev/evidence/earlier_closure_20261009/fit_day_1.jls.toml" = "54ba48762df0d46e3307093a7ae28d5774a0b4f360f704db30100d7be8afe808"
+"dev/evidence/earlier_closure_20261009/fit_day_2.jls.toml" = "296c41ff5222c1196983d01b1d6a23c71d0773fa2c1e5dbf583d6872d459b4a2"
+"dev/evidence/earlier_closure_20261009/fit_day_3.jls.toml" = "bd1a18836f2c711f7960829e928c5d5428df84010de6722f323e732ea5eabbac"
+"dev/evidence/earlier_closure_20261009/fit_day_4.jls.toml" = "ca4e01e1f25867044a90fe5c221bbf75a947715f0188d21c40b980ece5cb3345"
+"dev/evidence/earlier_closure_20261009/fit_day_5.jls.toml" = "999f445f3a35292e76146d4418db3d14092cb5a544d2b39c11cc379c73a52364"
+"dev/evidence/earlier_closure_20261009/fit_day_6.jls.toml" = "86e291ee644f2d3117d9c8bcc81c8c2e9c133a89b8411972b3a675c35f644d17"
+"dev/evidence/earlier_closure_20261009/fit_day_7.jls.toml" = "f832db100f38f7529459a7cc7828f530616d70ed35c78c0b3a6f03daf9567dfd"
+"dev/evidence/earlier_closure_20261009/fit_day_8.jls.toml" = "484412de8065eacff7b12daa272fcca0f90be61d1e454f7fb82c630250b56ce4"
+"dev/evidence/earlier_closure_20261009/qualification/pass_architecture.toml" = "72a4efcfa428ed72e57a5a3bf265772b9af3248a09895c4fa76db091192b419a"
+"dev/evidence/earlier_closure_20261009/qualification/pass_cache_elision.toml" = "8228d7205be69b1e2b49e04a1315ef8ed3ad1cf51ba6af7a82d4bb21e06d9ab2"
+"dev/evidence/earlier_closure_20261009/qualification/pass_constitution.toml" = "dff8285ca8c1f36966ec1805c4567be6cee56dfefcb737fa8935df1b6b77e118"
+"dev/evidence/earlier_closure_20261009/qualification/pass_eb.toml" = "8da042a1d18ff799463b806477ac13fa149a3ae7fc3faa0f51f863cd145e6f66"
+"dev/evidence/earlier_closure_20261009/qualification/pass_failure_delivery.toml" = "abf2d9eca7bc16287b709dd357f192ddd1092925c9675b731f148e548a316662"
+"dev/evidence/earlier_closure_20261009/qualification/pass_guard_a.toml" = "f2fd924cec510ca15232390a7a0f04f034383c32be8b444f2fba296fc78fdac0"
+"dev/evidence/earlier_closure_20261009/qualification/pass_guard_b.toml" = "a19981f2b4855549f82e692d02af2f752b6789dba4f216a401851170d1cd94a0"
+"dev/evidence/earlier_closure_20261009/qualification/pass_guard_c.toml" = "bb55a68f38996fce897e9231968b7602907336e627f9d84ba244c2e2b320acb4"
+"dev/evidence/earlier_closure_20261009/qualification/pass_guard_d.toml" = "57f054ce6795d3207ee56c33734055b5c0ffb09bdbf44e6d498e8f5a7f5083c0"
+"dev/evidence/earlier_closure_20261009/qualification/pass_inc_kernels.toml" = "988950d306c748e2eebe7b3f382ed9434a9193422ce2de225a6cdef31958e8e9"
+"dev/evidence/earlier_closure_20261009/qualification/pass_inc_ownership.toml" = "443fd0a65d1af24ba320349eefb8264638f4645c3aaffb43255dcdf905e0fc11"
+"dev/evidence/earlier_closure_20261009/qualification/pass_inc_prefix.toml" = "46091658821c71b33dc1a7b74ed72a86c4fb8383499d80f3ec08deeb85dee2b8"
+"dev/evidence/earlier_closure_20261009/qualification/pass_inc_ragged.toml" = "bac6be5d09ad6f89ea51cb991c298252985d970049b4b58296320781e1cd5405"
+"dev/evidence/earlier_closure_20261009/qualification/pass_interfaces.toml" = "4f54f2e79549fe31eb1bc121628748e228bc1a63f6bfd14a5fe62da291ab6395"
+"dev/evidence/earlier_closure_20261009/qualification/pass_numerics.toml" = "d441d1f3cee897ef864ed506bf59f7cc797a48f46545e1db4e54ae497d44665a"
+"dev/evidence/earlier_closure_20261009/qualification/pass_posterior.toml" = "283b26aabb1d9333311e4e8336e4075e555436e18d0bed433f6b4a7cc01a4320"
+"dev/evidence/earlier_closure_20261009/qualification/pass_prepared.toml" = "f3251e6d3b912ae3fb4092833c3a7377caba79a178a1aca77906e4e99432b0f8"
+"dev/evidence/earlier_closure_20261009/qualification/pass_reference.toml" = "7d32b05e17c66a18a3ab0c6becb3b89ec2ce9df128156fb0d50f16b1e3d689bb"
+"dev/evidence/earlier_closure_20261009/qualification/pass_residuals.toml" = "d0d09cd4597433b7dc432e90d7e96d1b78932f0178a945e1259fe0bf3e81f435"
+"dev/evidence/earlier_closure_20261009/qualification/pass_response_a.toml" = "49dcec61633be9da19f5ac4ab88ba6d8af0f2f6f1c1fac6c20d671e07d5153a0"
+"dev/evidence/earlier_closure_20261009/qualification/pass_response_b.toml" = "d7b2f5d3da6f516fb62303b61d584c647bfd689a1ed20b032da1dcad51982d3b"
+"dev/evidence/earlier_closure_20261009/qualification/pass_timeblocks.toml" = "9c0ce829a42365b182d753fefc1da766ccd9fca6b55fc075cc961a3a7480890f"
+"dev/evidence/earlier_closure_20261009/verified_1.toml" = "11331d81282fcd5f08b07972e1be91fbc37b90a50ec352425c4684b5203e8828"
+"dev/evidence/earlier_closure_20261009/verified_2.toml" = "a95f98696a4c795364830bfc0d82a707b84cf60ffab01b6bd5eba312bcb879b4"
+"dev/evidence/earlier_closure_20261009/verify1_cpu20.log" = "40e1e963af316c4539e78b1ab6133c374d61bfd2e7d79ffd0299343e4607f325"
+"dev/evidence/earlier_closure_20261009/verify2_cpu20.log" = "5cbfbc57566095e7dd8ef7757a4a50e28fd0a694de2c111a29355b5f6552114e"
+"dev/evidence/earlier_closure_20261009/window2.log" = "dbbf076134970c28a26b77cfedb6c83024a423c32300da20639111518eabbc7d"
+"dev/evidence/release_freeze_20261009/repaired_latest_loaded.log" = "8c17bc90428b3337662c271aef48c217971c3f63bb5edbfa01903b0900f4ccd3"
+
+[input_sha256]
+"data/adj.csv" = "e0c25e04a079947b1c5fbc3879703b76d9d35c20300dccd969fedcb268a29322"
+"data/close.csv" = "4b9b17c8d9dbf81f4274187e82c13f43ab094cbddc9d1b3be804b03a4b55aced"
+
+[profile]
+assets = 65
+blas_threads = 6
+cpu = "Ryzen 5 7500F"
+date_tasks = 1
+engine = "batch"
+folds = 3
+formal_compile_seconds = 0.0
+gc = "default"
+julia = "1.12.7"
+precision = "Float64"
+scenarios = 300
+
+[runtime_sha256]
+"src/KTrader.jl" = "8edde0defde2d8e57c9d1549685ff3769f2d948beb4c46df6b54e4281b946555"
+"src/backtest.jl" = "b11c015a3a0a6c67750cfa4b306e4ce42a3b62173fa1b8d1c2d579d0a0f36e19"
+"src/broker.jl" = "8aa7fea2f6b7223d56ddec23ec199510cf00a5676f6794e59aad417a4b0ab6dd"
+"src/data.jl" = "84dfb8148864ddcd55475c81b49ca8f13b0cb86b45dadc7dd80078b66ec84e14"
+"src/geometry.jl" = "cac85a964f0542373755a41ee840ef03da437e8422141d3d8de84a35e61ae662"
+"src/incremental.jl" = "5ec389eee53d48ba3c732f98297bc00b89cbc9904319952b04d114aeea037e3e"
+"src/kelly.jl" = "f24d1a50f201e57a262ac7c03900b252aa33d87dc70f49b00014c94116706642"
+"src/live.jl" = "a9f275db29ec74689130a2bbc388cfde94c4c28a9c028da4f42b871595550b38"
+"src/numerics.jl" = "74496e2208b9fed853b28ea6ec485ca7435045126cf7cc7b00cc51aaf9cd9e14"
+"src/predict.jl" = "948fb405803a376674dfb61e2c0cca7bde1388a1c0c6de4b3882719d7044fe50"
+"src/prepare.jl" = "7a5ecb4e54eeaf91c0f68bf73fcc947cdb7e62215414ccb4753cdbbbd3ca3423"
+"src/residual_oracle.jl" = "0b34847bc8de0ef4226afff1daa8c8f426bbe925e40bd564e79a1e0dd526b29e"
+"src/response.jl" = "b8ca4dc26ee3f05444f456a29bf7608f3a38565f797c1f57d973eb623bc828d7"
+
+[windows]
+completed_earlier_producer_peak_rss_mib = 1820
+earlier_seconds = [17.516854764, 17.330192911]
+earlier_sha256 = ["99cf04c814ebfbfe888edb32be15216f5b32fb6738fab442f114902a1c05e8cc", "9b92105494e982686ca91a1f1f2f75d014287888ce214b910e458e449fdff6b8"]
+first_producer_rc_preserved = 124
+independent_return_max = 0.0
+independent_weight_l1_max = 0.0
+recent_seconds = 15.893177345
+recent_sha256 = "f41ff40fadd14e41d7321dbfd8e896a3876a5e805c2e3c9ae9dfe272bbdf25fa"

@@ -1,0 +1,6 @@
+counts = "Test.TestCounts(true, 0, 0, 0, 0, 22, 0, 0, 0, \"4.2s\")"
+entries = ["backtest_failure_tests.jl"]
+julia = "1.12.7"
+opt_level = 2
+passed = true
+snapshot = "5ba9407e8b27eee1982008da8f5d277fa0be3e586a9766093f4d5fcdd3e51600"

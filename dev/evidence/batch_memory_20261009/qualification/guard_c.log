@@ -1,0 +1,27 @@
+BEGIN group=guard_c snapshot=680f1494d2d435847af2b4972d8be440e9f4f519fb2af0889789e302dbabeeba entries=["scoped_run_tests.jl::clock-mono", "scoped_run_tests.jl::clock-fail", "scoped_run_tests.jl::clock-saturate", "scoped_run_tests.jl::clock-start"]
+CHILD scoped_run_tests.jl::clock-mono
+kill: sending signal to -1196282 failed: No such process
+[phase=clock-mono] begin — scope: production script under the SAME fake wall clock — /proc/uptime monotonic source fires at hard (2s) → rc=124 + TIMEOUT-EXCEEDED, no CANCELLED; owned group cleaned
+Test Summary:                                                 | Pass  Total  Time
+[phase=clock-mono] monotonic source green under fake rollback |    5      5  2.1s
+[phase=clock-mono] end
+CHILD scoped_run_tests.jl::clock-fail
+kill: sending signal to -1197199 failed: No such process
+[phase=clock-fail] begin — scope: counting fake awk (forwards first FAKE_AWK_OK_CALLS then fails) → rc=125 + MONO-CLOCK-FAILED phase=monitor, elapsed < deadline (fail-closed, not clock-dead hang); owned group cleaned
+Test Summary:                                                 | Pass  Total  Time
+[phase=clock-fail] controlled clock failure → fail-closed 125 |    7      7  0.2s
+[phase=clock-fail] end
+CHILD scoped_run_tests.jl::clock-saturate
+kill: sending signal to -1197531 failed: No such process
+[phase=clock-saturate] begin — scope: fake awk simulates mawk %d 32-bit saturation (constant 2147483647) for %d programs, forwards %.0f — production must fire at hard (2s) → rc=124 + TIMEOUT-EXCEEDED, no CANCELLED; owned group cleaned; no real /proc touched by the saturation branch
+Test Summary:                                                | Pass  Total  Time
+[phase=clock-saturate] %.0f survives large-uptime saturation |    6      6  2.2s
+[phase=clock-saturate] end
+CHILD scoped_run_tests.jl::clock-start
+kill: sending signal to -1198454 failed: No such process
+[phase=clock-start] begin — scope: stub-copy start-boundary clock failure → fail-closed 125 with bounded leader confirmation and full group reap (old defect: KILL delivered then Cleaned=1 with no confirmation); pidfile PGID real and observable
+Test Summary:                                                     | Pass  Total  Time
+[phase=clock-start] start clock failure → 125 + confirmed cleanup |    9      9  5.3s
+[phase=clock-start] end
+END group=guard_c passed=true counts=child process assertions in log
+scoped_run: rc=0 elapsed=19s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=1183MiB

@@ -1,0 +1,9 @@
+Test Summary:                                                     | Pass  Total  Time
+Fixed-alpha Jacobian core cache: exact Sigma-iteration identities |  113    113  2.3s
+Test Summary:                                                        | Pass  Total  Time
+cross-core symmetry: deterministic 2x1 counterexample (kernel owner) |    5      5  0.3s
+Test Summary:                      | Pass  Total  Time
+lazy residual oracle flow contract |   45     45  6.0s
+Test Summary:                                         | Pass  Total  Time
+Conditioned EB: trace-only cache and J-only proposals |  228    228  1.4s
+scoped_run: rc=0 elapsed=13s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=884MiB

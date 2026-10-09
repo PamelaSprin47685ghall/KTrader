@@ -1,0 +1,14 @@
+consumed_baseline_sha256=23a95350e58cacfa8cbb87231ad0b22512d5c432440e748a8428aa086dba174e
+synthetic T340/N3/F3/S64 solve_seconds=0.006201259 solve_bytes=10907168 Kelly=(feasibility = 2.220446049250313e-16, kkt_residual = 9.999992085474482e-10, objective_gap = 1.9999963907224583e-9, objective = -0.00040531519386972654)
+alpha_m max_abs=0.0
+alpha_r max_abs=0.0
+G max_abs=0.0
+Sigma max_abs=0.0
+mu max_abs=0.0
+covariance max_abs=0.0
+d max_abs=0.0
+v max_abs=0.0
+X max_abs=0.0
+Test Summary:                                                        | Pass  Total  Time
+Synthetic full-OOF predictive and Kelly against before-change output |   12     12  0.4s
+scoped_run: rc=0 elapsed=23s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=1224MiB

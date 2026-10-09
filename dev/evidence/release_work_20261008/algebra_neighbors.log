@@ -1,0 +1,11 @@
+Test Summary:                                         | Pass  Total  Time
+Conditioned EB: trace-only cache and J-only proposals |  228    228  5.7s
+Test Summary:                                | Pass  Total  Time
+M(S) kernel Frobenius contraction identities | 1359   1359  1.4s
+Test Summary:                                                      | Pass  Total  Time
+Fit-local scalar geometry: reuse changes no evidence or derivative |  244    244  1.5s
+Test Summary:                                                            | Pass  Total  Time
+Residual mask scratch: recurrent masks, empty rows and independent calls |    7      7  0.8s
+Test Summary:                                          | Pass  Total  Time
+Inference panel packing preserves values and ownership |    6      6  0.2s
+scoped_run: rc=0 elapsed=15s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=892MiB

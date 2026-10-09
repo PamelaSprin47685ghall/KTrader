@@ -1,0 +1,52 @@
+phase=solve Julia=1.12.7 CPU=znver4 Julia_threads=1 BLAS_threads=6 BLAS=LBTConfig([ILP64] libopenblas64_.so)
+single numerical-cold call; no hidden warm-up; not steady-state throughput
+consumed=prepared.jls sha256=82b18e9b0283aa5aa9ef31e95e99d4870b5af49e70d800029d9fda8e2e4bfedc
+prepared T=14309 N=65 P=910 F=3
+BEGIN solve_once
+bucket start eigen monotonic_ns=1232901637799483
+bucket stop eigen monotonic_ns=1232901701579027
+bucket start EB monotonic_ns=1232901845972123
+bucket stop EB monotonic_ns=1232903868982666
+bucket start eigen monotonic_ns=1232904384389863
+bucket stop eigen monotonic_ns=1232904660176353
+bucket start EB monotonic_ns=1232904915234781
+bucket stop EB monotonic_ns=1232909587258889
+bucket start condition monotonic_ns=1232910283237346
+bucket stop condition monotonic_ns=1232910290061587
+bucket start OOF_fit monotonic_ns=1232910756783681
+bucket stop OOF_fit monotonic_ns=1232911067951603
+bucket start OOF_fit monotonic_ns=1232911073818585
+bucket stop OOF_fit monotonic_ns=1232911644430340
+bucket start OOF_fit monotonic_ns=1232911645071539
+bucket stop OOF_fit monotonic_ns=1232912680409370
+bucket start OOF_predict monotonic_ns=1232912805218103
+bucket stop OOF_predict monotonic_ns=1232912819472764
+bucket start OOF_residual monotonic_ns=1232912819488914
+bucket stop OOF_residual monotonic_ns=1232912820841402
+bucket start condition monotonic_ns=1232913192219734
+bucket stop condition monotonic_ns=1232913192935123
+bucket start OOF_residual monotonic_ns=1232913192955523
+bucket stop OOF_residual monotonic_ns=1232913208959952
+bucket start fracFFT monotonic_ns=1232913208972682
+bucket stop fracFFT monotonic_ns=1232913345432229
+END solve_once seconds=12.877293254 allocated_bytes=3701346648 gc_seconds=1.098238557
+solve_once compile_time=10.398786088
+solve_once recompile_time=0.0
+timing prep=0.0
+timing basis=0.0
+timing gram=0.0
+timing eigen=0.32461287400000005
+timing EB=6.695000971000001
+timing condition=0.007499650000000001
+timing fracFFT=0.13645664700000001
+timing scenario=0.0
+timing Kelly=0.0
+timing OOF_fit=1.917069418
+timing OOF_predict=0.014233551
+timing OOF_residual=0.017350897
+BEGIN persist_model
+artifact=model.jls sha256=691c3297813f2511efaffbee276c11274fb4ce03f32b19bf9cd5fa8eb0cd3577 bytes=28631626
+END persist_model seconds=0.951773594 allocated_bytes=131594712 gc_seconds=0.0
+persist_model compile_time=0.793721004
+persist_model recompile_time=0.0
+scoped_run: rc=0 elapsed=26s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=1673MiB

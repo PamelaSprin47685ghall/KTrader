@@ -1,0 +1,6 @@
+counts = "Test.TestCounts(true, 0, 0, 0, 0, 1598, 0, 0, 0, \"13.0s\")"
+entries = ["incremental_primal_prep_tests.jl", "incremental_pending_tests.jl", "incremental_budget_contract_tests.jl", "history_cache_contract_tests.jl", "prepared_problem_contract_tests.jl", "prepared_lifecycle_tests.jl"]
+julia = "1.12.7"
+opt_level = 2
+passed = true
+snapshot = "680f1494d2d435847af2b4972d8be440e9f4f519fb2af0889789e302dbabeeba"

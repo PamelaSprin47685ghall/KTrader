@@ -1,0 +1,6 @@
+BEGIN group=failure_delivery snapshot=5ba9407e8b27eee1982008da8f5d277fa0be3e586a9766093f4d5fcdd3e51600 entries=["backtest_failure_tests.jl"]
+FILE backtest_failure_tests.jl
+Test Summary:                  | Pass  Total  Time
+Release group failure_delivery |   22     22  4.2s
+END group=failure_delivery passed=true counts=Test.TestCounts(true, 0, 0, 0, 0, 22, 0, 0, 0, "4.2s")
+scoped_run: rc=0 elapsed=10s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=968MiB

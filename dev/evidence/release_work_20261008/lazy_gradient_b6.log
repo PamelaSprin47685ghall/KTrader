@@ -1,0 +1,18 @@
+Julia=1.12.7 BLAS=LBTConfig([ILP64] libopenblas64_.so) threads=6
+synthetic N65/rank910, cores prebuilt, floor=false exact state and gradient agreement
+state_before_A (seconds = 0.000881191, bytes = 822720.0)
+state_after_B (seconds = 0.00042674, bytes = 437432.0)
+state_after_B2 (seconds = 0.000445, bytes = 437432.0)
+state_before_A2 (seconds = 0.000902891, bytes = 822720.0)
+full_gradient_public_api (seconds = 0.000928911, bytes = 822816.0)
+state_and_certificate_before (seconds = 0.001832352, bytes = 1.834032e6)
+state_and_certificate_after (seconds = 0.001142512, bytes = 1.448744e6)
+synthetic N65/rank910, cores prebuilt, floor=true exact state and gradient agreement
+state_before_A (seconds = 0.000578621, bytes = 822720.0)
+state_after_B (seconds = 0.00038895, bytes = 437432.0)
+state_after_B2 (seconds = 0.00041585, bytes = 437432.0)
+state_before_A2 (seconds = 0.000837521, bytes = 822720.0)
+full_gradient_public_api (seconds = 0.000964912, bytes = 822816.0)
+state_and_certificate_before (seconds = 0.001893123, bytes = 1.845112e6)
+state_and_certificate_after (seconds = 0.001441131, bytes = 1.459824e6)
+scoped_run: rc=0 elapsed=10s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=938MiB

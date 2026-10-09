@@ -1,0 +1,7 @@
+# phase_run_summary 2026-10-08T05:05:25+08:00 — all on FINAL bytes (bin c7048b3b + test 3a754edf) after arch-after-final RC0 (7s, guard2048, peak840)
+# arch: RC0 7s killed=0 guard2048 peak840MiB
+# baseline: RC0 6/6 5.1s | owner-term: RC0 6/6 0.7s | owner-int: RC0 6/6 0.7s | owner-hup: RC0 6/6 0.7s
+# clock-mutant: RC0 5/5 6.2s | clock-mono: RC0 5/5 2.2s | clock-fail: RC0 7/7 0.3s | clock-saturate: RC0 6/6 2.2s | selftest: RC0 6/6 11.0s
+# unknown-phase: RC1 semantic text | duplicate-phase: RC1 semantic text
+# TRUE-RED negative control (temp /tmp/negroot, same consumer test source 3a754edf + bad bin %d-injected): clock-saturate phase RC1 killed=0, 3 target assertions red (exitcode 143!=124; no TIMEOUT-EXCEEDED; CANCELLED present) — proves phase assertions genuinely discriminate %d-regression. Two earlier negative-control attempts documented as timeline (attempt1 date-regression masked by FAKE_HOLD window; attempts 2-3 hit comment lines by wrong line-number, not injected).
+# SCOPE: this is scoped_run ONE required file's phases only; 21-registry filed != 21 numeric suites all-run; ALL whole-file run NOT performed (policy); old green/red timeline preserved in manager6 logs; no full suite/multiday/GPU/model.

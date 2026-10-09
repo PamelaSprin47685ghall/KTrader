@@ -1,0 +1,5 @@
+=== wave8 summary 2026-10-08 11:26:47 CST ===
+fit_local_reuse_tests.jl: rc=0, 257/257 Pass (244+7+6), elapsed=5s, rss_peak=713MiB
+registry: fit_local_reuse_tests.jl IN REQUIRED (L113), REQUIRED total now 23
+symbols: all 16 KTrader.* refs exist in src/ (_conditioned_scalar_cache/_conditioned_scalar_geometry in response.jl)
+porcelain: identical to wave7 snapshot

@@ -1,0 +1,8 @@
+[refiso][R1-end] 1.791426241074652e9
+[refiso][R2-solve-begin] 1.791426241565028e9
+[refiso][R2-end] 1.791426253029144e9
+[refiso][R3-begin] 1.79142625302917e9
+[refiso][R3-return] 1.791426264326682e9
+Test Summary:                                                | Pass  Total   Time
+Reference isolation: minimal core without accelerator/probes |   57     57  23.5s
+scoped_run: rc=0 elapsed=28s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=1235MiB

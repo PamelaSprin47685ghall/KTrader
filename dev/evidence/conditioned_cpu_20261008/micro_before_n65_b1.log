@@ -1,0 +1,15 @@
+Julia=1.12.7 CPU=znver4 BLAS=LBTConfig([ILP64] libopenblas64_.so) threads=1
+synthetic dense spectrum N=65 P=910 rank=910 n=14052
+equivalence: alpha h/R/bwcat and all cores exact
+geometry_once (median_seconds = 0.004480034, median_bytes = 7.159456e6, minimum_seconds = 0.004280309)
+alpha_before_A (median_seconds = 0.004787689, median_bytes = 2.0267632e7, minimum_seconds = 0.004003903)
+alpha_after_B (median_seconds = 0.006604317, median_bytes = 2.0267632e7, minimum_seconds = 0.003301569)
+alpha_after_B2 (median_seconds = 0.004976653, median_bytes = 2.0267632e7, minimum_seconds = 0.003260017)
+alpha_before_A2 (median_seconds = 0.003359539, median_bytes = 2.0267632e7, minimum_seconds = 0.003237068)
+cores_before (median_seconds = 0.014588312, median_bytes = 1.3801168e7, minimum_seconds = 0.014430899)
+cores_after (median_seconds = 0.014564692, median_bytes = 1.3800448e7, minimum_seconds = 0.014412848)
+scalar_build (median_seconds = 0.003780798, median_bytes = 8.556392e6, minimum_seconds = 0.003745348)
+alpha_33_derivatives (median_seconds = 0.001001211, median_bytes = 974744.0, minimum_seconds = 0.00093448)
+state_with_cores (median_seconds = 0.000422108, median_bytes = 822768.0, minimum_seconds = 0.000407288)
+fixed_point_one_iteration (median_seconds = 0.001653004, median_bytes = 1.936536e6, minimum_seconds = 0.001643774)
+scoped_run: rc=0 elapsed=5s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=899MiB

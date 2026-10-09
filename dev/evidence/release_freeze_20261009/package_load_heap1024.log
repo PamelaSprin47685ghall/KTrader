@@ -1,0 +1,2 @@
+offline package load complete; no fit; heap hint 1024M
+scoped_run: rc=0 elapsed=2s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=640MiB

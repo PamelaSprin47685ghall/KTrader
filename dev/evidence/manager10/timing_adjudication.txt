@@ -1,0 +1,11 @@
+=== timing contradiction adjudication 2026-10-08 11:40:46 CST ===
+manager11 companion-green logs mtime: conditioned_eb.log = 2026-10-08 07:25:33, conditioned_eb_after_iters.log = 2026-10-08 07:36:38
+  => both are ~3h46m EARLIER than response.jl edit at 11:22:22; they are OLD time-point evidence, not post-edit evidence
+  => fix-eb-tests' inference 'companion already green after later fix waves' is a timestamp misread
+current src/response.jl: mtime 11:22:22, sha256 7b84525924de94d541a8ff5e8ea1099a4054bf7259ed29a395a7fb5be396c0fa
+round3 snapshot recorded response.jl sha: 7b84525924de94d541a8ff5e8ea1099a4054bf7259ed29a395a7fb5be396c0fa => IDENTICAL
+current test/conditioned_eb_tests.jl: mtime 11:33:35, sha256 622d7d9316e4170d1842eef5b4882d4d2468491b8fcc99556f98f0457ed2878a (contains .G fix)
+
+current-source rerun (conditioned_eb_current.log, 11:40): rc=1; Dense 25/25 GREEN (fix verified); companion RED 1 Error 'conditioned EB line search failed before stationarity' @ :420
+history: companion was 4/4 green at 10:17 (wave2, pre-11:22 response.jl) and at manager11 07:25/07:36 (older); red on 7b8452... proven by: round3 (11:27) + five configs (11:36-11:37) + current rerun (11:40) = six red runs
+=> companion failure is stable on the 11:22-edited response.jl; manager11 green logs pre-date the edit; no file modified in this adjudication

@@ -1,0 +1,3 @@
+Test Summary:                      | Pass  Total  Time
+lazy residual oracle flow contract |   45     45  6.8s
+scoped_run: rc=0 elapsed=10s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=847MiB

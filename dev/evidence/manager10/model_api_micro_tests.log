@@ -1,0 +1,3 @@
+Test Summary:                                            | Pass  Total  Time
+solve_stage_probe model-return API and downstream wiring |    8      8  2.9s
+scoped_run: rc=0 elapsed=7s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=839MiB

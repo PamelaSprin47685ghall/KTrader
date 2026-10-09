@@ -1,0 +1,13 @@
+phase=latest source=b11c015a3a0a6c67750cfa4b306e4ce42a3b62173fa1b8d1c2d579d0a0f36e19 response_source=b8ca4dc26ee3f05444f456a29bf7608f3a38565f797c1f57d973eb623bc828d7 first_decision=2026-09-30 last_decision=2026-10-01
+synthetic API startup completed; BEGIN real two-day warmup
+BEGIN repaired eight-day window [Date("2026-09-22"), Date("2026-09-23"), Date("2026-09-24"), Date("2026-09-25"), Date("2026-09-28"), Date("2026-09-29"), Date("2026-09-30"), Date("2026-10-01")]
+seconds=15.893177345 bytes=12062085872 gc=3.139859037 compile=0.0 recompile=0.0
+Test Summary:                                              | Pass  Total  Time
+Post-repair production window at original accounting gates |    6      6  0.1s
+Test Summary:                                          | Pass  Total  Time
+Previously successful window retains its golden output |    4      4  0.2s
+golden_weight_L1=0.0 return_max=0.0
+saved=repaired_latest.jls sha256=f41ff40fadd14e41d7321dbfd8e896a3876a5e805c2e3c9ae9dfe272bbdf25fa
+completed without failure
+runtime source unchanged DURING command; no input/tolerance/budget overrides in this probe
+scoped_run: rc=0 elapsed=33s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=1687MiB

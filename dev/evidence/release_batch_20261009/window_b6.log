@@ -1,0 +1,56 @@
+Julia=1.12.7 CPU=znver4 BLAS=LBTConfig([ILP64] libopenblas64_.so) date_tasks=1 BLAS_threads=6 source=087b1d0885d10918de7265bb14c6ffb23b5fdf7b4674f6d3ed8d71d95aae984d
+EXPLICIT synthetic startup: T340/N3/F3/S300/default EB, two days; excluded from measured real history
+synthetic_startup (seconds = 16.840448342, bytes = 3336940776, gc = 0.622720236, compile = 16.808364313, recompile = 0.0, stages = [0.477363676, 0.0, 0.0, 0.0, 0.0, 10.997501212, 2.370207318], wall = 16.840430742000002)
+BEGIN real warm-up; N65 histories 1:14308 and 1:14309, dates=[Date("2026-09-30"), Date("2026-10-01")]
+
+[742679] signal 15: Terminated
+in expression starting at /home/kunweiz/Desktop/vibe/KTrader/dev/batch_window.jl:87
+unknown function (ip: 0x7f37555f5952) at /usr/bin/../lib/libc.so.6
+epoll_wait at /usr/bin/../lib/libc.so.6 (unknown line)
+_backend_poll_once! at /home/kunweiz/.julia/packages/Reseau/tHzjm/src/iopoll/epoll.jl:268
+_poller_thread_main! at /home/kunweiz/.julia/packages/Reseau/tHzjm/src/iopoll/runtime.jl:460
+_poller_thread_entry at /home/kunweiz/.julia/packages/Reseau/tHzjm/src/iopoll/runtime.jl:482
+jlcapi__poller_thread_entry_20137 at /home/kunweiz/.julia/compiled/v1.12/Reseau/vKBJ8_6N9Xv.so (unknown line)
+unknown function (ip: 0x7f37555ed0a1) at /usr/bin/../lib/libc.so.6
+unknown function (ip: 0x7f375567580b) at /usr/bin/../lib/libc.so.6
+unknown function (ip: (nil)) at (unknown file)
+unknown function (ip: 0x7f3733f8be56) at /usr/lib/libgomp.so.1
+unknown function (ip: 0x7f3733f8a6f0) at /usr/lib/libgomp.so.1
+exec_blas at /usr/bin/../lib/julia/../libopenblas64_.so (unknown line)
+unknown function (ip: 0x7f37341d0fa1) at /usr/bin/../lib/julia/../libopenblas64_.so
+dgemm_thread_nn at /usr/bin/../lib/julia/../libopenblas64_.so (unknown line)
+dgemm_ at /usr/bin/../lib/julia/../libopenblas64_.so (unknown line)
+unknown function (ip: 0x7f373dbbb1e1) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f373e8726cb) at /usr/lib/julia/sys.so
+_mul! at /build/julia/src/julia-1.12.7/usr/share/julia/stdlib/v1.12/LinearAlgebra/src/matmul.jl:328 [inlined]
+mul! at /build/julia/src/julia-1.12.7/usr/share/julia/stdlib/v1.12/LinearAlgebra/src/matmul.jl:297 [inlined]
+mul! at /build/julia/src/julia-1.12.7/usr/share/julia/stdlib/v1.12/LinearAlgebra/src/matmul.jl:265 [inlined]
+_conditioned_scalar_tensors at /home/kunweiz/Desktop/vibe/KTrader/src/response.jl:673
+#_conditioned_scalar_cache#80 at /home/kunweiz/Desktop/vibe/KTrader/src/response.jl:690
+_conditioned_scalar_cache at /home/kunweiz/Desktop/vibe/KTrader/src/response.jl:684 [inlined]
+#_conditioned_eb_certificate#92 at /home/kunweiz/Desktop/vibe/KTrader/src/response.jl:746
+_conditioned_eb_certificate at /home/kunweiz/Desktop/vibe/KTrader/src/response.jl:744 [inlined]
+#optimize_conditioned_eb#95 at /home/kunweiz/Desktop/vibe/KTrader/src/response.jl:936
+optimize_conditioned_eb at /home/kunweiz/Desktop/vibe/KTrader/src/response.jl:875
+unknown function (ip: 0x7f369a65d1dd) at (unknown file)
+#112 at /home/kunweiz/Desktop/vibe/KTrader/src/response.jl:1112
+timed at /home/kunweiz/Desktop/vibe/KTrader/src/numerics.jl:79
+unknown function (ip: 0x7f369a69210a) at (unknown file)
+#fit_response_operator#96 at /home/kunweiz/Desktop/vibe/KTrader/src/response.jl:1110
+fit_response_operator at /home/kunweiz/Desktop/vibe/KTrader/src/response.jl:1056 [inlined]
+#165 at /home/kunweiz/Desktop/vibe/KTrader/src/predict.jl:437 [inlined]
+timed at /home/kunweiz/Desktop/vibe/KTrader/src/numerics.jl:91
+unknown function (ip: 0x7f369a68c674) at (unknown file)
+#solve#158 at /home/kunweiz/Desktop/vibe/KTrader/src/predict.jl:436
+solve at /home/kunweiz/Desktop/vibe/KTrader/src/predict.jl:349 [inlined]
+#fit_v1#156 at /home/kunweiz/Desktop/vibe/KTrader/src/predict.jl:331 [inlined]
+fit_v1 at /home/kunweiz/Desktop/vibe/KTrader/src/predict.jl:328
+unknown function (ip: 0x7f369a5a9373) at (unknown file)
+#286 at /home/kunweiz/Desktop/vibe/KTrader/src/backtest.jl:225
+backtest_timed at /home/kunweiz/Desktop/vibe/KTrader/src/backtest.jl:26
+unknown function (ip: 0x7f3733f56ab1) at (unknown file)
+#282 at /home/kunweiz/Desktop/vibe/KTrader/src/backtest.jl:221
+unknown function (ip: (nil)) at (unknown file)
+Allocations: 135638614 (Pool: 135636868; Big: 1746); GC: 62
+TIMEOUT-EXCEEDED pgid=742679 deadline=45s child_rc=143 (timeout is never success)
+scoped_run: rc=124 elapsed=35s deadline=45 killed=1 cancelled=none rss_guard=2048 rss_peak=1914MiB

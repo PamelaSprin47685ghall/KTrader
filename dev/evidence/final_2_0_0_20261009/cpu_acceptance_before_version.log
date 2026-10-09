@@ -1,0 +1,4 @@
+Test Summary:                                                | Pass  Total  Time
+CPU acceptance audit: saved outputs and fail-closed receipts |   21     21  0.2s
+CPU20_ACCEPTANCE=PASS groups=22/22 standard_files=41 earlier_replays=2/2 independent_weight_L1=0.0 return_max=0.0 GPU_RELEASE=2.1 GPU_BLOCKER=false published=false
+scoped_run: rc=0 elapsed=5s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=444MiB

@@ -1,0 +1,8 @@
+phase=direct source=b11c015a3a0a6c67750cfa4b306e4ce42a3b62173fa1b8d1c2d579d0a0f36e19 first_decision=2026-09-18 last_decision=2026-09-21
+BEGIN date=2026-09-18 prefix=1:14300
+END date=2026-09-18
+BEGIN date=2026-09-21 prefix=1:14301
+END date=2026-09-21
+completed without failure
+runtime source unchanged; no numerical policy was modified
+scoped_run: rc=0 elapsed=30s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=1722MiB

@@ -1,0 +1,10 @@
+run=2 full N65 prefixes1:14294..14301 dates=[Date("2026-09-10"), Date("2026-09-11"), Date("2026-09-14"), Date("2026-09-15"), Date("2026-09-16"), Date("2026-09-17"), Date("2026-09-18"), Date("2026-09-21")] default EB/F3/S300 task1 BLAS6 Julia=1.12.7 CPU=znver4
+synthetic_startup seconds=3.261837091 compile=3.231338974
+real_first_day_warmup seconds=2.689658436 compile=0.0 decision=2026-09-10
+BEGIN full production eight-day call, fresh holdings and initial alpha pairs
+MEASURED seconds=17.330192911 bytes=13954885024 gc=2.793635821 compile=0.0 recompile=0.0 rate=0.4616220974044759
+Test Summary:                                    | Pass  Total  Time
+Complete earlier window and portfolio accounting |    6      6  0.4s
+raw_artifact=window_2.jls sha256=9b92105494e982686ca91a1f1f2f75d014287888ce214b910e458e449fdff6b8
+MEASUREMENT COMPLETE; independent artifact comparison still required
+scoped_run: rc=0 elapsed=34s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=1820MiB

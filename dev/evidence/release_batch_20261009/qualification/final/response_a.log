@@ -1,0 +1,9 @@
+BEGIN group=response_a snapshot=b130327b5147a16ff1f1b325bd03f19f1a16ad9f05f904223fc0ef5bcf1301b0 entries=["conditioned_jcore_tests.jl", "conditioned_deadwork_tests.jl", "fit_local_reuse_tests.jl", "conditioned_geometry_reuse_tests.jl"]
+FILE conditioned_jcore_tests.jl
+FILE conditioned_deadwork_tests.jl
+FILE fit_local_reuse_tests.jl
+FILE conditioned_geometry_reuse_tests.jl
+Test Summary:            | Pass  Total   Time
+Release group response_a | 1576   1576  18.4s
+END group=response_a passed=true counts=Test.TestCounts(true, 0, 0, 0, 0, 1576, 0, 0, 0, "18.4s")
+scoped_run: rc=0 elapsed=22s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=968MiB

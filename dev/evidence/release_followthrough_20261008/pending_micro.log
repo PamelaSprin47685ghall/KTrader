@@ -1,0 +1,6 @@
+synthetic N65/T420 recurring masks; one pending-filter call; exact values
+before_A (median_seconds = 5.963e-5, minimum_seconds = 5.803e-5, median_bytes = 531968.0)
+after_B (median_seconds = 3.047e-5, minimum_seconds = 2.994e-5, median_bytes = 60800.0)
+after_B2 (median_seconds = 3.175e-5, minimum_seconds = 3.006e-5, median_bytes = 60800.0)
+before_A2 (median_seconds = 6.21e-5, minimum_seconds = 6.03e-5, median_bytes = 531968.0)
+scoped_run: rc=0 elapsed=6s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=815MiB

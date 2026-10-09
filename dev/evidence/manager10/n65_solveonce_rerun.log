@@ -1,0 +1,4 @@
+=== n65 solveonce rerun: NOT EXECUTED 2026-10-08 11:06:40 CST ===
+probe result: all /tmp artifacts gone (ls /tmp/*.jls empty; /tmp/model_m1_t14309.jls, /tmp/prep_inc_t14309.jls, /tmp/model_solveonce_t14309.jl2s and all manager3/4 recorded artifacts absent; only unrelated BvyFM1/dvM1kU dirs and manager10's own temp files remain)
+disposition: per task instruction, report absence honestly, no substitute fabricated; baseline comparison impossible without the manifest-bound input artifacts
+note: /tmp is volatile by nature; the historical baselines (manager4 certified) remain valid as recorded evidence at their own timestamps

@@ -1,0 +1,2 @@
+FROZEN groups=21 standard_files=40 snapshot=b41e70fc18cb6c05b2ae2811b53f19932da233925b1de531c85aaad55d5c929c
+scoped_run: rc=0 elapsed=8s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=961MiB

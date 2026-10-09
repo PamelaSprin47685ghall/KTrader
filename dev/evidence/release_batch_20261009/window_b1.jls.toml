@@ -1,0 +1,21 @@
+sha256 = "fe744d4fc855ed238fcfd18e84c191d51fa6065e65c1c5fd649906ddc76470c1"
+bytes = 4890
+
+[sources]
+"src/data.jl" = "84dfb8148864ddcd55475c81b49ca8f13b0cb86b45dadc7dd80078b66ec84e14"
+"src/live.jl" = "a9f275db29ec74689130a2bbc388cfde94c4c28a9c028da4f42b871595550b38"
+"src/incremental.jl" = "5ec389eee53d48ba3c732f98297bc00b89cbc9904319952b04d114aeea037e3e"
+"src/predict.jl" = "948fb405803a376674dfb61e2c0cca7bde1388a1c0c6de4b3882719d7044fe50"
+"src/backtest.jl" = "087b1d0885d10918de7265bb14c6ffb23b5fdf7b4674f6d3ed8d71d95aae984d"
+"src/geometry.jl" = "cac85a964f0542373755a41ee840ef03da437e8422141d3d8de84a35e61ae662"
+"src/numerics.jl" = "74496e2208b9fed853b28ea6ec485ca7435045126cf7cc7b00cc51aaf9cd9e14"
+"src/residual_oracle.jl" = "0b34847bc8de0ef4226afff1daa8c8f426bbe925e40bd564e79a1e0dd526b29e"
+"src/response.jl" = "aa0d5bad090ba08de62c1456d0f920cef8b724f7a4a573565abae23495241f9c"
+"src/KTrader.jl" = "8edde0defde2d8e57c9d1549685ff3769f2d948beb4c46df6b54e4281b946555"
+"src/broker.jl" = "8aa7fea2f6b7223d56ddec23ec199510cf00a5676f6794e59aad417a4b0ab6dd"
+"src/kelly.jl" = "f24d1a50f201e57a262ac7c03900b252aa33d87dc70f49b00014c94116706642"
+"src/prepare.jl" = "7a5ecb4e54eeaf91c0f68bf73fcc947cdb7e62215414ccb4753cdbbbd3ca3423"
+
+[input_hashes]
+"data/close.csv" = "4b9b17c8d9dbf81f4274187e82c13f43ab094cbddc9d1b3be804b03a4b55aced"
+"data/adj.csv" = "e0c25e04a079947b1c5fbc3879703b76d9d35c20300dccd969fedcb268a29322"

@@ -1,0 +1,7 @@
+BEGIN group=timeblocks snapshot=b130327b5147a16ff1f1b325bd03f19f1a16ad9f05f904223fc0ef5bcf1301b0 entries=["timeblock_tests.jl", "backtest_target_tests.jl"]
+FILE timeblock_tests.jl
+FILE backtest_target_tests.jl
+Test Summary:            | Pass  Total   Time
+Release group timeblocks |  623    623  20.0s
+END group=timeblocks passed=true counts=Test.TestCounts(true, 0, 0, 0, 0, 623, 0, 0, 0, "20.0s")
+scoped_run: rc=0 elapsed=23s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=1017MiB

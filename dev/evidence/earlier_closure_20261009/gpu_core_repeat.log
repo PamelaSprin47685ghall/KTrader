@@ -1,0 +1,8 @@
+device=AMD Radeon RX 6800 arch=gfx1030 runtime=70253211 FP64 d=64 rank=910 pairs=105
+first_compute_seconds=0.014963054
+elements=430080 mismatch_count=0 max_abs=3.1170812459e-19 relative_frobenius=8.91660277726e-16
+resident_compute_and_sync median_seconds=0.000814529 min=0.000813339 max=0.0008959
+alpha_upload_compute_download median_seconds=0.00122382 min=0.001219459 max=0.00124403
+all_upload_compute_download median_seconds=0.001475259 min=0.00147457 max=0.001484869
+input_bytes=13045760 output_bytes=3440640; no EB/certificates/backtest; no whole-solver acceleration claim
+scoped_run: rc=0 elapsed=0s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=163MiB

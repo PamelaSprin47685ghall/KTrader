@@ -7,14 +7,31 @@ S = parse(Int, get(ENV, "SCENARIOS", "300"))
 date_tasks = parse(Int,get(ENV,"DATE_TASKS",string(Threads.nthreads())))
 blas_threads = parse(Int,get(ENV,"BLAS_THREADS","1"))
 adaptive = get(ENV,"ADAPTIVE_SCENARIOS","false") == "true"
+engine = Symbol(get(ENV,"ENGINE","batch"))
+chunk_size = parse(Int,get(ENV,"CHUNK_SIZE",string(min(24,4date_tasks))))
+seed = parse(Int,get(ENV,"SEED","1"))
+F_folds = parse(Int,get(ENV,"F_FOLDS","3"))
+alpha = get(ENV,"RIDGE_ALPHA","auto")
+ridge_alpha = alpha == "auto" ? nothing : parse(Float64,alpha)
+quadrature_tol = parse(Float64,get(ENV,"QUADRATURE_TOL","1e-5"))
+max_scenarios = parse(Int,get(ENV,"MAX_SCENARIOS","512"))
+options = (; S,seed,ridge_alpha,F_folds,date_tasks,blas_threads,chunk_size,adaptive,quadrature_tol,max_scenarios,engine)
+println("Julia=$(VERSION) threads=$(Threads.nthreads()) panel=$(size(b.adj)) input=$(first(b.dates)):$(last(b.dates)); from=$from options=$options")
+trace = KTrader.BacktestExecutionTiming()
 
 println("Running Path Kelly V1 Backtest from $from...")
-started = time()
-bt = backtest_v1(b; from, S, date_tasks, blas_threads, adaptive)
-elapsed = time()-started
-@printf("Runtime %.3f s; %.2f days/s; date_tasks=%d BLAS=%d\n",elapsed,length(bt.ret)/elapsed,date_tasks,blas_threads)
+measured = @timed backtest_v1(b; from,options...,execution_timing=trace)
+bt = measured.value
+elapsed = measured.time
+@printf("Runtime %.6f s; %.3f days/s; allocated=%.3fMiB GC=%.6fs\n",elapsed,length(bt.ret)/elapsed,measured.bytes/2.0^20,measured.gctime)
+@printf("Inference/consumer wall span %.6fs; windows=%d blocks=%d coordinator_advances=%d block_advances=%d\n",
+    trace.wall_seconds,trace.windows,trace.blocks,trace.coordinator_advances,trace.block_advances)
+for (i,bucket) in enumerate(KTrader.BACKTEST_EXECUTION_BUCKETS)
+    @printf("  %-22s %.6fs\n",bucket,trace.seconds[i])
+end
+println("Worker timings are sums of task elapsed time, not process CPU or total wall time.")
 for rows in (1:length(bt.ret),max(1,length(bt.ret)-499):length(bt.ret))
-    println("Timing CPU-seconds, decisions $(first(rows)):$(last(rows))")
+    println("Decision-bucket elapsed sums, decisions $(first(rows)):$(last(rows)) (nested in execution buckets)")
     for (i,bucket) in enumerate(bt.timing_buckets)
         @printf("  %-10s %.3f\n",bucket,sum(view(bt.timings,rows,i)))
     end
@@ -44,7 +61,7 @@ end
 
 println("\nTop 10 Average Allocations:")
 mean_weights = vec(mean(bt.weights, dims=1))
-top_indices = sortperm(mean_weights, rev=true)[1:10]
+top_indices = sortperm(mean_weights, rev=true)[1:min(10,length(mean_weights))]
 for idx in top_indices
     @printf("  %-8s %5.2f%%\n", b.symbols[idx], 100mean_weights[idx])
 end

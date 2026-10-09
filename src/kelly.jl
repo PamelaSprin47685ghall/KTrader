@@ -160,7 +160,12 @@ function scenario_weights(X, active_indices, tradable, held=nothing; tol=1e-8)
     end
     base = locked_wealth(X, locked)
     out = copy(locked)
-    out[indices] .= kelly_weights_v1(view(X, :, indices); budget, base, tol)
+    # A Vector-indexed view is not strided, even when every asset is free.
+    # Pack these SAME columns once so repeated Newton/line-search matvecs
+    # can use dense kernels. Locked wealth still uses the original X; no
+    # clipping, dropped risk, objective change or shared mutable storage.
+    free_returns = Matrix(view(X, :, indices))
+    out[indices] .= kelly_weights_v1(free_returns; budget, base, tol)
     out
 end
 
@@ -170,7 +175,7 @@ function path_kelly_v1(adj::AbstractMatrix{Float64}; S=300, rng=Random.MersenneT
                        adaptive=false, quadrature_tol=1e-5, max_scenarios=512)
     N = size(adj, 2)
     tr = tradable === nothing ? trues(N) : tradable
-    model = fit_v1(adj; ridge_alpha, ruler_stats)
+    model = fit_v1(adj; ridge_alpha, ruler_stats)  # ruler_stats is provenance-guarded in _prepare_v1 (verify_ruler_stats_prefix) before any consumption
     if adaptive
         return adaptive_scenario_weights(model, tr, held; rng, tol=quadrature_tol, max_scenarios).weights
     end

@@ -1,0 +1,117 @@
+phase=after tasks=2 blas=1 Julia=1.12.7 CPU=znver4
+source=9fa232b1806026e271058af348af10f33024afd34df4b979732c3c698ee7f616 full prefix dates=[Date("2026-09-28"), Date("2026-09-29"), Date("2026-09-30"), Date("2026-10-01")] S300/F3/default EB
+BEGIN explicit synthetic two-day API startup
+startup seconds=2.755477719 compile=5.411384788
+BEGIN real four-day warmup; full histories, fresh account/alpha chain
+warmup seconds=5.337028736 bytes=5936501296 gc=0.946813306 compile=0.0
+BEGIN measured real four-day replay
+
+[978901] signal 15: Terminated
+in expression starting at /home/kunweiz/Desktop/vibe/KTrader/dev/oof_memory_window.jl:97
+unknown function (ip: 0x7fa226246952) at /usr/bin/../lib/libc.so.6
+epoll_wait at /usr/bin/../lib/libc.so.6 (unknown line)
+_backend_poll_once! at /home/kunweiz/.julia/packages/Reseau/tHzjm/src/iopoll/epoll.jl:268
+_poller_thread_main! at /home/kunweiz/.julia/packages/Reseau/tHzjm/src/iopoll/runtime.jl:460
+_poller_thread_entry at /home/kunweiz/.julia/packages/Reseau/tHzjm/src/iopoll/runtime.jl:482
+jlcapi__poller_thread_entry_20137 at /home/kunweiz/.julia/compiled/v1.12/Reseau/vKBJ8_6N9Xv.so (unknown line)
+unknown function (ip: 0x7fa22623e0a1) at /usr/bin/../lib/libc.so.6
+unknown function (ip: 0x7fa2262c680b) at /usr/bin/../lib/libc.so.6
+unknown function (ip: (nil)) at (unknown file)
+unknown function (ip: 0x7fa226246950) at /usr/bin/../lib/libc.so.6
+unknown function (ip: 0x7fa22623acd8) at /usr/bin/../lib/libc.so.6
+pthread_cond_wait at /usr/bin/../lib/libc.so.6 (unknown line)
+uv_cond_wait at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+unknown function (ip: 0x7fa22595e804) at /usr/bin/../lib/julia/libjulia-internal.so.1.12
+unknown function (ip: 0x7fa22623e0a1) at /usr/bin/../lib/libc.so.6
+unknown function (ip: 0x7fa2262c680b) at /usr/bin/../lib/libc.so.6
+unknown function (ip: (nil)) at (unknown file)
+dgemm_kernel_COOPERLAKE at /usr/bin/../lib/julia/../libopenblas64_.so (unknown line)
+dsyrk_kernel_U at /usr/bin/../lib/julia/../libopenblas64_.so (unknown line)
+dsyrk_UT at /usr/bin/../lib/julia/../libopenblas64_.so (unknown line)
+dsyrk_ at /usr/bin/../lib/julia/../libopenblas64_.so (unknown line)
+syrk! at /build/julia/src/julia-1.12.7/usr/share/julia/stdlib/v1.12/LinearAlgebra/src/blas.jl:1902
+#fold_sufficient_statistics#137 at /home/kunweiz/Desktop/vibe/KTrader/src/predict.jl:151
+fold_sufficient_statistics at /home/kunweiz/Desktop/vibe/KTrader/src/predict.jl:137 [inlined]
+#155 at /home/kunweiz/Desktop/vibe/KTrader/src/predict.jl:301 [inlined]
+timed at /home/kunweiz/Desktop/vibe/KTrader/src/numerics.jl:91
+#_prepare_v1#150 at /home/kunweiz/Desktop/vibe/KTrader/src/predict.jl:300
+_prepare_v1 at /home/kunweiz/Desktop/vibe/KTrader/src/predict.jl:189 [inlined]
+#fit_v1#157 at /home/kunweiz/Desktop/vibe/KTrader/src/predict.jl:330 [inlined]
+fit_v1 at /home/kunweiz/Desktop/vibe/KTrader/src/predict.jl:328
+unknown function (ip: 0x7fa1fcdd1503) at (unknown file)
+#287 at /home/kunweiz/Desktop/vibe/KTrader/src/backtest.jl:225
+backtest_timed at /home/kunweiz/Desktop/vibe/KTrader/src/backtest.jl:26
+unknown function (ip: 0x7fa1fcdcf741) at (unknown file)
+#283 at /home/kunweiz/Desktop/vibe/KTrader/src/backtest.jl:221
+unknown function (ip: 0x7fa1fcdcc30b) at (unknown file)
+unknown function (ip: 0x7fa2258b4e01) at /usr/bin/../lib/julia/libjulia-internal.so.1.12
+unknown function (ip: (nil)) at (unknown file)
+unknown function (ip: 0x7fa226246950) at /usr/bin/../lib/libc.so.6
+unknown function (ip: 0x7fa22623acd8) at /usr/bin/../lib/libc.so.6
+pthread_cond_wait at /usr/bin/../lib/libc.so.6 (unknown line)
+uv_cond_wait at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+unknown function (ip: 0x7fa22590062e) at /usr/bin/../lib/julia/libjulia-internal.so.1.12
+ijl_gc_collect at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+unknown function (ip: 0x7fa225962f28) at /usr/bin/../lib/julia/libjulia-internal.so.1.12
+jl_alloc_genericmemory_unchecked at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+GenericMemory at ./boot.jl:588 [inlined]
+new_as_memoryref at ./boot.jl:604 [inlined]
+Array at ./boot.jl:651 [inlined]
+Array at ./boot.jl:661 [inlined]
+zeros at ./array.jl:595 [inlined]
+zeros at ./array.jl:592 [inlined]
+zeros at ./array.jl:590 [inlined]
+residual_rows at /home/kunweiz/Desktop/vibe/KTrader/src/residual_oracle.jl:188
+#generate_scenarios_v1#180 at /home/kunweiz/Desktop/vibe/KTrader/src/predict.jl:608
+generate_scenarios_v1 at /home/kunweiz/Desktop/vibe/KTrader/src/predict.jl:546 [inlined]
+#289 at /home/kunweiz/Desktop/vibe/KTrader/src/backtest.jl:238 [inlined]
+timed at /home/kunweiz/Desktop/vibe/KTrader/src/numerics.jl:91
+#283 at /home/kunweiz/Desktop/vibe/KTrader/src/backtest.jl:237
+unknown function (ip: 0x7fa1fcdcc30b) at (unknown file)
+unknown function (ip: 0x7fa2258b4e01) at /usr/bin/../lib/julia/libjulia-internal.so.1.12
+unknown function (ip: (nil)) at (unknown file)
+unknown function (ip: 0x7fa226246950) at /usr/bin/../lib/libc.so.6
+unknown function (ip: 0x7fa22623acd8) at /usr/bin/../lib/libc.so.6
+pthread_cond_wait at /usr/bin/../lib/libc.so.6 (unknown line)
+uv_cond_wait at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+ijl_task_get_next at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+unknown function (ip: 0x7fa20e1f109e) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7fa21025efbf) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7fa210183860) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7fa21043bb96) at /usr/lib/julia/sys.so
+take! at ./channels.jl:526 [inlined]
+take_from at /home/kunweiz/Desktop/vibe/KTrader/src/backtest.jl:193
+unknown function (ip: 0x7fa1fcdcc568) at (unknown file)
+macro expansion at /home/kunweiz/Desktop/vibe/KTrader/src/backtest.jl:267 [inlined]
+macro expansion at ./task.jl:662 [inlined]
+#backtest_v1#244 at /home/kunweiz/Desktop/vibe/KTrader/src/backtest.jl:201
+backtest_v1 at /home/kunweiz/Desktop/vibe/KTrader/src/backtest.jl:101 [inlined]
+macro expansion at ./timing.jl:697 [inlined]
+om_run at /home/kunweiz/Desktop/vibe/KTrader/dev/oof_memory_window.jl:9
+om_main at /home/kunweiz/Desktop/vibe/KTrader/dev/oof_memory_window.jl:50
+unknown function (ip: 0x7fa1fcd469e3) at (unknown file)
+unknown function (ip: 0x7fa2258ae5ec) at /usr/bin/../lib/julia/libjulia-internal.so.1.12
+unknown function (ip: 0x7fa2258adce7) at /usr/bin/../lib/julia/libjulia-internal.so.1.12
+unknown function (ip: 0x7fa2258aee43) at /usr/bin/../lib/julia/libjulia-internal.so.1.12
+unknown function (ip: 0x7fa2258b0218) at /usr/bin/../lib/julia/libjulia-internal.so.1.12
+jl_toplevel_eval_flex at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+jl_toplevel_eval_flex at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+ijl_toplevel_eval at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+ijl_toplevel_eval_in at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+unknown function (ip: 0x7fa20ea035c2) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7fa20edbb0bf) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7fa20e1eae9a) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7fa20e9221ab) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7fa20e9270f3) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7fa20e828b4b) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7fa20f138dc3) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7fa2258fbe27) at /usr/bin/../lib/julia/libjulia-internal.so.1.12
+jl_repl_entrypoint at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+main at julia (unknown line)
+unknown function (ip: 0x7fa2261cd780) at /usr/bin/../lib/libc.so.6
+__libc_start_main at /usr/bin/../lib/libc.so.6 (unknown line)
+_start at julia (unknown line)
+unknown function (ip: (nil)) at (unknown file)
+Allocations: 56280679 (Pool: 56279948; Big: 731); GC: 104
+RSS-EXCEEDED pgid=978901 guard=2048MiB observed_peak=2062MiB
+scoped_run: rc=124 elapsed=22s deadline=45 killed=1 cancelled=none rss_guard=2048 rss_peak=2062MiB

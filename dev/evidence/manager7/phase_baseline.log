@@ -1,0 +1,6 @@
+deadline 100 exceeds the 60s hard cap; refusing to start
+[phase=baseline] begin — scope: G1 TERM-exit-0 LOCKED (child_rc=0 present, child_rc=137 absent), G2 >60s refuse-to-start, G3 rc passthrough
+Test Summary:                               | Pass  Total  Time
+[phase=baseline] G1/G2/G3 (locked contract) |    6      6  5.1s
+[phase=baseline] end
+scoped_run: rc=0 elapsed=6s deadline=30 killed=0 cancelled=none rss_guard=2048 rss_peak=341MiB

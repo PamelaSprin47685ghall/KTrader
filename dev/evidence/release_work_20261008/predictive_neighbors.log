@@ -1,0 +1,7 @@
+Test Summary:                                                                | Pass  Total   Time
+moving-fold boundary: yesterday-train contains today's heldout, warm == cold |   40     40  17.9s
+Test Summary:                                                                         | Pass  Total  Time
+ScenarioQuadrature lazy vs dense: same model, same rule, ragged + missing own support |   25     25  5.9s
+Test Summary:                      | Pass  Total  Time
+lazy residual oracle flow contract |   45     45  1.2s
+scoped_run: rc=0 elapsed=30s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=1089MiB

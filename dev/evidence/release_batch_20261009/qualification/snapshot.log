@@ -1,0 +1,2 @@
+SNAPSHOT 98475a7e88d9660806420b53967c882c0df51d490f5a9d3f5a12a4874fd04d8b files=38 groups=20
+scoped_run: rc=0 elapsed=3s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=474MiB

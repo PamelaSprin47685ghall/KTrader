@@ -1,0 +1,52 @@
+
+[953795] signal 15: Terminated
+in expression starting at none:1
+unknown function (ip: 0x7f7e01938635) at /usr/bin/../lib/julia/libjulia-internal.so.1.12
+unknown function (ip: 0x7f7e0193a132) at /usr/bin/../lib/julia/libjulia-internal.so.1.12
+unknown function (ip: 0x7f7e0193ea87) at /usr/bin/../lib/julia/libjulia-internal.so.1.12
+ijl_gc_collect at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+unknown function (ip: 0x7f7e01940f28) at /usr/bin/../lib/julia/libjulia-internal.so.1.12
+ijl_alloc_array_1d at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+ijl_method_instance_add_backedge at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+unknown function (ip: 0x7f7debf85d31) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f7de9d43d9d) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f7de9d43b0c) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f7de9d43b0c) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f7de9d43b0c) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f7de9d43b0c) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f7de9d43b0c) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f7de9d43b0c) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f7de9d8e780) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f7dec5049b6) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f7dea345c56) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f7dec148dce) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f7dec6225c7) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f7dec61c6ef) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f7dea8183d0) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f7de9e3ac80) at /usr/lib/julia/sys.so
+jl_f_invoke_in_world at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+unknown function (ip: 0x7f7de9b622d5) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f7deb4c7d52) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f7e018abc98) at /usr/bin/../lib/julia/libjulia-internal.so.1.12
+jl_toplevel_eval_flex at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+jl_toplevel_eval_flex at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+jl_toplevel_eval_flex at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+ijl_toplevel_eval at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+ijl_toplevel_eval_in at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+unknown function (ip: 0x7f7dea9e15c2) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f7dea904dd5) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f7dea806b4b) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f7deb116dc3) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f7e018d9e27) at /usr/bin/../lib/julia/libjulia-internal.so.1.12
+jl_repl_entrypoint at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+main at julia (unknown line)
+unknown function (ip: 0x7f7e021ab780) at /usr/bin/../lib/libc.so.6
+__libc_start_main at /usr/bin/../lib/libc.so.6 (unknown line)
+_start at julia (unknown line)
+unknown function (ip: (nil)) at (unknown file)
+Allocations: 3412780 (Pool: 3412494; Big: 286); GC: 6
+Precompiling packages...
+  33546.2 ms  ✓ KTrader
+  1 dependency successfully precompiled in 34 seconds. 143 already precompiled.
+TIMEOUT-EXCEEDED pgid=953795 deadline=45s child_rc=143 (timeout is never success)
+scoped_run: rc=124 elapsed=35s deadline=45 killed=1 cancelled=none rss_guard=2048 rss_peak=1669MiB

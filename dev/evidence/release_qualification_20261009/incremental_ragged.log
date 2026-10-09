@@ -1,0 +1,7 @@
+[incremental phase=ragged] BEGIN; default/include entry runs all phases
+Test Summary:                          | Pass  Total   Time
+Exact metric-factored prefix inference |  780    780  19.4s
+Test Summary:                         | Pass  Total  Time
+Incremental selected phases completed |    1      1  0.0s
+[incremental phase=ragged] END completed=[:ragged]
+scoped_run: rc=0 elapsed=25s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=1225MiB

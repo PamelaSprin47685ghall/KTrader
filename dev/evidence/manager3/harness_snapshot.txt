@@ -1,0 +1,7 @@
+# harness snapshot 2026-10-08T01:56:06+08:00
+# fx4.jl (as-run, post-fix) -> fixture_root_4way.log (5/5 Pass, RC0)
+# reqneg.jl (as-run, with absolute-path registry include) -> required_negative.log (RC0; NEG missing-last-required threw=true, POS all-present true)
+# commands: scoped_run 30s, julia --startup-file=no --project=. <harness>, JULIA_PKG_PRECOMPILE_AUTO=0
+# rejection causes: bad root = dev/probes include detected (occursin assert); empty root = KTrader.jl missing (isfile assert); required-negative = verify_required_contract_files throws on missing required file
+f584a12aece1c1ed7dc53c7ce08ef902862b4b845445fdd6ff1c854aa4fc36ee  dev/evidence/manager3/harness_fixture_root_4way.jl
+5d33f49ea51b2cffcddf5c7abedace9cbf050c0e0b473b81d922d252d60c2d85  dev/evidence/manager3/harness_required_negative.jl

@@ -1,0 +1,4 @@
+PARSED test/backtest_cache_tests.jl; no evaluation or numeric tests
+PARSED dev/backtest_cache_micro.jl; no evaluation or numeric tests
+PARSED dev/batch_cache_window.jl; no evaluation or numeric tests
+scoped_run: rc=0 elapsed=0s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=266MiB

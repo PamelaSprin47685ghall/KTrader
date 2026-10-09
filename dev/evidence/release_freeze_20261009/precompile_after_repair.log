@@ -1,0 +1,42 @@
+
+[1273931] signal 15: Terminated
+in expression starting at none:1
+unknown function (ip: 0x7fab57b8cf39) at /usr/bin/../lib/julia/libjulia-internal.so.1.12
+unknown function (ip: 0x7fab57af1430) at /usr/bin/../lib/julia/libjulia-internal.so.1.12
+unknown function (ip: 0x7fab57af15d7) at /usr/bin/../lib/julia/libjulia-internal.so.1.12
+unknown function (ip: 0x7fab57afc63b) at /usr/bin/../lib/julia/libjulia-internal.so.1.12
+unknown function (ip: 0x7fab57b3f310) at /usr/bin/../lib/julia/libjulia-internal.so.1.12
+jl_restore_incremental_from_buf at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+ijl_restore_package_image_from_file at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+unknown function (ip: 0x7fab405db80c) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7fab423dedce) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7fab428b85c7) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7fab428b26ef) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7fab40aae3d0) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7fab400d0c80) at /usr/lib/julia/sys.so
+jl_f_invoke_in_world at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+unknown function (ip: 0x7fab3fdf82d5) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7fab4175dd52) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7fab57b41c98) at /usr/bin/../lib/julia/libjulia-internal.so.1.12
+jl_toplevel_eval_flex at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+jl_toplevel_eval_flex at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+jl_toplevel_eval_flex at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+ijl_toplevel_eval at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+ijl_toplevel_eval_in at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+unknown function (ip: 0x7fab40c775c2) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7fab40b9add5) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7fab40a9cb4b) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7fab413acdc3) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7fab57b6fe27) at /usr/bin/../lib/julia/libjulia-internal.so.1.12
+jl_repl_entrypoint at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+main at julia (unknown line)
+unknown function (ip: 0x7fab58441780) at /usr/bin/../lib/libc.so.6
+__libc_start_main at /usr/bin/../lib/libc.so.6 (unknown line)
+_start at julia (unknown line)
+unknown function (ip: (nil)) at (unknown file)
+Allocations: 2750009 (Pool: 2749835; Big: 174); GC: 5
+Precompiling packages...
+  33623.7 ms  ✓ KTrader
+  1 dependency successfully precompiled in 34 seconds. 143 already precompiled.
+TIMEOUT-EXCEEDED pgid=1273931 deadline=45s child_rc=143 (timeout is never success)
+scoped_run: rc=124 elapsed=35s deadline=45 killed=1 cancelled=none rss_guard=2048 rss_peak=1666MiB

@@ -1,0 +1,14 @@
+consumed=decision.jls sha256=b5a1374722e4ca0a494aa859c9583eaee97639d9146de2e4bc58f0cdca3c65a5
+S300/N65 actual saved scenarios, all-tradable controlled decision; BLAS=1
+indexed_type=SubArray{Float64, 2, Matrix{Float64}, Tuple{Base.Slice{Base.OneTo{Int64}}, Vector{Int64}}, false} indexed_strided=false packed_strided=true cells_equal=true
+first_reference seconds=2.161217835 compile=2.151884955
+first_candidate seconds=0.648810896 compile=0.644934658
+weight_L1=1.912083588715858e-13 objective_diff=2.5326962749261384e-16
+Test Summary:                                        | Pass  Total  Time
+Indexed/dense Kelly: same law, original certificates |    5      5  0.2s
+before_A (seconds = 0.008967413, bytes = 373616.0, compile_seconds = 0.0)
+after_B (seconds = 0.003808658, bytes = 529736.0, compile_seconds = 0.0)
+after_B2 (seconds = 0.004078247, bytes = 529736.0, compile_seconds = 0.0)
+before_A2 (seconds = 0.009045931, bytes = 373616.0, compile_seconds = 0.0)
+kelly_source=52241a58499a061a35b7c2c72cd52f5e8f97955013a6398faa442c319014a575 unchanged=true; no whole-backtest timing claim
+scoped_run: rc=0 elapsed=11s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=1099MiB

@@ -1,0 +1,6 @@
+counts = "Test.TestCounts(true, 0, 0, 0, 0, 438, 0, 0, 0, \"14.8s\")"
+entries = ["timed_passthrough_tests.jl", "model_api_micro_tests.jl", "ceiling_admission_tests.jl", "cli_boundary_contract_tests.jl", "ceiling_probes.jl", "artifact_replay_contract_tests.jl"]
+julia = "1.12.7"
+opt_level = 2
+passed = true
+snapshot = "965c00871def6932cdc297f889d97a22171cdfba92c8849c591f5486dc5f1b75"

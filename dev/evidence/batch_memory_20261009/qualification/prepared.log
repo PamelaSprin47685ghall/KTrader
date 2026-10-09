@@ -1,0 +1,11 @@
+BEGIN group=prepared snapshot=680f1494d2d435847af2b4972d8be440e9f4f519fb2af0889789e302dbabeeba entries=["incremental_primal_prep_tests.jl", "incremental_pending_tests.jl", "incremental_budget_contract_tests.jl", "history_cache_contract_tests.jl", "prepared_problem_contract_tests.jl", "prepared_lifecycle_tests.jl"]
+FILE incremental_primal_prep_tests.jl
+FILE incremental_pending_tests.jl
+FILE incremental_budget_contract_tests.jl
+FILE history_cache_contract_tests.jl
+FILE prepared_problem_contract_tests.jl
+FILE prepared_lifecycle_tests.jl
+Test Summary:          | Pass  Total   Time
+Release group prepared | 1598   1598  13.0s
+END group=prepared passed=true counts=Test.TestCounts(true, 0, 0, 0, 0, 1598, 0, 0, 0, "13.0s")
+scoped_run: rc=0 elapsed=18s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=944MiB

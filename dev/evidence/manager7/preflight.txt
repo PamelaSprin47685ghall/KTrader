@@ -1,0 +1,6 @@
+# manager7 preflight 2026-10-08T05:50:48+08:00 — observed NOW, not reconstructed
+# julia_procs=0 (full ps scan; no this-route or known-owned residue; nothing killed — no ownership evidence arose; unknown-attribution processes not touched)
+# sleep orphans: 0
+# git (read-only, at this instant): HEAD 602b897, dirty 45 — includes source-owner in-flight edits to bin/scoped_run.sh and test/scoped_run_tests.jl; no commit/reset/clean ever
+# preflight command: single ps+git read-only, <=15s hard, no scoped_run usage (files under active modification), no test/Julia-load/fit/deserialize
+# awaiting source-owner delivery before any execution; fullsuite/ALL/multiday/N65fit/GPU/throughput remain paused; RSS2048 tighten-only

@@ -1,0 +1,38 @@
+source=96faa12404dcb22094b21eb77b14907f20acb237833048b3e0e755c5903488d2 Julia=1.12.7 CPU=znver4 BLAS=LBTConfig([ILP64] libopenblas64_.so) threads=6
+consumed=prepared.jls sha256=82b18e9b0283aa5aa9ef31e95e99d4870b5af49e70d800029d9fda8e2e4bfedc
+consumed=model.jls sha256=691c3297813f2511efaffbee276c11274fb4ce03f32b19bf9cd5fa8eb0cd3577
+EXPLICIT warm-up with the SAME DecisionTiming specialization; no alpha warm-start on either call
+BEGIN warmup_solve
+END warmup_solve seconds=11.721530448 allocated_bytes=3091350944 gc_seconds=1.022875707
+warmup_solve compile_time=9.34976908
+warmup_solve recompile_time=0.0
+BEGIN measured_solve
+END measured_solve seconds=1.897362224 allocated_bytes=1876100056 gc_seconds=0.259854356
+measured_solve compile_time=0.0
+measured_solve recompile_time=0.0
+timing prep=0.0
+timing basis=0.0
+timing gram=0.0
+timing eigen=0.048580133000000005
+timing EB=0.20197149200000003
+timing condition=0.020069652
+timing fracFFT=0.001572592
+timing scenario=0.0
+timing Kelly=0.0
+timing OOF_fit=1.6009113480000001
+timing OOF_predict=0.002392542
+timing OOF_residual=0.01794062
+consumed=decision.jls sha256=b5a1374722e4ca0a494aa859c9583eaee97639d9146de2e4bc58f0cdca3c65a5
+alpha_macro max_abs=0.0
+alpha_rel max_abs=0.0
+G_c_mean max_abs=0.0
+Sigma_rel max_abs=0.0
+mu_pred max_abs=0.0
+d_posterior max_abs=0.0
+v_forecasts max_abs=0.0
+X max_abs=0.0 weight_L1=0.0 certificate=(feasibility = 4.440892098500626e-16, kkt_residual = 9.999999780186643e-11, objective_gap = 6.286799969501544e-9, objective = 0.005936058669958164)
+Test Summary:                                                               | Pass  Total  Time
+N65 current-source full/OOF/scenario/Kelly vs frozen before-change pipeline |   13     13  0.5s
+artifact=model_certificate.jls sha256=12ac65841a319379feb678fe3500915f8cb32dfaac4feed7d86ca63eab441589 bytes=28631626
+source_after=96faa12404dcb22094b21eb77b14907f20acb237833048b3e0e755c5903488d2
+scoped_run: rc=0 elapsed=30s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=1754MiB

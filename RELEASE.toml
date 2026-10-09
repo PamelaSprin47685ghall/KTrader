@@ -1,0 +1,28 @@
+name = "KTrader"
+version = "2.0.0"
+status = "Final"
+edition = "CPU"
+mathematical_contract = "Path Kelly 1.0"
+gpu_release = "2.1"
+tag = "v2.0.0"
+delivery = "local Git release and source archive; no remote is configured"
+qualified_julia = "1.12.7"
+
+[acceptance]
+path = "dev/evidence/cpu20_acceptance_20261009/acceptance.toml"
+sha256 = "dd1fe993b2ad5020e46db8f634fdb9254b816d114ce9dd7c38a64fb188c820df"
+qualification_path = "dev/evidence/earlier_closure_20261009/qualification/qualification_snapshot.toml"
+qualification_sha256 = "31e1c48729147d5022a0b5f894c23afece80cd0bb9a596161fd7619c359e3f17"
+standard_files = 41
+groups_passed = 22
+baseline_project_sha256 = "e42f2d9272aa56b2f1dc98a74e3834adf8176a29c96e2bc0e51d12e3f2e17077"
+allowed_project_change = "exact version line: 0.1.0 -> 2.0.0"
+manifest_sha256 = "974b050f4f9441293581bc22d851f1d0e8de23547419c4e7ab940db22cebb047"
+
+[limits]
+default_evidence_profile = "single date task; batch; BLAS6; default GC"
+full_suite_evidence = "grouped; numerical/data/execution group O1; other groups default"
+parallel_memory_guarantee = false
+all_history_convergence_guarantee = false
+performance_ceiling_proven = false
+gpu_included = false

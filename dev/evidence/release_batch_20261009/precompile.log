@@ -1,0 +1,39 @@
+
+[781095] signal 15: Terminated
+in expression starting at none:1
+unknown function (ip: 0x7f504c4d7952) at /usr/bin/../lib/libc.so.6
+epoll_pwait at /usr/bin/../lib/libc.so.6 (unknown line)
+unknown function (ip: 0x7f504bc33664) at /usr/bin/../lib/julia/libjulia-internal.so.1.12
+uv_run at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+ijl_task_get_next at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+unknown function (ip: 0x7f503448209e) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f50364effbf) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f5034d5803f) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f5035133fdd) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f50358b3696) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f5034e8b0ec) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f504bb45e01) at /usr/bin/../lib/julia/libjulia-internal.so.1.12
+unknown function (ip: (nil)) at (unknown file)
+Allocations: 383772 (Pool: 383692; Big: 80); GC: 1
+Precompiling packages...
+Info Given KTrader was explicitly requested, output will be shown live [0K
+[0K
+[0K[781179] signal 15: Terminated
+[0Kin expression starting at none:0
+[0Kunknown function (ip: 0x7fbe89883950) at /usr/bin/../lib/libc.so.6
+[0Kunknown function (ip: 0x7fbe89877cd8) at /usr/bin/../lib/libc.so.6
+[0Kunknown function (ip: 0x7fbe8987ceec) at /usr/bin/../lib/libc.so.6
+[0Kuv_thread_join at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+[0Kunknown function (ip: 0x7fbe7e2c3d8d) at /usr/bin/../lib/julia/libjulia-codegen.so.1.12
+[0Kjl_dump_native_impl at /usr/bin/../lib/julia/libjulia-codegen.so.1.12 (unknown line)
+[0Kijl_write_compiler_output at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+[0Kijl_atexit_hook at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+[0Kjl_repl_entrypoint at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+[0Kmain at /usr/bin/julia (unknown line)
+[0Kunknown function (ip: 0x7fbe8980a780) at /usr/bin/../lib/libc.so.6
+[0K__libc_start_main at /usr/bin/../lib/libc.so.6 (unknown line)
+[0K_start at /usr/bin/julia (unknown line)
+[0Kunknown function (ip: (nil)) at (unknown file)
+[0KAllocations: 103375108 (Pool: 103373369; Big: 1739); GC: 26
+RSS-EXCEEDED pgid=781095 guard=2048MiB observed_peak=2055MiB
+scoped_run: rc=124 elapsed=16s deadline=45 killed=1 cancelled=none rss_guard=2048 rss_peak=2055MiB

@@ -1,0 +1,3 @@
+Test Summary:                    | Pass  Total  Time
+artifact replay comparison gates |   54     54  1.9s
+scoped_run: rc=0 elapsed=2s deadline=45 killed=0 rss_guard=2048 rss_peak=355MiB

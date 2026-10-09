@@ -1,0 +1,54 @@
+run=1 full N65 prefixes1:14294..14301 dates=[Date("2026-09-10"), Date("2026-09-11"), Date("2026-09-14"), Date("2026-09-15"), Date("2026-09-16"), Date("2026-09-17"), Date("2026-09-18"), Date("2026-09-21")] default EB/F3/S300 task1 BLAS6 Julia=1.12.7 CPU=znver4
+synthetic_startup seconds=3.474349231 compile=3.443215025
+real_first_day_warmup seconds=2.615460853 compile=0.0 decision=2026-09-10
+BEGIN full production eight-day call, fresh holdings and initial alpha pairs
+MEASURED seconds=17.516854764 bytes=13954893552 gc=2.996889266 compile=0.0 recompile=0.0 rate=0.4567029930762061
+Test Summary:                                    | Pass  Total  Time
+Complete earlier window and portfolio accounting |    6      6  0.4s
+raw_artifact=window_1.jls sha256=99cf04c814ebfbfe888edb32be15216f5b32fb6738fab442f114902a1c05e8cc
+
+[1329738] signal 15: Terminated
+in expression starting at /home/kunweiz/Desktop/vibe/KTrader/dev/earlier_window_replay.jl:116
+unknown function (ip: 0x7f42c4c79952) at /usr/bin/../lib/libc.so.6
+epoll_wait at /usr/bin/../lib/libc.so.6 (unknown line)
+_backend_poll_once! at /home/kunweiz/.julia/packages/Reseau/tHzjm/src/iopoll/epoll.jl:268
+_poller_thread_main! at /home/kunweiz/.julia/packages/Reseau/tHzjm/src/iopoll/runtime.jl:460
+_poller_thread_entry at /home/kunweiz/.julia/packages/Reseau/tHzjm/src/iopoll/runtime.jl:482
+jlcapi__poller_thread_entry_20137 at /home/kunweiz/.julia/compiled/v1.12/Reseau/vKBJ8_6N9Xv.so (unknown line)
+unknown function (ip: 0x7f42c4c710a1) at /usr/bin/../lib/libc.so.6
+unknown function (ip: 0x7f42c4cf980b) at /usr/bin/../lib/libc.so.6
+unknown function (ip: (nil)) at (unknown file)
+unknown function (ip: 0x7f42ae3a7f47) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f42aedb662b) at /usr/lib/julia/sys.so
+update! at /build/julia/src/julia-1.12.7/usr/share/julia/stdlib/v1.12/SHA/src/common.jl:20 [inlined]
+sha256 at /build/julia/src/julia-1.12.7/usr/share/julia/stdlib/v1.12/SHA/src/SHA.jl:97
+ewr_fit at /home/kunweiz/Desktop/vibe/KTrader/dev/earlier_window_replay.jl:11
+macro expansion at /home/kunweiz/Desktop/vibe/KTrader/dev/earlier_window_replay.jl:74 [inlined]
+macro expansion at /build/julia/src/julia-1.12.7/usr/share/julia/stdlib/v1.12/Test/src/Test.jl:1777 [inlined]
+ewr_main at /home/kunweiz/Desktop/vibe/KTrader/dev/earlier_window_replay.jl:73
+unknown function (ip: 0x7f42433a9553) at (unknown file)
+unknown function (ip: 0x7f42c42e15ec) at /usr/bin/../lib/julia/libjulia-internal.so.1.12
+unknown function (ip: 0x7f42c42e0ce7) at /usr/bin/../lib/julia/libjulia-internal.so.1.12
+unknown function (ip: 0x7f42c42e1e43) at /usr/bin/../lib/julia/libjulia-internal.so.1.12
+unknown function (ip: 0x7f42c42e3218) at /usr/bin/../lib/julia/libjulia-internal.so.1.12
+jl_toplevel_eval_flex at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+jl_toplevel_eval_flex at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+ijl_toplevel_eval at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+ijl_toplevel_eval_in at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+unknown function (ip: 0x7f42ad4365c2) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f42ad7ee0bf) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f42acc1de9a) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f42ad3551ab) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f42ad35a0f3) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f42ad25bb4b) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f42adb6bdc3) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f42c432ee27) at /usr/bin/../lib/julia/libjulia-internal.so.1.12
+jl_repl_entrypoint at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+main at julia (unknown line)
+unknown function (ip: 0x7f42c4c00780) at /usr/bin/../lib/libc.so.6
+__libc_start_main at /usr/bin/../lib/libc.so.6 (unknown line)
+_start at julia (unknown line)
+unknown function (ip: (nil)) at (unknown file)
+Allocations: 59823599 (Pool: 59822867; Big: 732); GC: 175
+TIMEOUT-EXCEEDED pgid=1329738 deadline=45s child_rc=143 (timeout is never success)
+scoped_run: rc=124 elapsed=35s deadline=45 killed=1 cancelled=none rss_guard=2048 rss_peak=1789MiB

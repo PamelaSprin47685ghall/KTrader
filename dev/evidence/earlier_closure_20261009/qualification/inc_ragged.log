@@ -1,0 +1,10 @@
+BEGIN group=inc_ragged snapshot=31e1c48729147d5022a0b5f894c23afece80cd0bb9a596161fd7619c359e3f17 entries=["incremental_tests.jl::ragged"]
+CHILD incremental_tests.jl::ragged
+[incremental phase=ragged] BEGIN; default/include entry runs all phases
+Test Summary:                          | Pass  Total  Time
+Exact metric-factored prefix inference |  780    780  9.0s
+Test Summary:                         | Pass  Total  Time
+Incremental selected phases completed |    1      1  0.0s
+[incremental phase=ragged] END completed=[:ragged]
+END group=inc_ragged passed=true counts=child process assertions in log
+scoped_run: rc=0 elapsed=18s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=1688MiB

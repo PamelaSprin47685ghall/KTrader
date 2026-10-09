@@ -1,0 +1,8 @@
+BEGIN group=posterior snapshot=31e1c48729147d5022a0b5f894c23afece80cd0bb9a596161fd7619c359e3f17 entries=["posterior_contract_tests.jl", "residual_oracle_flow_tests.jl", "principal_root_contract_tests.jl"]
+FILE posterior_contract_tests.jl
+FILE residual_oracle_flow_tests.jl
+FILE principal_root_contract_tests.jl
+Test Summary:           | Pass  Total  Time
+Release group posterior |  125    125  9.7s
+END group=posterior passed=true counts=Test.TestCounts(true, 0, 0, 0, 0, 125, 0, 0, 0, "9.7s")
+scoped_run: rc=0 elapsed=15s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=911MiB

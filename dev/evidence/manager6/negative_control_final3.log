@@ -1,0 +1,47 @@
+kill: sending signal to -712065 failed: No such process
+ERROR: LoadError: Some tests did not pass: 3 passed, 3 failed, 0 errored, 0 broken.
+in expression starting at /tmp/negroot/test/scoped_run_tests.jl:551
+[phase=clock-saturate] begin — scope: fake awk simulates mawk %d 32-bit saturation (constant 2147483647) for %d programs, forwards %.0f — production must fire at hard (2s) → rc=124 + TIMEOUT-EXCEEDED, no CANCELLED; owned group cleaned; no real /proc touched by the saturation branch
+[phase=clock-saturate] %.0f survives large-uptime saturation: Test Failed at /tmp/negroot/test/scoped_run_tests.jl:513
+  Expression: proc.exitcode == 124
+   Evaluated: 143 == 124
+
+Stacktrace:
+ [1] macro expansion
+   @ /usr/share/julia/stdlib/v1.12/Test/src/Test.jl:680 [inlined]
+ [2] macro expansion
+   @ /tmp/negroot/test/scoped_run_tests.jl:513 [inlined]
+ [3] macro expansion
+   @ /usr/share/julia/stdlib/v1.12/Test/src/Test.jl:1777 [inlined]
+ [4] phase_clock_saturate()
+   @ Main /tmp/negroot/test/scoped_run_tests.jl:466
+[phase=clock-saturate] %.0f survives large-uptime saturation: Test Failed at /tmp/negroot/test/scoped_run_tests.jl:515
+  Expression: occursin("TIMEOUT-EXCEEDED", log)
+   Evaluated: occursin("TIMEOUT-EXCEEDED", "CANCELLED-BY-SIGNAL sig=TERM(15) pgid=712065 elapsed=0s deadline=12\nscoped_run: rc=143 elapsed=0s deadline=12 killed=1 cancelled=TERM rss_guard=0 rss_peak=0MiB\n")
+
+Stacktrace:
+ [1] macro expansion
+   @ /usr/share/julia/stdlib/v1.12/Test/src/Test.jl:680 [inlined]
+ [2] macro expansion
+   @ /tmp/negroot/test/scoped_run_tests.jl:515 [inlined]
+ [3] macro expansion
+   @ /usr/share/julia/stdlib/v1.12/Test/src/Test.jl:1777 [inlined]
+ [4] phase_clock_saturate()
+   @ Main /tmp/negroot/test/scoped_run_tests.jl:466
+[phase=clock-saturate] %.0f survives large-uptime saturation: Test Failed at /tmp/negroot/test/scoped_run_tests.jl:516
+  Expression: !(occursin("CANCELLED", log))
+   Evaluated: !(occursin("CANCELLED", "CANCELLED-BY-SIGNAL sig=TERM(15) pgid=712065 elapsed=0s deadline=12\nscoped_run: rc=143 elapsed=0s deadline=12 killed=1 cancelled=TERM rss_guard=0 rss_peak=0MiB\n"))
+
+Stacktrace:
+ [1] macro expansion
+   @ /usr/share/julia/stdlib/v1.12/Test/src/Test.jl:680 [inlined]
+ [2] macro expansion
+   @ /tmp/negroot/test/scoped_run_tests.jl:516 [inlined]
+ [3] macro expansion
+   @ /usr/share/julia/stdlib/v1.12/Test/src/Test.jl:1777 [inlined]
+ [4] phase_clock_saturate()
+   @ Main /tmp/negroot/test/scoped_run_tests.jl:466
+Test Summary:                                                | Pass  Fail  Total   Time
+[phase=clock-saturate] %.0f survives large-uptime saturation |    3     3      6  15.2s
+RNG of the outermost testset: Random.Xoshiro(0xc396e71f2afd828b, 0xd71d85be7f035ef5, 0x1d1ccd622e8e03dd, 0xcbe37d7f9bf76611, 0x6db7e9c2d4917d32)
+scoped_run: rc=1 elapsed=16s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=361MiB

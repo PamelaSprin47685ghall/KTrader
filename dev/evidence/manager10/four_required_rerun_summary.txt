@@ -1,0 +1,10 @@
+=== four REQUIRED rerun summary 2026-10-08 10:18:19 CST ===
+[conditioned_eb]
+scoped_run: rc=0 elapsed=18s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=1061MiB
+[conditioned_jcore]
+scoped_run: rc=0 elapsed=5s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=710MiB
+[conditioned_contraction_kernel]
+scoped_run: rc=0 elapsed=4s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=691MiB
+[relative_support]
+scoped_run: rc=0 elapsed=5s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=750MiB
+git porcelain before/after: identical (45 items), HEAD 602b897, no git write ops

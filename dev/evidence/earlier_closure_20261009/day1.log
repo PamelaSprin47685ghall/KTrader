@@ -1,0 +1,44 @@
+BEGIN index=1 date=2026-09-10 prefix=1:14294 default EB/F3 BLAS6; warm=[(1.0, 1.0), (1.0, 1.0), (1.0, 1.0), (1.0, 1.0)] source=b8ca4dc26ee3f05444f456a29bf7608f3a38565f797c1f57d973eb623bc828d7
+start gram fold=0 ns=1280270413615558
+stop gram fold=0 ns=1280270499594925
+start eigen fold=0 ns=1280270676495822
+stop eigen fold=0 ns=1280270680664367
+start EB fold=0 ns=1280270703243410
+stop EB fold=0 ns=1280270715630465
+start eigen fold=0 ns=1280270725465573
+stop eigen fold=0 ns=1280270783534633
+start EB fold=0 ns=1280270807171545
+stop EB fold=0 ns=1280271178485589
+start condition fold=0 ns=1280271208416763
+stop condition fold=0 ns=1280271218705440
+start OOF_fit fold=1 ns=1280271379173548
+stop OOF_fit fold=1 ns=1280271839672154
+start OOF_fit fold=2 ns=1280271840728893
+stop OOF_fit fold=2 ns=1280272077054669
+start OOF_fit fold=3 ns=1280272078700087
+stop OOF_fit fold=3 ns=1280273551867697
+start OOF_predict fold=3 ns=1280273580008123
+stop OOF_predict fold=3 ns=1280273583633439
+start OOF_residual fold=3 ns=1280273583647899
+stop OOF_residual fold=3 ns=1280273585447856
+start condition fold=3 ns=1280273614454892
+stop condition fold=3 ns=1280273615174971
+start OOF_residual fold=3 ns=1280273615199801
+stop OOF_residual fold=3 ns=1280273630874322
+start fracFFT fold=3 ns=1280273630883642
+stop fracFFT fold=3 ns=1280273637299444
+END index=1 seconds=3.282577655 bytes=2012620856 gc=0.675323738 compile=0.505581574 warm_out=[(9755.304360212795, 14847.783365912503), (1953.2289380344298, 73584.74889256341), (3776.991333665229, 7335.533542537766), (240.48405993463015, 14296.715161011329)]
+bucket prep=0.010479787
+bucket basis=0.048401192
+bucket gram=0.067951829
+bucket eigen=0.062207725000000005
+bucket EB=0.38367200900000004
+bucket condition=0.010981016000000001
+bucket fracFFT=0.006412702
+bucket scenario=0.0
+bucket Kelly=0.0
+bucket OOF_fit=2.1699491120000003
+bucket OOF_predict=0.003608356
+bucket OOF_residual=0.017468918
+SAVED fit_day_1.jls sha256=9e20e157697c7db0a49e7fd5f9e7f559275f117b83b0fe9192d730b7afdcc11c
+scoped_run: rc=0 elapsed=12s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=1238MiB

@@ -1,0 +1,3 @@
+Test Summary:                                             | Pass  Total  Time
+IPO gram budget ledger (embed_active! payload accounting) | 1041   1041  9.4s
+scoped_run: rc=0 elapsed=16s deadline=50 killed=0 rss_guard=2048 rss_peak=946MiB

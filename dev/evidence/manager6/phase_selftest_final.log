@@ -1,0 +1,5 @@
+[phase=selftest] begin — scope: bash --self-test regression (success/timeout/leader-exit-first/term-resistant + ALL PASS, no FAIL)
+Test Summary:                                | Pass  Total   Time
+[phase=selftest] bash --self-test regression |    6      6  11.2s
+[phase=selftest] end
+scoped_run: rc=0 elapsed=12s deadline=35 killed=0 cancelled=none rss_guard=2048 rss_peak=345MiB

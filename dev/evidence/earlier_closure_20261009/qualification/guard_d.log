@@ -1,0 +1,40 @@
+BEGIN group=guard_d snapshot=31e1c48729147d5022a0b5f894c23afece80cd0bb9a596161fd7619c359e3f17 entries=["scoped_run_tests.jl::clock-cleanup", "scoped_run_tests.jl::clock-elapsed", "scoped_run_tests.jl::clock-transient", "scoped_run_tests.jl::clock-window-poll", "scoped_run_tests.jl::clock-negctl", "scoped_run_tests.jl::command-admission"]
+CHILD scoped_run_tests.jl::clock-cleanup
+kill: sending signal to -1426685 failed: No such process
+kill: sending signal to -1426727 failed: No such process
+[phase=clock-cleanup] begin — scope: stub-copy cleanup-window boundary failure (monitor healthy) → late-stage failure must carry through to 125 for BOTH child rc sources — 0 (the old false-green proper: a successful command washed to rc=0 + elapsed=0) and 7 (non-zero passthrough equally swallowed)
+Test Summary:                                                 | Pass  Total  Time
+[phase=clock-cleanup] late cleanup-window clock failure → 125 |   14     14  0.3s
+[phase=clock-cleanup] end
+CHILD scoped_run_tests.jl::clock-elapsed
+kill: sending signal to -1426967 failed: No such process
+kill: sending signal to -1427002 failed: No such process
+[phase=clock-elapsed] begin — scope: stub-copy final-elapsed boundary failure → 125 + elapsed=unknown for BOTH child rc sources — 0 (old false-green proper: success washed to rc=0 + elapsed=0) and 7 (non-zero swallowed)
+Test Summary:                                                     | Pass  Total  Time
+[phase=clock-elapsed] final elapsed clock failure → 125 + unknown |   14     14  0.2s
+[phase=clock-elapsed] end
+CHILD scoped_run_tests.jl::clock-transient
+kill: sending signal to -1427212 failed: No such process
+[phase=clock-transient] begin — scope: stub-copy transient monitor failure (fails exactly once, then recovers) → sticky SCOPE_ClockFailed still ends 125; recovered clock yields real measured elapsed (not unknown)
+Test Summary:                                                       | Pass  Total  Time
+[phase=clock-transient] one-shot monitor clock failure → sticky 125 |    7      7  0.1s
+[phase=clock-transient] end
+CHILD scoped_run_tests.jl::clock-window-poll
+kill: sending signal to -1427439 failed: No such process
+[phase=clock-window-poll] begin — scope: stub-copy cleanup_window_exceeded poll-boundary failure with an owned live TERM-resistant child — the grace loop MUST actually poll (group not empty, not skipped), window degrades to shared no-clock rounds, 125 + phase=window-poll, group confirmed clean
+Test Summary:                                                                 | Pass  Total  Time
+[phase=clock-window-poll] window-poll clock failure during live cleanup → 125 |    9      9  7.2s
+[phase=clock-window-poll] end
+CHILD scoped_run_tests.jl::clock-negctl
+kill: sending signal to -1429777 failed: No such process
+[phase=clock-negctl] begin — scope: mutation negative control — stub copy with the run_scoped clock fail-closed block stripped (swallowed-clock mutant) — the SAME 125 assertion used in clock-cleanup MUST go red on this mutant; the expectation is not rewritten to the passthrough value — this proves the rejection power of the assertion itself
+Test Summary:                                                        | Pass  Total  Time
+[phase=clock-negctl] swallowed-clock mutant → same 125 assertion red |    5      5  0.1s
+[phase=clock-negctl] end
+CHILD scoped_run_tests.jl::command-admission
+[phase=command-admission] begin — scope: --rss-guard shifted away leaves no command → RC2 refused before spawn AND before logfile creation
+Test Summary:                                                      | Pass  Total  Time
+[phase=command-admission] no command after options → pre-spawn RC2 |    4      4  0.2s
+[phase=command-admission] end
+END group=guard_d passed=true counts=child process assertions in log
+scoped_run: rc=0 elapsed=19s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=1168MiB

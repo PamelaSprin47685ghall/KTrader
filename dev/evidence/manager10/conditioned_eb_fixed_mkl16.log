@@ -1,0 +1,31 @@
+ERROR: LoadError: Some tests did not pass: 0 passed, 0 failed, 1 errored, 0 broken.
+in expression starting at /home/kunweiz/Desktop/vibe/KTrader/test/conditioned_eb_tests.jl:420
+ACTUAL_BLAS_THREADS=6
+Test Summary:                                      | Pass  Total  Time
+Support-conditioned EB production and certificates |   66     66  4.5s
+Test Summary:                                                | Pass  Total  Time
+Dense Gaussian oracle and fixed-alpha cached covariance rays |   25     25  1.7s
+Test Summary:                     | Pass  Total  Time
+Floor 激活的边界 KKT 驻点与平坦 evidence 锚定 |   13     13  0.4s
+Test Summary:                | Pass  Total  Time
+RMS 等价、驻点方程求解器与浅平坦 tie-break |   22     22  0.7s
+Test Summary:                           | Pass  Total  Time
+Riccati 闭式候选：方程恒等式、合法域、退化结构与 t=14294 回归 |   15     15  2.7s
+t14294 actual-BLAS6 single-solve companion (no thread switch): Error During Test at /home/kunweiz/Desktop/vibe/KTrader/test/conditioned_eb_tests.jl:420
+  Got exception outside of a @test
+  conditioned EB line search failed before stationarity
+  Stacktrace:
+   [1] optimize_conditioned_eb(spectrum::@NamedTuple{values::Vector{Float64}, basis::Matrix{Float64}, B::Matrix{Float64}, dual::Bool}, YtY::Matrix{Float64}, n::Int64; initial::Float64, tol::Float64, gauge::Matrix{Float64}, iters::Int64, max_backtracks::Int64, alpha_iters::Int64, return_certificate::Bool, fp_iters::Int64, fp_tol::Float64, degenerate_witness::Nothing)
+     @ KTrader ~/Desktop/vibe/KTrader/src/response.jl:961
+   [2] top-level scope
+     @ ~/Desktop/vibe/KTrader/test/conditioned_eb_tests.jl:425
+   [3] macro expansion
+     @ /usr/share/julia/stdlib/v1.12/Test/src/Test.jl:1777 [inlined]
+   [4] macro expansion
+     @ ~/Desktop/vibe/KTrader/test/conditioned_eb_tests.jl:427 [inlined]
+   [5] top-level scope
+     @ none:1
+Test Summary:                                                 | Error  Total  Time
+t14294 actual-BLAS6 single-solve companion (no thread switch) |     1      1  2.1s
+RNG of the outermost testset: Xoshiro(0x47ffb4e914186d3f, 0x6fc9f9a46f3bd578, 0xe31d56b0f45cc26e, 0xf4adb4e0934dcfb0, 0xb7b0456f2ebc679d)
+scoped_run: rc=1 elapsed=15s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=1057MiB

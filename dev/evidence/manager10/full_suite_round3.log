@@ -1,0 +1,192 @@
+deadline 100 exceeds the 60s hard cap; refusing to start
+kill: sending signal to -278099 failed: No such process
+kill: sending signal to -278144 failed: No such process
+kill: sending signal to -278193 failed: No such process
+kill: sending signal to -278243 failed: No such process
+kill: sending signal to -278649 failed: No such process
+kill: sending signal to -278771 failed: No such process
+kill: sending signal to -278812 failed: No such process
+kill: sending signal to -278922 failed: No such process
+kill: sending signal to -279234 failed: No such process
+kill: sending signal to -279250 failed: No such process
+kill: sending signal to -279266 failed: No such process
+kill: sending signal to -279282 failed: No such process
+kill: sending signal to -279298 failed: No such process
+kill: sending signal to -279320 failed: No such process
+kill: sending signal to -280239 failed: No such process
+[refiso][R1-end] 1.79143015747041e9
+[refiso][R2-solve-begin] 1.791430157570078e9
+[refiso][R2-end] 1.791430161945429e9
+[refiso][R3-begin] 1.791430161945459e9
+[refiso][R3-return] 1.791430169038234e9
+[stage:prep][start] t_star=399 history_rows=399 universe=3 folds=3 mode=- run=1/1
+[stage:prep][bucket:start] gram t_star=399
+[stage:prep][bucket:stop] gram t_star=399
+[stage:prep][end] t_star=399 history_rows=399 universe=3 active_assets=3 elapsed_s=0.008 prep_s=0.0 basis_s=0.0 gram_s=0.0
+ERROR: LoadError: Some tests did not pass: 12289 passed, 0 failed, 2 errored, 0 broken.
+in expression starting at /home/kunweiz/Desktop/vibe/KTrader/test/runtests.jl:114
+Test Summary:                                                                                               | Pass  Total  Time
+M1-A/B/C: production include tree AST scan — real tree (expected GREEN: the probe dev-migration has landed) |    3      3  0.7s
+Test Summary:                                                             | Pass  Total  Time
+M1-D: PreparedProblem typed boundary with single solve (runtime metadata) |    2      2  0.0s
+Test Summary:                                                  | Pass  Total  Time
+M1-E: profiling types absent from production runtime namespace |    2      2  0.0s
+Test Summary:                                                        | Pass  Total  Time
+M1 gate self-check: known-bad fixtures go red via the same primitive |   15     15  0.1s
+Test Summary:                                           | Pass  Total  Time
+M1 gate self-check: legal minimal structure stays green |    3      3  0.0s
+[phase=ALL] running all phases: selftest, baseline, owner-term, owner-int, owner-hup, clock-mutant, clock-mono, clock-fail, clock-saturate, clock-start, clock-cleanup, clock-elapsed, clock-transient, clock-window-poll, clock-negctl, command-admission
+[phase=selftest] begin — scope: bash --self-test regression (success/timeout/leader-exit-first/term-resistant + ALL PASS, no FAIL)
+[phase=selftest] end
+[phase=baseline] begin — scope: G1 TERM-exit-0 LOCKED (child_rc=0 present, child_rc=137 absent), G2 >60s refuse-to-start, G3 rc passthrough
+[phase=baseline] end
+[phase=owner-term] begin — scope: SIGTERM to wrapper PID only; asserts wrapper natural rc=128+15 via direct wait, CANCELLED-BY-SIGNAL sig=TERM, owned PGID (leader-recorded) has no live member, sentinel PID untouched, no TIMEOUT (cancel at ~1.5s << hard)
+[phase=owner-term] end
+[phase=owner-int] begin — scope: SIGINT to wrapper PID only; asserts wrapper natural rc=128+2 via direct wait, CANCELLED-BY-SIGNAL sig=INT, owned PGID (leader-recorded) has no live member, sentinel PID untouched, no TIMEOUT (cancel at ~1.5s << hard)
+[phase=owner-int] end
+[phase=owner-hup] begin — scope: SIGHUP to wrapper PID only; asserts wrapper natural rc=128+1 via direct wait, CANCELLED-BY-SIGNAL sig=HUP, owned PGID (leader-recorded) has no live member, sentinel PID untouched, no TIMEOUT (cancel at ~1.5s << hard)
+[phase=owner-hup] end
+[phase=clock-mutant] begin — scope: date-mutant (mono_ms→date) under fake wall-clock rollback must FAIL its deadline — no TIMEOUT-EXCEEDED by 6s checkpoint, harness TERM finishes it (rc=143); owned group cleaned
+[phase=clock-mutant] end
+[phase=clock-mono] begin — scope: production script under the SAME fake wall clock — /proc/uptime monotonic source fires at hard (2s) → rc=124 + TIMEOUT-EXCEEDED, no CANCELLED; owned group cleaned
+[phase=clock-mono] end
+[phase=clock-fail] begin — scope: counting fake awk (forwards first FAKE_AWK_OK_CALLS then fails) → rc=125 + MONO-CLOCK-FAILED phase=monitor, elapsed < deadline (fail-closed, not clock-dead hang); owned group cleaned
+[phase=clock-fail] end
+[phase=clock-saturate] begin — scope: fake awk simulates mawk %d 32-bit saturation (constant 2147483647) for %d programs, forwards %.0f — production must fire at hard (2s) → rc=124 + TIMEOUT-EXCEEDED, no CANCELLED; owned group cleaned; no real /proc touched by the saturation branch
+[phase=clock-saturate] end
+[phase=clock-start] begin — scope: stub-copy start-boundary clock failure → fail-closed 125 with bounded leader confirmation and full group reap (old defect: KILL delivered then Cleaned=1 with no confirmation); pidfile PGID real and observable
+[phase=clock-start] end
+[phase=clock-cleanup] begin — scope: stub-copy cleanup-window boundary failure (monitor healthy) → late-stage failure must carry through to 125 for BOTH child rc sources — 0 (the old false-green proper: a successful command washed to rc=0 + elapsed=0) and 7 (non-zero passthrough equally swallowed)
+[phase=clock-cleanup] end
+[phase=clock-elapsed] begin — scope: stub-copy final-elapsed boundary failure → 125 + elapsed=unknown for BOTH child rc sources — 0 (old false-green proper: success washed to rc=0 + elapsed=0) and 7 (non-zero swallowed)
+[phase=clock-elapsed] end
+[phase=clock-transient] begin — scope: stub-copy transient monitor failure (fails exactly once, then recovers) → sticky SCOPE_ClockFailed still ends 125; recovered clock yields real measured elapsed (not unknown)
+[phase=clock-transient] end
+[phase=clock-window-poll] begin — scope: stub-copy cleanup_window_exceeded poll-boundary failure with an owned live TERM-resistant child — the grace loop MUST actually poll (group not empty, not skipped), window degrades to shared no-clock rounds, 125 + phase=window-poll, group confirmed clean
+[phase=clock-window-poll] end
+[phase=clock-negctl] begin — scope: mutation negative control — stub copy with the run_scoped clock fail-closed block stripped (swallowed-clock mutant) — the SAME 125 assertion used in clock-cleanup MUST go red on this mutant; the expectation is not rewritten to the passthrough value — this proves the rejection power of the assertion itself
+[phase=clock-negctl] end
+[phase=command-admission] begin — scope: --rss-guard shifted away leaves no command → RC2 refused before spawn AND before logfile creation
+[phase=command-admission] end
+Dense Gaussian oracle and fixed-alpha cached covariance rays: Error During Test at /home/kunweiz/Desktop/vibe/KTrader/test/conditioned_eb_tests.jl:148
+  Got exception outside of a @test
+  FieldError: type NamedTuple has no field `G`, available fields: `V`, `R`, `blocks`, `h`, `n`, `alpha`, `rank`, `constant`, `bwcat`, `bcat`, `jcore`
+  Stacktrace:
+   [1] getproperty(x::@NamedTuple{V::KTrader.RidgeCovariance, R::Matrix{Float64}, blocks::Vector{Matrix{Float64}}, h::Vector{Float64}, n::Int64, alpha::Float64, rank::Int64, constant::Float64, bwcat::Matrix{Float64}, bcat::Matrix{Float64}, jcore::Base.RefValue{Union{Nothing, Vector{Matrix{Float64}}}}}, f::Symbol)
+     @ Base ./Base_compiler.jl:54
+   [2] top-level scope
+     @ ~/Desktop/vibe/KTrader/test/conditioned_eb_tests.jl:149
+   [3] macro expansion
+     @ /usr/share/julia/stdlib/v1.12/Test/src/Test.jl:1777 [inlined]
+   [4] macro expansion
+     @ ~/Desktop/vibe/KTrader/test/conditioned_eb_tests.jl:192 [inlined]
+   [5] top-level scope
+     @ ~/Desktop/vibe/KTrader/test/runtests.jl:119
+   [6] macro expansion
+     @ /usr/share/julia/stdlib/v1.12/Test/src/Test.jl:1777 [inlined]
+   [7] macro expansion
+     @ ~/Desktop/vibe/KTrader/test/runtests.jl:140 [inlined]
+t14294 actual-BLAS6 single-solve companion (no thread switch): Error During Test at /home/kunweiz/Desktop/vibe/KTrader/test/conditioned_eb_tests.jl:416
+  Got exception outside of a @test
+  conditioned EB line search failed before stationarity
+  Stacktrace:
+   [1] optimize_conditioned_eb(spectrum::@NamedTuple{values::Vector{Float64}, basis::Matrix{Float64}, B::Matrix{Float64}, dual::Bool}, YtY::Matrix{Float64}, n::Int64; initial::Float64, tol::Float64, gauge::Matrix{Float64}, iters::Int64, max_backtracks::Int64, alpha_iters::Int64, return_certificate::Bool, fp_iters::Int64, fp_tol::Float64, degenerate_witness::Nothing)
+     @ KTrader ~/Desktop/vibe/KTrader/src/response.jl:961
+   [2] top-level scope
+     @ ~/Desktop/vibe/KTrader/test/conditioned_eb_tests.jl:421
+   [3] macro expansion
+     @ /usr/share/julia/stdlib/v1.12/Test/src/Test.jl:1777 [inlined]
+   [4] macro expansion
+     @ ~/Desktop/vibe/KTrader/test/conditioned_eb_tests.jl:423 [inlined]
+   [5] top-level scope
+     @ ~/Desktop/vibe/KTrader/test/runtests.jl:119
+   [6] macro expansion
+     @ /usr/share/julia/stdlib/v1.12/Test/src/Test.jl:1777 [inlined]
+   [7] macro expansion
+     @ ~/Desktop/vibe/KTrader/test/runtests.jl:140 [inlined]
+  fallback: 0/1 solves (0.00%) [fast=1 (100.0%)]
+  partial return rows (decision span, universe-wide): 0
+  core rebuilds (decision span): 0
+  coordinator advances: 0
+  rebuilds/decision: 0.000  partial-rows/decision: 0.000
+Test Summary:                                                                           |  Pass  Error  Total     Time
+KTrader V1.0 Complete Rigorous Suite                                                    | 12289      2  12291  2m30.1s
+  Path Kelly distribution invariants                                                    |    34            34     1.5s
+  Exact numerical kernels                                                               |    90            90    15.2s
+  is_final                                                                              |     7             7     0.0s
+  yahoo_symbol                                                                          |     5             5     2.6s
+  fetch_symbol: gmtoffset, nulls, finality                                              |     9             9     0.9s
+  adj vs close: dividend and split                                                      |     7             7     0.9s
+  Bars constructor                                                                      |    11            11     0.1s
+  download_bars: coverage filter                                                        |    12            12     1.2s
+  save_bars / load_bars round trip                                                      |     6             6     3.6s
+  load_universe                                                                         |     1             1     0.1s
+  Preview is total-return: ex-dividend and split days                                   |     4             4     0.5s
+  Corporate actions: Yahoo events, cache, degradation                                   |    10            10     0.8s
+  Progressive liquidation of foreign positions                                          |    14            14     2.7s
+  Foreign untradable / unquoted symbols are skipped but reserved                        |     8             8     0.4s
+  Balance fields by account type                                                        |     8             8     0.1s
+  Resting buy orders reduce the buy budget                                              |     5             5     1.0s
+  Cancel is confirmed by polling before the snapshot                                    |    19            19     0.5s
+  Buys never exceed cash on hand, even with pending sells                               |     5             5     0.0s
+  Non-live issues no writes                                                             |     7             7     4.5s
+  live_step!: foreign liquidation, actions, budget                                      |     7             7     0.9s
+  Default fetch_actions has the signature live_step! calls (no mock)                    |     1             1     0.0s
+  Exact metric-factored prefix inference                                                |  7120          7120    10.9s
+  non-symmetric cross-Gram contraction (production stats path)                          |     3             3     1.1s
+  lazy residual oracle (production wiring)                                              |    59            59     1.5s
+  residual oracle off-by-one boundary (600 bars, last legal t=598)                      |    12            12     0.6s
+  Fixed-alpha Jacobian core cache: exact Sigma-iteration identities                     |   113           113     1.4s
+  cross-core symmetry: deterministic 2x1 counterexample (kernel owner)                  |     5             5     0.2s
+  Conditioned EB: trace-only cache and J-only proposals                                 |   228           228     0.9s
+  Fit-local scalar geometry: reuse changes no evidence or derivative                    |   244           244     0.7s
+  Residual mask scratch: recurrent masks, empty rows and independent calls              |     7             7     0.3s
+  Inference panel packing preserves values and ownership                                |     6             6     0.1s
+  M(S) kernel Frobenius contraction identities                                          |  1359          1359     0.7s
+  timed return-value passthrough contract                                               |     7             7     0.1s
+  principal sqrt root canonical coupling (scenario contract)                            |    15            15     0.6s
+  solve_stage_probe model-return API and downstream wiring                              |     8             8     1.2s
+  ceiling admission gates (discriminating)                                              |    17            17     0.2s
+  [phase=selftest] bash --self-test regression                                          |     6             6    11.2s
+  [phase=baseline] G1/G2/G3 (locked contract)                                           |     6             6     5.1s
+  [phase=owner-term] owner cancel: SIGTERM to wrapper only                              |     6             6     0.7s
+  [phase=owner-int] owner cancel: SIGINT to wrapper only                                |     6             6     0.7s
+  [phase=owner-hup] owner cancel: SIGHUP to wrapper only                                |     6             6     0.7s
+  [phase=clock-mutant] date-mutant red under fake rollback                              |     5             5     6.2s
+  [phase=clock-mono] monotonic source green under fake rollback                         |     5             5     2.2s
+  [phase=clock-fail] controlled clock failure → fail-closed 125                         |     7             7     0.2s
+  [phase=clock-saturate] %.0f survives large-uptime saturation                          |     6             6     2.2s
+  [phase=clock-start] start clock failure → 125 + confirmed cleanup                     |     9             9     5.2s
+  [phase=clock-cleanup] late cleanup-window clock failure → 125                         |    14            14     0.1s
+  [phase=clock-elapsed] final elapsed clock failure → 125 + unknown                     |    14            14     0.1s
+  [phase=clock-transient] one-shot monitor clock failure → sticky 125                   |     7             7     0.1s
+  [phase=clock-window-poll] window-poll clock failure during live cleanup → 125         |     9             9     7.1s
+  [phase=clock-negctl] swallowed-clock mutant → same 125 assertion red                  |     5             5     0.2s
+  [phase=command-admission] no command after options → pre-spawn RC2                    |     4             4     0.2s
+  Primal preparation statistics vs batch (N=2, n_res>P)                                 |    46            46     0.7s
+  PreparedProblem typed boundary                                                        |    61            61     1.6s
+  Prepared lifecycle: frozen decision mask, lease, model stability                      |    24            24     0.5s
+  CLI boundary contract (bin/ceiling_probes.jl entrance)                                |    50            50     0.1s
+  moving-fold boundary: yesterday-train contains today's heldout, warm == cold          |    40            40     0.8s
+  ScenarioQuadrature lazy vs dense: same model, same rule, ragged + missing own support |    25            25     1.2s
+  lazy residual oracle flow contract                                                    |    45            45     0.7s
+  Reference isolation: minimal core without accelerator/probes                          |    57            57    11.6s
+  Support-conditioned EB production and certificates                                    |    66            66     3.3s
+  Dense Gaussian oracle and fixed-alpha cached covariance rays                          |    11      1     12     1.5s
+  Floor 激活的边界 KKT 驻点与平坦 evidence 锚定                                         |    13            13     0.4s
+  RMS 等价、驻点方程求解器与浅平坦 tie-break                                            |    22            22     0.6s
+  Riccati 闭式候选：方程恒等式、合法域、退化结构与 t=14294 回归                         |    15            15     2.3s
+  t14294 actual-BLAS6 single-solve companion (no thread switch)                         |            1      1     1.2s
+  Relative support witness：解析消元、通用回退与表示不变性                              |    15            15     0.7s
+  Bounded continuous timeblocks                                                         |   604           604     7.4s
+  ceiling probes                                                                        |   274           274     3.3s
+  IPO gram budget ledger (embed_active! payload accounting)                             |  1041          1041     0.5s
+  verify_history_cache_prefix: guard contract                                           |    24            24     0.2s
+  wiring: _prepare_v1 / prepare_reference / fit_v1 fail loud before math                |     9             9     0.5s
+  math unchanged: cache path ≡ no-cache path on a legal panel                           |    15            15     0.1s
+  initialize_inference: unified guard at the real entry                                 |    45            45     0.1s
+  ruler_stats prefix guard (verify_ruler_stats_prefix)                                  |    32            32     0.6s
+  prepare_reference: closed public keyword surface                                      |    85            85     0.6s
+  artifact replay comparison gates                                                      |    82            82     1.6s
+RNG of the outermost testset: Xoshiro(0x4785d00869e8fed0, 0x0211a1f931541476, 0xd0c070453ecea74d, 0xeaabd1a1849a6b6f, 0xcc2fa2b8d82770bc)
+FULLSUITE_R3_RC=1 ELAPSED_SECONDS=155 RSS_PEAK_KB=2254948

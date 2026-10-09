@@ -1,0 +1,16 @@
+=== ~/.julia top ===
+ls: cannot access '/home/kunweiz/.julia/': No such file or directory
+=== packages buckets present ===
+ls: cannot access '/home/kunweiz/.julia/packages/': No such file or directory
+=== bucket count ===
+0
+=== F bucket ===
+ls: cannot access '/home/kunweiz/.julia/packages/F': No such file or directory
+=== D bucket (Distributions?) ===
+ls: cannot access '/home/kunweiz/.julia/packages/D': No such file or directory
+=== compiled/v1.12 sample (fill/KTrader/Distributions) ===
+=== registries ===
+ls: cannot access '/home/kunweiz/.julia/registries/': No such file or directory
+=== packages total size ===
+du: cannot access '/home/kunweiz/.julia/packages': No such file or directory
+scoped_run: rc=1 elapsed=0s deadline=30 killed=0 cancelled=none rss_guard=2048 rss_peak=0MiB

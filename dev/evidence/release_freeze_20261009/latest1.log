@@ -1,0 +1,12 @@
+RUN latest1 Julia=1.12.7 CPU=znver4 BLAS=LBTConfig([ILP64] libopenblas64_.so) threads=6 full_rows=14310 dates=[Date("2026-09-22"), Date("2026-09-23"), Date("2026-09-24"), Date("2026-09-25"), Date("2026-09-28"), Date("2026-09-29"), Date("2026-09-30"), Date("2026-10-01")]
+synthetic_startup seconds=3.482774918 compile=3.451700495
+real_two_day_warmup seconds=4.022973384 compile=0.0
+BEGIN measured8 full-history days; fresh holdings/alpha chain
+measured seconds=15.807302412 allocated_bytes=12062086240 gc=2.723214534 compile=0.0 recompile=0.0
+Test Summary:                                              | Pass  Total  Time
+Frozen eight-day execution, complete inputs and accounting |    7      7  0.1s
+Test Summary:                                              | Pass  Total  Time
+Independent process replay at original same-topology gates |    5      5  0.2s
+weight_L1_max=0.0 return_max=0.0
+SAVED latest1 sha256=25fec82cc1c32752496b00c9d94b1b1bede6b7ca4961c4f48c776a6680a4a945 qualified files and inputs unchanged
+scoped_run: rc=0 elapsed=34s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=1660MiB

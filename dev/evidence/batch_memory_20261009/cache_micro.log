@@ -1,0 +1,68 @@
+input N=65 T=14310 full prefix=14309 BLAS=6 same validated history cache on both sides
+prefix_table payload=100456200 allocation=100462608 seconds=0.01140374 compile=0.0
+
+[1096245] signal 15: Terminated
+in expression starting at /home/kunweiz/Desktop/vibe/KTrader/dev/backtest_cache_micro.jl:62
+unknown function (ip: 0x7f0ec3927952) at /usr/bin/../lib/libc.so.6
+epoll_wait at /usr/bin/../lib/libc.so.6 (unknown line)
+_backend_poll_once! at /home/kunweiz/.julia/packages/Reseau/tHzjm/src/iopoll/epoll.jl:268
+_poller_thread_main! at /home/kunweiz/.julia/packages/Reseau/tHzjm/src/iopoll/runtime.jl:460
+_poller_thread_entry at /home/kunweiz/.julia/packages/Reseau/tHzjm/src/iopoll/runtime.jl:482
+jlcapi__poller_thread_entry_20137 at /home/kunweiz/.julia/compiled/v1.12/Reseau/vKBJ8_6N9Xv.so (unknown line)
+unknown function (ip: 0x7f0ec391f0a1) at /usr/bin/../lib/libc.so.6
+unknown function (ip: 0x7f0ec39a780b) at /usr/bin/../lib/libc.so.6
+unknown function (ip: (nil)) at (unknown file)
+unknown function (ip: 0x7f0ea249587b) at /usr/bin/../lib/julia/../libopenblas64_.so
+unknown function (ip: 0x7f0ea2576295) at /usr/bin/../lib/julia/../libopenblas64_.so
+unknown function (ip: 0x7f0ea25766cd) at /usr/bin/../lib/julia/../libopenblas64_.so
+GOMP_parallel at /usr/lib/libgomp.so.1 (unknown line)
+exec_blas at /usr/bin/../lib/julia/../libopenblas64_.so (unknown line)
+dsyrk_thread_UT at /usr/bin/../lib/julia/../libopenblas64_.so (unknown line)
+dsyrk_ at /usr/bin/../lib/julia/../libopenblas64_.so (unknown line)
+syrk! at /build/julia/src/julia-1.12.7/usr/share/julia/stdlib/v1.12/LinearAlgebra/src/blas.jl:1902
+#fold_sufficient_statistics#137 at /home/kunweiz/Desktop/vibe/KTrader/src/predict.jl:151
+fold_sufficient_statistics at /home/kunweiz/Desktop/vibe/KTrader/src/predict.jl:137 [inlined]
+#155 at /home/kunweiz/Desktop/vibe/KTrader/src/predict.jl:301 [inlined]
+timed at /home/kunweiz/Desktop/vibe/KTrader/src/numerics.jl:79 [inlined]
+#_prepare_v1#150 at /home/kunweiz/Desktop/vibe/KTrader/src/predict.jl:300
+_prepare_v1 at /home/kunweiz/Desktop/vibe/KTrader/src/predict.jl:189 [inlined]
+#prepare_reference#131 at /home/kunweiz/Desktop/vibe/KTrader/src/prepare.jl:193 [inlined]
+prepare_reference at /home/kunweiz/Desktop/vibe/KTrader/src/prepare.jl:189 [inlined]
+#bcm_main##2 at /home/kunweiz/Desktop/vibe/KTrader/dev/backtest_cache_micro.jl:35 [inlined]
+bcm_sample at /home/kunweiz/Desktop/vibe/KTrader/dev/backtest_cache_micro.jl:7
+bcm_main at /home/kunweiz/Desktop/vibe/KTrader/dev/backtest_cache_micro.jl:56
+unknown function (ip: 0x7f0e41fa80c3) at (unknown file)
+unknown function (ip: 0x7f0ec2f8f5ec) at /usr/bin/../lib/julia/libjulia-internal.so.1.12
+unknown function (ip: 0x7f0ec2f8ece7) at /usr/bin/../lib/julia/libjulia-internal.so.1.12
+unknown function (ip: 0x7f0ec2f8fe43) at /usr/bin/../lib/julia/libjulia-internal.so.1.12
+unknown function (ip: 0x7f0ec2f91218) at /usr/bin/../lib/julia/libjulia-internal.so.1.12
+jl_toplevel_eval_flex at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+jl_toplevel_eval_flex at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+ijl_toplevel_eval at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+ijl_toplevel_eval_in at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+unknown function (ip: 0x7f0eac0e45c2) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f0eac49c0bf) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f0eab8cbe9a) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f0eac0031ab) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f0eac0080f3) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f0eabf09b4b) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f0eac819dc3) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f0ec2fdce27) at /usr/bin/../lib/julia/libjulia-internal.so.1.12
+jl_repl_entrypoint at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+main at julia (unknown line)
+unknown function (ip: 0x7f0ec38ae780) at /usr/bin/../lib/libc.so.6
+__libc_start_main at /usr/bin/../lib/libc.so.6 (unknown line)
+_start at julia (unknown line)
+unknown function (ip: (nil)) at (unknown file)
+Allocations: 27480795 (Pool: 27480275; Big: 520); GC: 21
+s1 max_abs=0.0
+s_m max_abs=0.0
+s_perp max_abs=0.0
+full_xx relative_frobenius=0.0
+full_xy relative_frobenius=0.0
+full_yy relative_frobenius=0.0
+Test Summary:                                                | Pass  Total  Time
+Full local N65 cached/no-cache preparation at original gates |   17     17  0.4s
+prepare_cached_A (seconds = 0.087384974, bytes = 1.63006208e8, gc = 0.0, compile = 0.0)
+RSS-EXCEEDED pgid=1096245 guard=2048MiB observed_peak=2116MiB
+scoped_run: rc=124 elapsed=10s deadline=45 killed=1 cancelled=none rss_guard=2048 rss_peak=2116MiB

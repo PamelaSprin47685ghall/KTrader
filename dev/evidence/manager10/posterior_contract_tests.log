@@ -1,0 +1,5 @@
+Test Summary:                                                                | Pass  Total  Time
+moving-fold boundary: yesterday-train contains today's heldout, warm == cold |   40     40  6.0s
+Test Summary:                                                                         | Pass  Total  Time
+ScenarioQuadrature lazy vs dense: same model, same rule, ragged + missing own support |   25     25  2.0s
+scoped_run: rc=0 elapsed=11s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=849MiB

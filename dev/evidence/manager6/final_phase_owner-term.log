@@ -1,0 +1,6 @@
+kill: sending signal to -681002 failed: No such process
+[phase=owner-term] begin — scope: SIGTERM to wrapper PID only; asserts wrapper natural rc=128+15 via direct wait, CANCELLED-BY-SIGNAL sig=TERM, owned PGID (leader-recorded) has no live member, sentinel PID untouched, no TIMEOUT (cancel at ~1.5s << hard)
+Test Summary:                                            | Pass  Total  Time
+[phase=owner-term] owner cancel: SIGTERM to wrapper only |    6      6  0.7s
+[phase=owner-term] end
+scoped_run: rc=0 elapsed=1s deadline=20 killed=0 cancelled=none rss_guard=2048 rss_peak=351MiB

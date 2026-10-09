@@ -1,0 +1,3 @@
+Test Summary:                                         | Pass  Total  Time
+Conditioned EB: trace-only cache and J-only proposals |  228    228  2.2s
+scoped_run: rc=0 elapsed=5s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=707MiB

@@ -1,0 +1,6 @@
+BEGIN group=residuals snapshot=680f1494d2d435847af2b4972d8be440e9f4f519fb2af0889789e302dbabeeba entries=["residual_oracle_tests.jl"]
+FILE residual_oracle_tests.jl
+Test Summary:           | Pass  Total  Time
+Release group residuals |   71     71  3.4s
+END group=residuals passed=true counts=Test.TestCounts(true, 0, 0, 0, 0, 71, 0, 0, 0, "3.4s")
+scoped_run: rc=0 elapsed=9s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=878MiB

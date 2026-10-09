@@ -1,0 +1,71 @@
+source=96faa12404dcb22094b21eb77b14907f20acb237833048b3e0e755c5903488d2 incremental_source=5ec389eee53d48ba3c732f98297bc00b89cbc9904319952b04d114aeea037e3e
+Julia=1.12.7 CPU=znver4 BLAS=LBTConfig([ILP64] libopenblas64_.so) Julia_threads=1 date_tasks=1 BLAS_threads=1
+local CSV N65 T14310; decisions=[Date("2026-09-30"), Date("2026-10-01")]; signal prefixes 1:14308 and 1:14309; S300/F3/default independent EB
+BEGIN explicit same-API two-day warm-up; measured replay resets holdings and alpha chains
+
+[698526] signal 15: Terminated
+in expression starting at /home/kunweiz/Desktop/vibe/KTrader/dev/local_panel_short_window.jl:114
+unknown function (ip: 0x7f06c6430952) at /usr/bin/../lib/libc.so.6
+epoll_wait at /usr/bin/../lib/libc.so.6 (unknown line)
+_backend_poll_once! at /home/kunweiz/.julia/packages/Reseau/tHzjm/src/iopoll/epoll.jl:268
+_poller_thread_main! at /home/kunweiz/.julia/packages/Reseau/tHzjm/src/iopoll/runtime.jl:460
+_poller_thread_entry at /home/kunweiz/.julia/packages/Reseau/tHzjm/src/iopoll/runtime.jl:482
+jlcapi__poller_thread_entry_20137 at /home/kunweiz/.julia/compiled/v1.12/Reseau/vKBJ8_6N9Xv.so (unknown line)
+unknown function (ip: 0x7f06c64280a1) at /usr/bin/../lib/libc.so.6
+unknown function (ip: 0x7f06c64b080b) at /usr/bin/../lib/libc.so.6
+unknown function (ip: (nil)) at (unknown file)
+_ZN4llvm12SelectionDAG15RemoveDeadNodesEv at /usr/bin/../lib/julia/../libLLVM.so.18.1jl (unknown line)
+unknown function (ip: 0x7f06be82b6d8) at /usr/bin/../lib/julia/../libLLVM.so.18.1jl
+_ZN4llvm12SelectionDAG13LegalizeTypesEv at /usr/bin/../lib/julia/../libLLVM.so.18.1jl (unknown line)
+_ZN4llvm16SelectionDAGISel17CodeGenAndEmitDAGEv at /usr/bin/../lib/julia/../libLLVM.so.18.1jl (unknown line)
+_ZN4llvm16SelectionDAGISel20SelectAllBasicBlocksERKNS_8FunctionE at /usr/bin/../lib/julia/../libLLVM.so.18.1jl (unknown line)
+unknown function (ip: 0x7f06be9a23dd) at /usr/bin/../lib/julia/../libLLVM.so.18.1jl
+unknown function (ip: 0x7f06c22ee9b7) at /usr/bin/../lib/julia/../libLLVM.so.18.1jl
+unknown function (ip: 0x7f06be2ba7a0) at /usr/bin/../lib/julia/../libLLVM.so.18.1jl
+_ZN4llvm13FPPassManager13runOnFunctionERNS_8FunctionE at /usr/bin/../lib/julia/../libLLVM.so.18.1jl (unknown line)
+_ZN4llvm6legacy15PassManagerImpl3runERNS_6ModuleE at /usr/bin/../lib/julia/../libLLVM.so.18.1jl (unknown line)
+_ZN4llvm3orc14SimpleCompilerclERNS_6ModuleE at /usr/bin/../lib/julia/../libLLVM.so.18.1jl (unknown line)
+unknown function (ip: 0x7f06bae437d8) at /usr/bin/../lib/julia/libjulia-codegen.so.1.12
+unknown function (ip: 0x7f06bae4414c) at /usr/bin/../lib/julia/libjulia-codegen.so.1.12
+unknown function (ip: 0x7f06bae45b7f) at /usr/bin/../lib/julia/libjulia-codegen.so.1.12
+jl_compile_codeinst_impl at /usr/bin/../lib/julia/libjulia-codegen.so.1.12 (unknown line)
+jl_compile_method_internal at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+ijl_apply_generic at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+#302 at /home/kunweiz/Desktop/vibe/KTrader/src/backtest.jl:270
+timed at /home/kunweiz/Desktop/vibe/KTrader/src/numerics.jl:91
+unknown function (ip: 0x7f06085b1051) at (unknown file)
+#294 at /home/kunweiz/Desktop/vibe/KTrader/src/backtest.jl:269
+backtest_timed at /home/kunweiz/Desktop/vibe/KTrader/src/backtest.jl:26
+macro expansion at /home/kunweiz/Desktop/vibe/KTrader/src/backtest.jl:256 [inlined]
+macro expansion at ./task.jl:662 [inlined]
+#backtest_v1#241 at /home/kunweiz/Desktop/vibe/KTrader/src/backtest.jl:183
+backtest_v1 at /home/kunweiz/Desktop/vibe/KTrader/src/backtest.jl:83 [inlined]
+macro expansion at ./timing.jl:697 [inlined]
+short_window_once at /home/kunweiz/Desktop/vibe/KTrader/dev/local_panel_short_window.jl:11
+short_window_main at /home/kunweiz/Desktop/vibe/KTrader/dev/local_panel_short_window.jl:45
+unknown function (ip: 0x7f06a4ccb193) at (unknown file)
+unknown function (ip: 0x7f06c5a985ec) at /usr/bin/../lib/julia/libjulia-internal.so.1.12
+unknown function (ip: 0x7f06c5a97ce7) at /usr/bin/../lib/julia/libjulia-internal.so.1.12
+unknown function (ip: 0x7f06c5a98e43) at /usr/bin/../lib/julia/libjulia-internal.so.1.12
+unknown function (ip: 0x7f06c5a9a218) at /usr/bin/../lib/julia/libjulia-internal.so.1.12
+jl_toplevel_eval_flex at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+jl_toplevel_eval_flex at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+ijl_toplevel_eval at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+ijl_toplevel_eval_in at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+unknown function (ip: 0x7f06aebed5c2) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f06aefa50bf) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f06ae3d4e9a) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f06aeb0c1ab) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f06aeb110f3) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f06aea12b4b) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f06af322dc3) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f06c5ae5e27) at /usr/bin/../lib/julia/libjulia-internal.so.1.12
+jl_repl_entrypoint at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+main at julia (unknown line)
+unknown function (ip: 0x7f06c63b7780) at /usr/bin/../lib/libc.so.6
+__libc_start_main at /usr/bin/../lib/libc.so.6 (unknown line)
+_start at julia (unknown line)
+unknown function (ip: (nil)) at (unknown file)
+Allocations: 133762633 (Pool: 133760923; Big: 1710); GC: 64
+TIMEOUT-EXCEEDED pgid=698526 deadline=45s child_rc=137 (timeout is never success)
+scoped_run: rc=124 elapsed=40s deadline=45 killed=1 cancelled=none rss_guard=2048 rss_peak=1933MiB

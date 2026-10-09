@@ -1,0 +1,32 @@
+Precompiling packages...
+  19245.9 ms  ✓ KTrader
+  1 dependency successfully precompiled in 20 seconds. 143 already precompiled.
+ERROR: LoadError: MethodError: objects of type Vector{Float64} are not callable
+Use square brackets [] for indexing an Array.
+The object of type `Vector{Float64}` exists, but no method is defined for this combination of argument types when trying to treat it as a callable object.
+Stacktrace:
+ [1] (::var"#frozen_step#5"{@NamedTuple{V::KTrader.RidgeCovariance, R::Matrix{Float64}, blocks::Vector{Matrix{Float64}}, h::Vector{Float64}, n::Int64, alpha::Float64, rank::Int64, constant::Float64, bwcat::Matrix{Float64}, bcat::Matrix{Float64}, jcore::Base.RefValue{Union{Nothing, Vector{Matrix{Float64}}}}}, Int64})(X::Matrix{Float64})
+   @ Main /tmp/fp_ref.jl:6
+ [2] full_state_fixed_point(cache::@NamedTuple{V::KTrader.RidgeCovariance, R::Matrix{Float64}, blocks::Vector{Matrix{Float64}}, h::Vector{Float64}, n::Int64, alpha::Float64, rank::Int64, constant::Float64, bwcat::Matrix{Float64}, bcat::Matrix{Float64}, jcore::Base.RefValue{Union{Nothing, Vector{Matrix{Float64}}}}}, S::Matrix{Float64}; iters::Int64, tol::Float64)
+   @ Main /tmp/fp_ref.jl:11
+ [3] macro expansion
+   @ ./timing.jl:461 [inlined]
+ [4] top-level scope
+   @ /tmp/m10_ebcal.jl:34
+in expression starting at /tmp/m10_ebcal.jl:32
+EB_COLD_SECONDS=0.540767953
+EB_WARM_SECONDS=0.302519111
+EB_WARM_ALLOC_BYTES=743028528
+EB_RESULT_PROPS=(:alpha, :Sigma, :certificate, :iterations)
+EB_CERT_VALID=true alpha=0.3472652043980321
+EB_CERT_PROPS=(:valid, :alpha, :covariance, :evidence)
+EBCAL_RC=1 ELAPSED_SECONDS=26
+=== ref-side failure original text ===
+The object of type `Vector{Float64}` exists, but no method is defined for this combination of argument types when trying to treat it as a callable object.
+Stacktrace:
+ [1] (::var"#frozen_step#5"{@NamedTuple{V::KTrader.RidgeCovariance, R::Matrix{Float64}, blocks::Vector{Matrix{Float64}}, h::Vector{Float64}, n::Int64, alpha::Float64, rank::Int64, constant::Float64, bwcat::Matrix{Float64}, bcat::Matrix{Float64}, jcore::Base.RefValue{Union{Nothing, Vector{Matrix{Float64}}}}}, Int64})(X::Matrix{Float64})
+   @ Main /tmp/fp_ref.jl:6
+EB_OUTER_ITERATIONS=149
+PROD_FP_SECONDS_5=[0.00665203, 8.75e-5, 8.768e-5, 8.7931e-5, 8.346e-5] median=8.768e-5
+CALIB2_DONE
+EBCAL2_RC=0

@@ -1,0 +1,50 @@
+target = "Path Kelly 2.0"
+release_ready = false
+production_modified_this_iteration = false
+tests_modified_this_iteration = false
+dependencies_modified_this_iteration = false
+
+[qualification]
+standard_files = 41
+groups_passed = 22
+grouped_coverage_complete = true
+single_process_suite_run = false
+snapshot_sha256 = "31e1c48729147d5022a0b5f894c23afece80cd0bb9a596161fd7619c359e3f17"
+failure_delivery_assertions_passed = 22
+numeric_data_execution_group_optimization = "O1; other groups and CPU measurements default"
+
+[earlier_window]
+first_date = "2026-09-10"
+last_date = "2026-09-21"
+separately_completed_chronological_fits = 8
+completed_full_numerical_windows = 2
+measured_seconds = [17.516854764, 17.330192911]
+native_compile_seconds = [0.0, 0.0]
+producer_command_return_codes = [124, 0]
+first_command_timeout_location = "post-measurement authentication of separate model baselines"
+independent_output_comparison = "tool-blocked; not run"
+second_command_peak_rss_mib = 1820
+
+[gpu]
+device = "AMD Radeon RX 6800"
+architecture = "gfx1030"
+precision = "Float64"
+production_backend = false
+primitive = "105 symmetric 64x64 Jacobian cores, spectral rank910, actual local-panel alpha"
+elements_compared = 430080
+elements_outside_original_tolerance = 0
+maximum_absolute_difference = 3.1170812459e-19
+cpu_reused_output_median_seconds = 0.005474089
+gpu_resident_median_seconds = [0.000814209, 0.000814529]
+gpu_all_transfers_median_seconds = [0.001474479, 0.001475259]
+full_solver_gpu_certificate_tested = false
+
+[[remaining]]
+id = "earlier_output_comparison"
+requirement = "Authenticate and compare saved complete earlier-window outputs with the chronological fit baselines and each other; preserve original tolerances and producer failure records."
+[[remaining]]
+id = "gpu_end_to_end"
+requirement = "Validate fit-owned GPU lifecycle, complete numerical outputs and original certificates before promoting the development primitive to any production backend."
+[[remaining]]
+id = "performance_scope"
+requirement = "Resolve broader-window and concurrency memory behavior and remaining CPU/GPU work under the original2.0 scope; no ceiling claim from one primitive."

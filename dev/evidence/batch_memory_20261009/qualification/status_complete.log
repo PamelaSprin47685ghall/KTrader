@@ -1,0 +1,24 @@
+PASS architecture standard architecture entry in log
+PASS cache_elision Test.TestCounts(true, 0, 0, 0, 0, 110, 0, 0, 0, "7.3s")
+PASS constitution Test.TestCounts(true, 0, 0, 0, 0, 34, 0, 0, 0, "1.9s")
+PASS eb Test.TestCounts(true, 0, 0, 0, 0, 160, 0, 0, 0, "12.2s")
+PASS guard_a child process assertions in log
+PASS guard_b child process assertions in log
+PASS guard_c child process assertions in log
+PASS guard_d child process assertions in log
+PASS inc_kernels child process assertions in log
+PASS inc_ownership child process assertions in log
+PASS inc_prefix child process assertions in log
+PASS inc_ragged child process assertions in log
+PASS interfaces Test.TestCounts(true, 0, 0, 0, 0, 438, 0, 0, 0, "14.8s")
+PASS numerics Test.TestCounts(true, 0, 0, 0, 0, 446, 0, 0, 0, "27.7s")
+PASS posterior Test.TestCounts(true, 0, 0, 0, 0, 125, 0, 0, 0, "9.7s")
+PASS prepared Test.TestCounts(true, 0, 0, 0, 0, 1598, 0, 0, 0, "13.0s")
+PASS reference Test.TestCounts(true, 0, 0, 0, 0, 57, 0, 0, 0, "15.9s")
+PASS residuals Test.TestCounts(true, 0, 0, 0, 0, 71, 0, 0, 0, "3.4s")
+PASS response_a Test.TestCounts(true, 0, 0, 0, 0, 1576, 0, 0, 0, "7.9s")
+PASS response_b Test.TestCounts(true, 0, 0, 0, 0, 6703, 0, 0, 0, "7.1s")
+PASS timeblocks Test.TestCounts(true, 0, 0, 0, 0, 623, 0, 0, 0, "17.0s")
+COVERAGE groups=21/21 standard_files=40 source_unchanged=true
+BOUNDED STANDARD-FILE COVERAGE COMPLETE; not single-process suite or performance sign-off
+scoped_run: rc=0 elapsed=5s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=831MiB

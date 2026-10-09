@@ -1,0 +1,3 @@
+Terminated                 sleep 30
+TIMEOUT-EXCEEDED pgid=652463 deadline=15s child_rc=0 (timeout is never success)
+scoped_run: rc=124 elapsed=5s deadline=15 killed=1 cancelled=none rss_guard=2048 rss_peak=9MiB

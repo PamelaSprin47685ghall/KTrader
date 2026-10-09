@@ -1,0 +1,7 @@
+Test Summary:                                                      | Pass  Total  Time
+Fit-local scalar geometry: reuse changes no evidence or derivative |  244    244  1.7s
+Test Summary:                                                            | Pass  Total  Time
+Residual mask scratch: recurrent masks, empty rows and independent calls |    7      7  0.4s
+Test Summary:                                          | Pass  Total  Time
+Inference panel packing preserves values and ownership |    6      6  0.2s
+scoped_run: rc=0 elapsed=5s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=715MiB

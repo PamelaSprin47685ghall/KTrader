@@ -79,12 +79,26 @@ end
 Prefix statistics for O(1) fractal ruler evaluations across decision days:
 acc[t, j, a]: cumulative sum of (x[s, j] - x[s - τ, j])^2 for s <= t
 cnt[t, j, a]: count of valid pairs
+
+SEMANTICS (SPEC §10 / §56): this is an EXACT ACCELERATION CACHE of the
+ruler statistics of ONE specific price-history prefix — never a license
+to swap in the ruler of another panel. Consumers verify provenance
+before use: the batch entry (_prepare_v1) guards with
+verify_ruler_stats_prefix (numerics.jl) before any read reaches
+ruler_from_stats; initialize_inference verifies against its own
+accumulated statistics. Only the consumed prefix (row T, active
+columns) is ever validated; a cache built on a longer lawful history
+stays reusable for any of its prefixes.
 """
 struct PrefixRulerStats
     acc::Array{Float64, 3}  # T × N × Ntaus
     cnt::Array{Int32, 3}    # T × N × Ntaus
 end
 
+"""Build the prefix ruler cache from log-prices `x` with first-observation
+rows `f`. The result is lawful ONLY as the acceleration cache of THIS
+panel history (see the PrefixRulerStats semantics above); handing it
+to another panel prepare is rejected by the consumer-side guard."""
 function build_prefix_ruler_stats(x::AbstractMatrix{Float64}, f::AbstractVector{<:Integer})
     T, N = size(x)
     Ntaus = length(TAUS)
@@ -110,6 +124,12 @@ function build_prefix_ruler_stats(x::AbstractMatrix{Float64}, f::AbstractVector{
     PrefixRulerStats(acc, cnt)
 end
 
+"""Evaluate the ruler from cached prefix statistics at row `t`. This
+function TRUSTS the payload — it performs no provenance check of its
+own: the ingress guard verify_ruler_stats_prefix (wired in
+_prepare_v1 before this call) and initialize_inference accumulated-
+statistics check own the provenance boundary, so validation happens
+exactly once at the boundary and is never re-parsed here."""
 function ruler_from_stats(stats::PrefixRulerStats, t::Int, f::AbstractVector{<:Integer},
                           columns::AbstractVector{<:Integer} = collect(eachindex(f)))
     N = length(f)

@@ -1,0 +1,11 @@
+# manager5 final_summary 2026-10-08T03:36:08+08:00
+# Process ownership: this route holds no Julia/terminal resources; ps full scan = 0 at closure (recorded, nothing killed - no residue existed).
+# Git: HEAD 602b897, dirty 45 (user + prior missions + this mission's manager5 files), NO commit/reset/clean performed.
+# Three narrow commands this mission (each scoped, guard 2048, existing/1-thread semantic config, standalone, gate-first):
+#  1) arch gate: test/runtests.jl --architecture-only, RC0, 7s, killed=0, peak 840MiB (registry 21+1 passed by fail-closed source order)
+#  2) history_cache_contract_tests.jl: RC0, 28s, killed=0, peak 1039MiB, 6 testsets 210/210 (incl. new closed-keyword-surface 85/85 with real negative controls P1/P2)
+#  3) incremental_primal_prep_tests.jl: RC0, 16s, killed=0, peak 1029MiB, 46/46 (private incremental route preserved)
+# Scope limits: 21-registry filed != 21 numeric suites all-run; these are NOT throughput measurements (existing/1-thread is a semantic config); no full suite / multiday / bench / GPU / N65 fit.
+# Byte alignment: 4 tested objects SHA256 == summary-recorded values at verification end (hash-line diff clean; first MISMATCH report was a grep artifact - a comment line was captured, hashes were identical); certificates VALID.
+# All commands hard-capped <=60s incl. TERM/KILL/reap; no new work started after this closure record.
+# closure-timeline addendum: date -Iso invalid-argument slip produced an empty first timestamp; fixed with -Is; valid final timestamp 2026-10-08T03:36:08+08:00. This slip affected no tested hash or run certificate (4 objects byte-aligned, 210/46/arch all RC0). The '602897' in the prior closure report was a transcription typo; the on-disk and recorded HEAD is 602b897 (correct, unchanged). No other file touched.

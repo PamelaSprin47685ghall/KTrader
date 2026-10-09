@@ -1,0 +1,8 @@
+Thu Oct  8 06:55:44 AM CST 2026
+=== ~/.julia/ top ===
+ls: cannot access '/home/kunweiz/.julia/': No such file or directory
+=== FillArrays dir ===
+ls: cannot access '/home/kunweiz/.julia/packages/F/FillArrays': No such file or directory
+=== home ~/.julia* variants ===
+ls: cannot access '/home/kunweiz/.julia*': No such file or directory
+scoped_run: rc=2 elapsed=0s deadline=30 killed=0 cancelled=none rss_guard=2048 rss_peak=0MiB

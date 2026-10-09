@@ -1,0 +1,35 @@
+phase=direct source=b11c015a3a0a6c67750cfa4b306e4ce42a3b62173fa1b8d1c2d579d0a0f36e19 first_decision=2026-09-18 last_decision=2026-09-21
+BEGIN date=2026-09-18 prefix=1:14300
+END date=2026-09-18
+BEGIN date=2026-09-21 prefix=1:14301
+runtime source unchanged; no numerical policy was modified
+ERROR: LoadError: conditioned EB has no certified ascent direction: (valid = false, symmetry = 0.0, support = 0.0, min_eigenvalue = 9.999999741002023e-9, projected_residual = 1.2544869312828812e-6, active_directions = 19, free_rms = 1.4960563744338608e-6, cross_max = 6.380159426381708e-12, active_block_max = -0.9999999700499294)
+Stacktrace:
+  [1] optimize_conditioned_eb(spectrum::@NamedTuple{values::Vector{Float64}, basis::Matrix{Float64}, B::Matrix{Float64}, dual::Bool}, YtY::Matrix{Float64}, n::Int64; initial::Float64, tol::Float64, gauge::Matrix{Float64}, iters::Int64, max_backtracks::Int64, alpha_iters::Int64, return_certificate::Bool, fp_iters::Int64, fp_tol::Float64, degenerate_witness::Nothing)
+    @ KTrader ~/Desktop/vibe/KTrader/src/response.jl:1076
+  [2] (::KTrader.var"#113#114"{Nothing, Nothing, Tuple{Float64, Float64}, Matrix{Float64}, @NamedTuple{values::Vector{Float64}, basis::Matrix{Float64}, B::Matrix{Float64}, dual::Bool}, Int64})()
+    @ KTrader ~/Desktop/vibe/KTrader/src/response.jl:1172
+  [3] timed(f::KTrader.var"#113#114"{Nothing, Nothing, Tuple{Float64, Float64}, Matrix{Float64}, @NamedTuple{values::Vector{Float64}, basis::Matrix{Float64}, B::Matrix{Float64}, dual::Bool}, Int64}, timing::Nothing, bucket::Symbol)
+    @ KTrader ~/Desktop/vibe/KTrader/src/numerics.jl:79
+  [4] fit_response_operator(B_m::Matrix{Float64}, B_rel::Vector{Vector{Float64}}, y_m::Vector{Float64}, y_rel::Matrix{Float64}; ridge_alpha::Nothing, ts::Vector{Int64}, degenerate_witness::Nothing, S_xx_rel::Matrix{Float64}, S_xy_rel::Matrix{Float64}, S_yy_rel::Matrix{Float64}, X_design::Nothing, alpha_initial::Tuple{Float64, Float64}, timing::Nothing, dual::Nothing, need_uncertainty::Bool, workspace::KTrader.FitWorkspace, macro_stats::Nothing)
+    @ KTrader ~/Desktop/vibe/KTrader/src/response.jl:1170
+  [5] fit_response_operator
+    @ ~/Desktop/vibe/KTrader/src/response.jl:1116 [inlined]
+  [6] #166
+    @ ~/Desktop/vibe/KTrader/src/predict.jl:437 [inlined]
+  [7] timed(f::KTrader.var"#166#167"{Nothing, KTrader.FitWorkspace, Nothing, Vector{Tuple{Float64, Float64}}, Matrix{Float64}, Matrix{Float64}, Vector{Float64}, Int64, Int64, @NamedTuple{}, Nothing, Vector{Int64}, Matrix{Float64}, Matrix{Float64}, Matrix{Float64}}, timing::Nothing, bucket::Symbol)
+    @ KTrader ~/Desktop/vibe/KTrader/src/numerics.jl:79
+  [8] solve(prep::PreparedProblem; ridge_alpha::Nothing, F_folds::Int64, alpha_initial::Vector{Tuple{Float64, Float64}}, timing::Nothing, workspace::KTrader.FitWorkspace)
+    @ KTrader ~/Desktop/vibe/KTrader/src/predict.jl:436
+  [9] solve
+    @ ~/Desktop/vibe/KTrader/src/predict.jl:349 [inlined]
+ [10] #fit_v1#157
+    @ ~/Desktop/vibe/KTrader/src/predict.jl:331 [inlined]
+ [11] fit_v1
+    @ ~/Desktop/vibe/KTrader/src/predict.jl:328 [inlined]
+ [12] rfp_main()
+    @ Main ~/Desktop/vibe/KTrader/dev/release_failure_probe.jl:28
+ [13] top-level scope
+    @ ~/Desktop/vibe/KTrader/dev/release_failure_probe.jl:39
+in expression starting at /home/kunweiz/Desktop/vibe/KTrader/dev/release_failure_probe.jl:39
+scoped_run: rc=1 elapsed=31s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=1740MiB

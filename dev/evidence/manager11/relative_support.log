@@ -1,0 +1,18 @@
+ERROR: LoadError: Some tests did not pass: 11 passed, 0 failed, 1 errored, 0 broken.
+in expression starting at /home/kunweiz/Desktop/vibe/KTrader/test/relative_support_tests.jl:20
+Relative support witness：解析消元、通用回退与表示不变性: Error During Test at /home/kunweiz/Desktop/vibe/KTrader/test/relative_support_tests.jl:20
+  Got exception outside of a @test
+  conditioned EB failed joint alpha/Sigma stationarity after 200 iterations: (valid = false, alpha = (valid = true, location = :interior, slope = 2.8219110276950232e-5, rel_res = 5.055289977788753e-7), covariance = (valid = false, symmetry = 1.2086401723854006e-16, support = 3.4459826184915986e-16, min_eigenvalue = 0.059765625388473076, projected_residual = 9.895724496803727e-6, active_directions = 0, free_rms = 9.89572449766086e-6, cross_max = 0.0, active_block_max = -Inf), evidence = -277.97797282003586)
+  Stacktrace:
+   [1] optimize_conditioned_eb(spectrum::@NamedTuple{values::Vector{Float64}, basis::Matrix{Float64}, B::Matrix{Float64}, dual::Bool}, YtY::Matrix{Float64}, n::Int64; initial::Float64, tol::Float64, gauge::Matrix{Float64}, iters::Int64, max_backtracks::Int64, alpha_iters::Int64, return_certificate::Bool, fp_iters::Int64, fp_tol::Float64, degenerate_witness::KTrader.RelativeSupportWitness)
+     @ KTrader ~/Desktop/vibe/KTrader/src/response.jl:919
+   [2] top-level scope
+     @ ~/Desktop/vibe/KTrader/test/relative_support_tests.jl:21
+   [3] macro expansion
+     @ /usr/share/julia/stdlib/v1.12/Test/src/Test.jl:1777 [inlined]
+   [4] macro expansion
+     @ ~/Desktop/vibe/KTrader/test/relative_support_tests.jl:56 [inlined]
+Test Summary:                            | Pass  Error  Total  Time
+Relative support witness：解析消元、通用回退与表示不变性 |   11      1     12  2.6s
+RNG of the outermost testset: Xoshiro(0x35e30f4392582e6d, 0x5c7dd13e8a94fe76, 0x47f446eb1253d398, 0xe7933cc2e3f6a3cc, 0x08288eeac978c65b)
+scoped_run: rc=1 elapsed=6s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=744MiB

@@ -1,0 +1,4 @@
+actual date=2026-09-10 alpha=14847.783365912503 d=64 rank=910 constraints=14 pairs=105
+CPU_BLAS6_reused_core_median_seconds=0.005474089 allocated_bytes=0.0 compile_sum=0.0
+GPU_INPUT sha256=c856f4fb0d88ba78eafd752fed79ca79aa6eedb10178e7731aaeac484a3139ee bytes=16486440; no GPU backend or solver change
+scoped_run: rc=0 elapsed=8s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=1074MiB

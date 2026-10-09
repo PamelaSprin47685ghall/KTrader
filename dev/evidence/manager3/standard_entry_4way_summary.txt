@@ -1,0 +1,11 @@
+# standard-entry 4-way 2026-10-08T02:03:44+08:00
+# cmd: julia --startup-file=no --project=. test/runtests.jl --architecture-only --architecture-root <ROOT> (scoped_run 25s, RSS2048, no production KTrader load)
+# minimal: RC0, 3s, fixture-mode info declared, Test Summary all Pass
+# nested: RC0, 3s, fixture-mode info declared, Test Summary all Pass
+# bad: RC1, 3s, killed=0, natural fail: violations=[unsupported include form (non-static literal); dev/probes.jl; dev/more_probes.jl], Test Failed at architecture_contract_tests.jl:363
+# empty: RC1, 3s, killed=0, natural fail: fail-closed checks L356/357 (src tree non-empty + module file present), violations=[include target not present: KTrader.jl -> KTrader.jl]
+# note: first 12s-deadline attempt hit cold LLVM specialization latency (124 timeout), not gate failure; 25s rerun exits naturally in 3s
+ddfa35f8e0eaf3a7c60647f2d89b6aa23100aa5fd4c43608e8fc05e21177a2bd  dev/evidence/manager3/std_entry_bad.log
+49b30876cd0a4e2cdce5e690a2f37c4c3ce1b263659d12d190e9d83e70f6f073  dev/evidence/manager3/std_entry_empty.log
+53fa7b2afc15bad14649150bfaa792d60483985c9b96b291cf961a6c5793face  dev/evidence/manager3/std_entry_minimal.log
+0d4d5f64f2ab5b98e18ec21490d90ed221af66a6d99a7c8e18a58ab4f22f0826  dev/evidence/manager3/std_entry_nested.log

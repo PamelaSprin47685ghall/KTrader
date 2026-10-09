@@ -1,0 +1,17 @@
+input N=65 T=14310 full prefix=14309 BLAS=6 same validated history cache on both sides
+prefix_table payload=100456200 allocation=100462608 seconds=0.00982003 compile=0.0
+s1 max_abs=0.0
+s_m max_abs=0.0
+s_perp max_abs=0.0
+full_xx relative_frobenius=0.0
+full_xy relative_frobenius=0.0
+full_yy relative_frobenius=0.0
+Test Summary:                                                | Pass  Total  Time
+Full local N65 cached/no-cache preparation at original gates |   17     17  0.4s
+each primitive sample starts after explicit GC; not natural backtest GC throughput
+prepare_cached_A (seconds = 0.090564381, bytes = 1.63006208e8, gc = 0.0, compile = 0.0)
+prepare_plain_B (seconds = 0.085380066, bytes = 1.63006208e8, gc = 0.0, compile = 0.0)
+prepare_plain_B2 (seconds = 0.082207349, bytes = 1.63006208e8, gc = 0.0, compile = 0.0)
+prepare_cached_A2 (seconds = 0.081521571, bytes = 1.63006208e8, gc = 0.0, compile = 0.0)
+runtime unchanged; no fit or backtest; this does not establish portfolio equality
+scoped_run: rc=0 elapsed=17s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=1919MiB

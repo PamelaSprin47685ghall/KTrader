@@ -1,0 +1,9 @@
+[manifest] /home/kunweiz/Desktop/vibe/KTrader/dev/m1_replay_manifest.toml (recorded 2026-10-07; old_panel_hash=unknown - artifact-only comparisons stand, panel provenance NOT certified)
+[manifest] verified /tmp/prep_inc_t14309.jls sha256 5e39231eb084c22e9c8704146b06742e09c9dfe47f6110ac6d218bbaa86c01f1 bytes 67438530 (incremental prepare (old 22-key NamedTuple))
+[manifest] verified /tmp/model_m1_t14309.jls sha256 a2e063440365d9804b2daaca24ca4a19c26a60b5ecd746d4fd40a8ababc4174d bytes 28629945 (M1 typed-conversion cold solve model)
+[manifest] verified /tmp/model_t14309_inc.jls sha256 b90376dd81423f3cb9ad89fe7ab40c5812477be4f42bd859616504148ebab7b7 bytes 28629962 (I0 incremental-path model)
+[manifest] verified /tmp/model_t14309_final.jls sha256 529bafed55516672235ac8b6e4661a5bf713131e7180ba7f5808db836d5d4e0c bytes 28629868 (batch baseline (M-optimized source))
+[rewrap] typed typename(PreparedProblem): T=14309 N=65 P=910 F=3 alive_now=65 ws_owner=nothing gen=0
+[rewrap] runtime key-name comparison PASS; no solve in this phase
+phase 'rewrap' completed - report the run honestly; green requires an authorized run, never an assumption.
+scoped_run: rc=0 elapsed=16s deadline=40 killed=0 rss_guard=2048 rss_peak=1265MiB

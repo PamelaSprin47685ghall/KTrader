@@ -1,0 +1,9 @@
+Test Summary:                               | Pass  Total  Time
+verify_history_cache_prefix: guard contract |   24     24  1.9s
+Test Summary:                                                          | Pass  Total  Time
+wiring: _prepare_v1 / prepare_reference / fit_v1 fail loud before math |    9      9  4.4s
+Test Summary:                                               | Pass  Total  Time
+math unchanged: cache path ≡ no-cache path on a legal panel |   15     15  0.9s
+Test Summary:                                         | Pass  Total  Time
+initialize_inference: unified guard at the real entry |   45     45  5.5s
+scoped_run: rc=0 elapsed=20s deadline=50 killed=0 rss_guard=2048 rss_peak=998MiB

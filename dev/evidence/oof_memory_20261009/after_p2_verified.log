@@ -1,0 +1,29 @@
+phase=after tasks=2 blas=1 Julia=1.12.7 CPU=znver4 heap_hint=1408M
+source=9fa232b1806026e271058af348af10f33024afd34df4b979732c3c698ee7f616 full prefix dates=[Date("2026-09-28"), Date("2026-09-29"), Date("2026-09-30"), Date("2026-10-01")] S300/F3/default EB
+BEGIN explicit synthetic two-day API startup
+startup seconds=2.775387624 compile=5.420271622
+BEGIN real four-day warmup; full histories, fresh account/alpha chain
+warmup seconds=7.336188245 bytes=5936501280 gc=2.950121992 compile=0.0
+BEGIN measured real four-day replay
+measured seconds=6.811615067 bytes=5930021928 gc=2.465188131 compile=0.0 recompile=0.0 window_days_per_second=0.587232243844586
+Test Summary:                               | Pass  Total  Time
+Four-day full-history replay and accounting |    8      8  0.1s
+daily prep [0.008759511000000001, 0.010455779, 0.008749711, 0.00908859]
+daily basis [0.024345034, 0.01802279, 0.023495215, 0.074674551]
+daily gram [0.22606603, 0.229641686, 0.229023206, 0.20724857000000002]
+daily eigen [0.17679465100000002, 0.071070325, 0.24459491, 0.201679887]
+daily EB [0.23475063100000002, 0.519380758, 0.26037806300000005, 0.32026908100000007]
+daily condition [0.012361866000000001, 0.011981667, 0.034719903, 0.013213236000000001]
+daily fracFFT [0.0015520590000000002, 0.001507279, 0.001507209, 0.0015248290000000001]
+daily scenario [0.14495163600000002, 0.029381389, 0.041062506000000006, 0.16013075000000002]
+daily Kelly [0.005859294, 0.004286785, 0.004195326, 0.004020036]
+daily OOF_fit [1.8752723980000001, 3.1144833640000003, 1.918056162, 2.6569850300000004]
+daily OOF_predict [0.024361974, 0.0024062470000000002, 0.002348958, 0.0013402280000000002]
+daily OOF_residual [0.015835533000000002, 0.015402394, 0.015864393, 0.038923089]
+saved=after_p2 sha256=1b502447ba0bdf397a58830e441b90dfc78f5cd6b4114d3800c0385da0a99ac5
+comparison_baseline=before_b6 same_topology=false; a different topology verifies outputs, NOT a paired speedup
+Test Summary:                                                         | Pass  Total  Time
+Same histories: same-topology regression or cross-topology comparison |    5      5  0.1s
+before_after_weight_L1_max=1.3086346284605208e-8 return_max_abs=6.343758851556913e-11
+runtime hashes unchanged; one measured window, no throughput ceiling claim
+scoped_run: rc=0 elapsed=27s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=1987MiB

@@ -1,0 +1,111 @@
+=== manager10 wave3 full summary 2026-10-08 10:31:40 CST ===
+[timed_passthrough_tests] scoped_run: rc=0 elapsed=3s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=689MiB
+Test Summary:                           | Pass  Total  Time
+[principal_root_contract_tests] scoped_run: rc=0 elapsed=4s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=711MiB
+Test Summary:                                              | Pass  Total  Time
+[model_api_micro_tests] scoped_run: rc=0 elapsed=7s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=839MiB
+Test Summary:                                            | Pass  Total  Time
+[ceiling_admission_tests] scoped_run: rc=0 elapsed=6s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=820MiB
+Test Summary:                            | Pass  Total  Time
+[incremental_primal_prep_tests] scoped_run: rc=0 elapsed=8s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=869MiB
+Test Summary:                                         | Pass  Total  Time
+[prepared_problem_contract_tests] scoped_run: rc=0 elapsed=10s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=860MiB
+Test Summary:                  | Pass  Total  Time
+[prepared_lifecycle_tests] scoped_run: rc=0 elapsed=5s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=731MiB
+Test Summary:                                                    | Pass  Total  Time
+[cli_boundary_contract_tests] scoped_run: rc=0 elapsed=4s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=793MiB
+Test Summary:                                          | Pass  Total  Time
+[posterior_contract_tests] scoped_run: rc=0 elapsed=11s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=849MiB
+Test Summary:                                                                         | Pass  Total  Time
+[residual_oracle_flow_tests] scoped_run: rc=0 elapsed=10s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=847MiB
+Test Summary:                      | Pass  Total  Time
+[reference_isolation_tests] scoped_run: rc=0 elapsed=28s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=1235MiB
+Test Summary:                                                | Pass  Total   Time
+[timeblock_50s] scoped_run: rc=0 elapsed=20s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=1122MiB
+Test Summary:                 | Pass  Total   Time
+[scoped_run_tests_50s] scoped_run: rc=124 elapsed=40s deadline=50 killed=1 cancelled=none rss_guard=2048 rss_peak=354MiB
+Test Summary:                                                       | Pass  Total  Time
+[ceiling_probes] scoped_run: rc=0 elapsed=14s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=922MiB
+Test Summary:  | Pass  Total   Time
+[incremental_budget_contract_tests] scoped_run: rc=0 elapsed=8s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=844MiB
+Test Summary:                                             | Pass  Total  Time
+[history_cache_contract_tests] scoped_run: rc=0 elapsed=11s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=828MiB
+Test Summary:                                    | Pass  Total  Time
+[artifact_replay_contract_tests] scoped_run: rc=0 elapsed=2s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=356MiB
+Test Summary:                    | Pass  Total  Time
+[arch_gate] scoped_run: rc=1 elapsed=1s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=345MiB
+Test Summary:                                                                                 | Pass  Fail  Total  Time
+[arch_gate_src] scoped_run: rc=0 elapsed=4s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=690MiB
+Test Summary:                                           | Pass  Total  Time
+--- 16 phase logs ---
+[phase=selftest] scoped_run: rc=0 elapsed=11s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=333MiB
+[phase=baseline] scoped_run: rc=0 elapsed=5s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=329MiB
+[phase=owner-term] scoped_run: rc=0 elapsed=1s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=338MiB
+[phase=owner-int] scoped_run: rc=0 elapsed=1s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=337MiB
+[phase=owner-hup] scoped_run: rc=0 elapsed=1s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=338MiB
+[phase=clock-mutant] scoped_run: rc=0 elapsed=7s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=336MiB
+[phase=clock-mono] scoped_run: rc=0 elapsed=3s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=333MiB
+[phase=clock-fail] scoped_run: rc=0 elapsed=1s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=339MiB
+[phase=clock-saturate] scoped_run: rc=0 elapsed=3s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=352MiB
+[phase=clock-start] scoped_run: rc=0 elapsed=6s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=337MiB
+[phase=clock-cleanup] scoped_run: rc=0 elapsed=1s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=332MiB
+[phase=clock-elapsed] scoped_run: rc=0 elapsed=1s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=331MiB
+[phase=clock-transient] scoped_run: rc=0 elapsed=0s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=335MiB
+[phase=clock-window-poll] scoped_run: rc=0 elapsed=8s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=335MiB
+[phase=clock-negctl] scoped_run: rc=0 elapsed=1s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=329MiB
+[phase=command-admission] scoped_run: rc=0 elapsed=0s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=329MiB
+--- gate object hashes (vs manager6 final3 source-of-record) ---
+1001e09893fdc6bfbe60f730cfff9bb71b2052385222680a25fa725d42b389e9  bin/scoped_run.sh
+19a82cdb2d6cb7a476b35cd6bda977bbc8f6975f75afefe210b3ed6cd8198d5a  test/scoped_run_tests.jl
+0d5a998a0365215c8dbcf2176d2885855aa2dbc8782be8f98e251571dfdf7540  test/architecture_contract_tests.jl
+186361d8c19949e42fb6e06539f9b811171b3693d524bc24f989b6590f1721a7  test/runtests.jl
+final3 recorded: bin c7048b3be064d5ef60903198a5e8938dca4a7cf4e70df968c323715462817446 / test 4b13b81fe3b54373e2acec4b4c093bb35d85659487239... (full in final3_runtime_snapshot.txt)
+--- git porcelain final ---
+45
+PORCELAIN_IDENTICAL_TO_TASK_START
+602b8976b4d5db29e6530241ad78e5f3f724f7fe
+=== wave3 per-file Pass/Total counts 2026-10-08 10:32:08 CST ===
+[timed_passthrough_tests]
+timed return-value passthrough contract |    7      7  0.7s
+[principal_root_contract_tests]
+principal sqrt root canonical coupling (scenario contract) |   15     15  1.6s
+[model_api_micro_tests]
+solve_stage_probe model-return API and downstream wiring |    8      8  2.9s
+[ceiling_admission_tests]
+ceiling admission gates (discriminating) |   17     17  2.0s
+[incremental_primal_prep_tests]
+Primal preparation statistics vs batch (N=2, n_res>P) |   46     46  5.3s
+[prepared_problem_contract_tests]
+PreparedProblem typed boundary |   61     61  7.1s
+[prepared_lifecycle_tests]
+Prepared lifecycle: frozen decision mask, lease, model stability |   24     24  2.2s
+[cli_boundary_contract_tests]
+CLI boundary contract (bin/ceiling_probes.jl entrance) |   50     50  0.6s
+[posterior_contract_tests]
+moving-fold boundary: yesterday-train contains today's heldout, warm == cold |   40     40  6.0s
+ScenarioQuadrature lazy vs dense: same model, same rule, ragged + missing own support |   25     25  2.0s
+[residual_oracle_flow_tests]
+lazy residual oracle flow contract |   45     45  6.8s
+[reference_isolation_tests]
+Reference isolation: minimal core without accelerator/probes |   57     57  23.5s
+[timeblock_50s]
+Bounded continuous timeblocks |  604    604  17.0s
+[ceiling_probes]
+ceiling probes |  274    274  10.4s
+[incremental_budget_contract_tests]
+IPO gram budget ledger (embed_active! payload accounting) | 1041   1041  5.3s
+[history_cache_contract_tests]
+verify_history_cache_prefix: guard contract |   24     24  1.1s
+wiring: _prepare_v1 / prepare_reference / fit_v1 fail loud before math |    9      9  0.6s
+math unchanged: cache path ≡ no-cache path on a legal panel |   15     15  0.3s
+initialize_inference: unified guard at the real entry |   45     45  3.9s
+ruler_stats prefix guard (verify_ruler_stats_prefix) |   32     32  1.5s
+prepare_reference: closed public keyword surface |   85     85  0.7s
+[artifact_replay_contract_tests]
+artifact replay comparison gates |   82     82  2.5s
+[arch_gate_src]
+M1-A/B/C: production include tree AST scan — real tree (expected GREEN: the probe dev-migration has landed) |    3      3  0.8s
+M1-D: PreparedProblem typed boundary with single solve (runtime metadata) |    2      2  0.0s
+M1-E: profiling types absent from production runtime namespace |    2      2  0.0s
+M1 gate self-check: known-bad fixtures go red via the same primitive |   15     15  0.1s
+M1 gate self-check: legal minimal structure stays green |    3      3  0.0s

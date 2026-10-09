@@ -1,0 +1,17 @@
+Test Summary:                                                                                               | Pass  Total  Time
+M1-A/B/C: production include tree AST scan — real tree (expected GREEN: the probe dev-migration has landed) |    3      3  0.6s
+Test Summary:                                                             | Pass  Total  Time
+M1-D: PreparedProblem typed boundary with single solve (runtime metadata) |    2      2  0.0s
+Test Summary:                                                  | Pass  Total  Time
+M1-E: profiling types absent from production runtime namespace |    2      2  0.0s
+Test Summary:                                                        | Pass  Total  Time
+M1 gate self-check: known-bad fixtures go red via the same primitive |   15     15  0.1s
+Test Summary:                                           | Pass  Total  Time
+M1 gate self-check: legal minimal structure stays green |    3      3  0.0s
+Test Summary:                                                      | Pass  Total  Time
+Pending filter column views: exact old arithmetic across mask runs |  216    216  1.3s
+Test Summary:                                         | Pass  Total  Time
+Primal preparation statistics vs batch (N=2, n_res>P) |   46     46  5.7s
+Test Summary:                                             | Pass  Total  Time
+IPO gram budget ledger (embed_active! payload accounting) | 1041   1041  0.8s
+scoped_run: rc=0 elapsed=14s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=964MiB

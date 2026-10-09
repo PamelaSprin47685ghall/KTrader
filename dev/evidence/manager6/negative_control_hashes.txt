@@ -1,0 +1,6 @@
+3a754edf1c7711dce6fd72f61679e30a5ecbc4cf1385c66931a424cc27f516d4  /tmp/negroot/test/scoped_run_tests.jl
+884eb9f1fcdbf4deb68f1d3ec7eb5836dd4ca898d8b5db6b09df3b268294b919  /tmp/negroot/bin/scoped_run.sh
+4b13b81fe3b54373e2acec4b4c093bb35d85659487239b9d7aa45223751adec6  /tmp/negroot/test/scoped_run_tests.jl
+375fd8dffec9d59e46f83e94cce7d3396a852c151ff6c0d36c465ba7398fd71f  /tmp/negroot/bin/scoped_run.sh
+efc59ba331c1e1f35c47bda578170ee5ccb720a667999bab9aea6372bf689148  /tmp/negroot/bin/scoped_run.sh
+4b13b81fe3b54373e2acec4b4c093bb35d85659487239b9d7aa45223751adec6  /tmp/negroot/test/scoped_run_tests.jl

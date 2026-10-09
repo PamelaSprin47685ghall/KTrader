@@ -1,0 +1,28 @@
+consumed=prepared.jls sha256=82b18e9b0283aa5aa9ef31e95e99d4870b5af49e70d800029d9fda8e2e4bfedc
+T=14309 N=65 F=3 CPU=znver4 Julia=1.12.7 BLAS=LBTConfig([ILP64] libopenblas64_.so) BLAS_threads=6
+EXPLICIT one specialization warm-up; alpha_initial omitted on BOTH solves
+BEGIN warmup_solve
+END warmup_solve seconds=12.240750402 allocated_bytes=3627882488 gc_seconds=1.379206114
+warmup_solve compile_time=9.544428791
+warmup_solve recompile_time=0.0
+BEGIN profiled_solve
+END profiled_solve seconds=3.162556094 allocated_bytes=2359882472 gc_seconds=0.785326049
+profiled_solve compile_time=0.395035638
+profiled_solve recompile_time=0.0
+timing prep=0.0
+timing basis=0.0
+timing gram=0.0
+timing eigen=0.058745293000000004
+timing EB=0.30194138600000003
+timing condition=0.008748569
+timing fracFFT=0.0020834670000000003
+timing scenario=0.0
+timing Kelly=0.0
+timing OOF_fit=2.3677063069999997
+timing OOF_predict=0.003156087
+timing OOF_residual=0.021282472
+consumed=model.jls sha256=691c3297813f2511efaffbee276c11274fb4ce03f32b19bf9cd5fa8eb0cd3577
+Test Summary:                                                     | Pass  Total  Time
+Current full N65 prepared solve vs previous same-input cold solve |    7      7  0.1s
+profile_sha256=28d0d67abc9ec6b6a5e63a4c8f7e3c89997a2b428c3ad3506d4ae861cb20e54d
+scoped_run: rc=0 elapsed=27s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=1581MiB

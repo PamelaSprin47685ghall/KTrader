@@ -1,0 +1,6 @@
+BEGIN group=cache_elision snapshot=680f1494d2d435847af2b4972d8be440e9f4f519fb2af0889789e302dbabeeba entries=["backtest_cache_tests.jl"]
+FILE backtest_cache_tests.jl
+Test Summary:               | Pass  Total  Time
+Release group cache_elision |  110    110  7.3s
+END group=cache_elision passed=true counts=Test.TestCounts(true, 0, 0, 0, 0, 110, 0, 0, 0, "7.3s")
+scoped_run: rc=0 elapsed=13s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=963MiB

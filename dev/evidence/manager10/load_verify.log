@@ -1,0 +1,9 @@
+=== manager10 step3 load verify 2026-10-08 10:15:11 CST ===
+sh: line 1: /usr/bin/time: No such file or directory
+RC=127
+2026-10-08 10:15:11 CST
+=== attempt2 (retry: /usr/bin/time absent, julia never started in attempt1) 2026-10-08 10:15:28 CST ===
+KTRADER_LOAD_OK
+RC=0
+ELAPSED_SECONDS=2
+END 2026-10-08 10:15:30 CST

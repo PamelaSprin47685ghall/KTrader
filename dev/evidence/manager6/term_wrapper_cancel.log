@@ -1,0 +1,2 @@
+CANCELLED-BY-SIGNAL sig=TERM(15) pgid=651733 elapsed=2s deadline=30
+scoped_run: rc=143 elapsed=2s deadline=30 killed=1 cancelled=TERM rss_guard=2048 rss_peak=4MiB

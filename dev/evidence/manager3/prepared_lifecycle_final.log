@@ -1,0 +1,3 @@
+Test Summary:                                                    | Pass  Total   Time
+Prepared lifecycle: frozen decision mask, lease, model stability |   24     24  11.8s
+scoped_run: rc=0 elapsed=18s deadline=50 killed=0 rss_guard=2048 rss_peak=1026MiB

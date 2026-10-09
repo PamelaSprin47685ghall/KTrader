@@ -1,0 +1,10 @@
+BEGIN group=inc_prefix snapshot=965c00871def6932cdc297f889d97a22171cdfba92c8849c591f5486dc5f1b75 entries=["incremental_tests.jl::prefix"]
+CHILD incremental_tests.jl::prefix
+[incremental phase=prefix] BEGIN; default/include entry runs all phases
+Test Summary:                          | Pass  Total   Time
+Exact metric-factored prefix inference | 6112   6112  10.1s
+Test Summary:                         | Pass  Total  Time
+Incremental selected phases completed |    1      1  0.0s
+[incremental phase=prefix] END completed=[:prefix]
+END group=inc_prefix passed=true counts=child process assertions in log
+scoped_run: rc=0 elapsed=19s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=1680MiB

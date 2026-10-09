@@ -1,0 +1,18 @@
+phase=decision Julia=1.12.7 CPU=znver4 Julia_threads=1 BLAS_threads=6 BLAS=LBTConfig([ILP64] libopenblas64_.so)
+single numerical-cold call; no hidden warm-up; not steady-state throughput
+consumed=model.jls sha256=691c3297813f2511efaffbee276c11274fb4ce03f32b19bf9cd5fa8eb0cd3577
+BEGIN scenarios_S300
+END scenarios_S300 seconds=0.543962738 allocated_bytes=85581128 gc_seconds=0.0
+scenarios_S300 compile_time=0.500351458
+scenarios_S300 recompile_time=0.0
+BEGIN Kelly
+END Kelly seconds=2.16279782 allocated_bytes=576130080 gc_seconds=0.065885642
+Kelly compile_time=2.153628172
+Kelly recompile_time=0.0
+Kelly certificate=(feasibility = 4.440892098500626e-16, kkt_residual = 9.999999780186643e-11, objective_gap = 6.286799969501544e-9, objective = 0.005936058669958164)
+BEGIN persist_decision
+artifact=decision.jls sha256=b5a1374722e4ca0a494aa859c9583eaee97639d9146de2e4bc58f0cdca3c65a5 bytes=158403
+END persist_decision seconds=0.732937458 allocated_bytes=108399536 gc_seconds=0.0
+persist_decision compile_time=0.717457429
+persist_decision recompile_time=0.0
+scoped_run: rc=0 elapsed=15s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=1298MiB

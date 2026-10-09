@@ -1,0 +1,6 @@
+counts = "child process assertions in log"
+entries = ["scoped_run_tests.jl::clock-cleanup", "scoped_run_tests.jl::clock-elapsed", "scoped_run_tests.jl::clock-transient", "scoped_run_tests.jl::clock-window-poll", "scoped_run_tests.jl::clock-negctl", "scoped_run_tests.jl::command-admission"]
+julia = "1.12.7"
+opt_level = 2
+passed = true
+snapshot = "965c00871def6932cdc297f889d97a22171cdfba92c8849c591f5486dc5f1b75"

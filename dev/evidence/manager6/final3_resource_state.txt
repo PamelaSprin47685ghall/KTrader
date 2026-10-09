@@ -1,0 +1,7 @@
+# final3_resource_state 2026-10-08T05:18:23+08:00
+julia_procs=0
+sleep_orphans=0
+terminals_opened_this_route=0 (none ever opened via open-terminal)
+HEAD=602b897
+dirty=45
+git_writes=none (no commit/reset/clean ever performed this route)

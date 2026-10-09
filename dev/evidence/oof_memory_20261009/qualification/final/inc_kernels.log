@@ -1,0 +1,14 @@
+BEGIN group=inc_kernels snapshot=965c00871def6932cdc297f889d97a22171cdfba92c8849c591f5486dc5f1b75 entries=["incremental_tests.jl::kernels"]
+CHILD incremental_tests.jl::kernels
+[incremental phase=kernels] BEGIN; default/include entry runs all phases
+Test Summary:                          | Pass  Total  Time
+Exact metric-factored prefix inference |   82     82  3.4s
+Test Summary:                                                | Pass  Total  Time
+non-symmetric cross-Gram contraction (production stats path) |    3      3  1.4s
+Test Summary:                                                      | Pass  Total  Time
+Incremental phase admission cannot silently select a partial suite |   16     16  0.1s
+Test Summary:                         | Pass  Total  Time
+Incremental selected phases completed |    1      1  0.0s
+[incremental phase=kernels] END completed=[:kernels]
+END group=inc_kernels passed=true counts=child process assertions in log
+scoped_run: rc=0 elapsed=14s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=1619MiB

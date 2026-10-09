@@ -1,0 +1,15 @@
+Test Summary:                                                                                               | Pass  Total  Time
+M1-A/B/C: production include tree AST scan — real tree (expected GREEN: the probe dev-migration has landed) |    3      3  0.8s
+Test Summary:                                                             | Pass  Total  Time
+M1-D: PreparedProblem typed boundary with single solve (runtime metadata) |    2      2  0.0s
+Test Summary:                                                  | Pass  Total  Time
+M1-E: profiling types absent from production runtime namespace |    2      2  0.0s
+Test Summary:                                                        | Pass  Total  Time
+M1 gate self-check: known-bad fixtures go red via the same primitive |   15     15  0.2s
+Test Summary:                                           | Pass  Total  Time
+M1 gate self-check: legal minimal structure stays green |    3      3  0.0s
+scoped_run: rc=0 elapsed=7s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=841MiB
+9be4c37d0b8e20a5247a3db962b23e3f984cdf287a0a4027ead5802456a039e8  bin/scoped_run.sh
+186361d8c19949e42fb6e06539f9b811171b3693d524bc24f989b6590f1721a7  test/runtests.jl
+d541110edbdf52b8b1410a5abfa1be70bbe7d0ff61a29e13887e6d94a7ffc54f  test/contract_registry.jl
+0d5a998a0365215c8dbcf2176d2885855aa2dbc8782be8f98e251571dfdf7540  test/architecture_contract_tests.jl

@@ -1,0 +1,4 @@
+counts = "Test.TestCounts(true, 0, 0, 0, 0, 1576, 0, 0, 0, \"18.3s\")"
+entries = ["conditioned_jcore_tests.jl", "conditioned_deadwork_tests.jl", "fit_local_reuse_tests.jl", "conditioned_geometry_reuse_tests.jl"]
+passed = true
+snapshot = "f7a11d7ea1f7b40e58244d8a6bf12957ddb4285ba67a97eeccef2fcf707b8304"

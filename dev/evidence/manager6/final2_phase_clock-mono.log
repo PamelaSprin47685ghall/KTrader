@@ -1,0 +1,6 @@
+kill: sending signal to -706619 failed: No such process
+[phase=clock-mono] begin — scope: production script under the SAME fake wall clock — /proc/uptime monotonic source fires at hard (2s) → rc=124 + TIMEOUT-EXCEEDED, no CANCELLED; owned group cleaned
+Test Summary:                                                 | Pass  Total  Time
+[phase=clock-mono] monotonic source green under fake rollback |    5      5  2.2s
+[phase=clock-mono] end
+scoped_run: rc=0 elapsed=3s deadline=20 killed=0 cancelled=none rss_guard=2048 rss_peak=341MiB

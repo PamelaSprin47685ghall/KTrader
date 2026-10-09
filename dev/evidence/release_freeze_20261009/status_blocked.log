@@ -1,0 +1,15 @@
+ERROR: LoadError: repeat verification incomplete
+Stacktrace:
+ [1] rf_status(s::Dict{String, Any})
+   @ Main ~/Desktop/vibe/KTrader/dev/release_freeze.jl:76
+ [2] rf_main()
+   @ Main ~/Desktop/vibe/KTrader/dev/release_freeze.jl:91
+ [3] top-level scope
+   @ ~/Desktop/vibe/KTrader/dev/release_freeze.jl:163
+in expression starting at /home/kunweiz/Desktop/vibe/KTrader/dev/release_freeze.jl:163
+PASS latest1 seconds=15.807302412 bytes=12062086240 gc=2.723214534 compile=0.0 dates=["2026-09-22", "2026-09-23", "2026-09-24", "2026-09-25", "2026-09-28", "2026-09-29", "2026-09-30", "2026-10-01"]
+PASS latest2 seconds=15.741374539 bytes=12062082880 gc=2.910908005 compile=0.0 dates=["2026-09-22", "2026-09-23", "2026-09-24", "2026-09-25", "2026-09-28", "2026-09-29", "2026-09-30", "2026-10-01"]
+MISSING earlier1
+MISSING earlier2
+QUALIFIED groups=21 standard_files=40 frozen_replays=2/4; not a 2.0 performance sign-off
+scoped_run: rc=1 elapsed=9s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=946MiB

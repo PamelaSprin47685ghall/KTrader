@@ -1,0 +1,5 @@
+# manager5 preflight 2026-10-08T03:21:39+08:00
+# observed NOW (not reconstructed from manager4 history): julia_procs=0 (ps full scan, no this-route residue, nothing killed - no ownership evidence needed)
+# scoped_run contract intact: 60s hard cap (refuses deadline>60 before start), RSS_GUARD_MAX_MIB=2048 tighten-only, timeout returns 124 (never success), TERM+KILL+reap in-scope
+# git: HEAD 602b897, dirty 45 (user + prior missions + manager4 files), no commit/reset/clean performed
+# zero numeric tests / zero fit / zero package load this mission; arch gate NOT run, no prewarm; awaiting source-owner delivery + separate authorization

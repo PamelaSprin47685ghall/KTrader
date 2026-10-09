@@ -1,0 +1,28 @@
+ERROR: LoadError: Some tests did not pass: 0 passed, 0 failed, 1 errored, 0 broken.
+in expression starting at /home/kunweiz/Desktop/vibe/KTrader/test/scoped_run_tests.jl:549
+[phase=selftest] begin — scope: bash --self-test regression (success/timeout/leader-exit-first/term-resistant + ALL PASS, no FAIL)
+[phase=selftest] bash --self-test regression: Error During Test at /home/kunweiz/Desktop/vibe/KTrader/test/scoped_run_tests.jl:190
+  Got exception outside of a @test
+  failed process: Process(`bash /home/kunweiz/Desktop/vibe/KTrader/test/../bin/scoped_run.sh --self-test`, ProcessExited(1)) [1]
+  
+  Stacktrace:
+   [1] pipeline_error
+     @ ./process.jl:597 [inlined]
+   [2] read(cmd::Cmd)
+     @ Base ./process.jl:481
+   [3] read
+     @ ./process.jl:490 [inlined]
+   [4] macro expansion
+     @ ~/Desktop/vibe/KTrader/test/scoped_run_tests.jl:191 [inlined]
+   [5] macro expansion
+     @ /usr/share/julia/stdlib/v1.12/Test/src/Test.jl:1777 [inlined]
+   [6] phase_selftest()
+     @ Main ~/Desktop/vibe/KTrader/test/scoped_run_tests.jl:191
+   [7] run_phase(p::String)
+     @ Main ~/Desktop/vibe/KTrader/test/scoped_run_tests.jl:546
+   [8] top-level scope
+     @ ~/Desktop/vibe/KTrader/test/scoped_run_tests.jl:555
+Test Summary:                                | Error  Total   Time
+[phase=selftest] bash --self-test regression |     1      1  11.8s
+RNG of the outermost testset: Random.Xoshiro(0xb7f691a1dc807673, 0xbc4f3204f7bfebd8, 0x84fdfa7a5ae492eb, 0x45008a2dbd776c01, 0x68ddd354b87b0c99)
+scoped_run: rc=1 elapsed=13s deadline=35 killed=0 cancelled=none rss_guard=2048 rss_peak=345MiB

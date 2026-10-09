@@ -1,0 +1,28 @@
+# final3_runtime_snapshot 2026-10-08T05:18:23+08:00 — CURRENT repo measurements (not copy claims)
+=== repo objects (as-measured now) ===
+c7048b3be064d5ef60903198a5e8938dca4a7cf4e70df968c323715462817446  bin/scoped_run.sh
+4b13b81fe3b54373e2acec4b4c093bb35d85659487239b9d7aa45223751adec6  test/scoped_run_tests.jl
+186361d8c19949e42fb6e06539f9b811171b3693d524bc24f989b6590f1721a7  test/runtests.jl
+d541110edbdf52b8b1410a5abfa1be70bbe7d0ff61a29e13887e6d94a7ffc54f  test/contract_registry.jl
+0d5a998a0365215c8dbcf2176d2885855aa2dbc8782be8f98e251571dfdf7540  test/architecture_contract_tests.jl
+=== negative layouts (if still present) ===
+consumer present:
+4b13b81fe3b54373e2acec4b4c093bb35d85659487239b9d7aa45223751adec6  /tmp/negroot/test/scoped_run_tests.jl
+badbin present (last state: date-injected):
+efc59ba331c1e1f35c47bda578170ee5ccb720a667999bab9aea6372bf689148  /tmp/negroot/bin/scoped_run.sh
+=== as-run evidence bindings (final 9 phases + 2 true-reds + records) ===
+21006176a9aafca18355bd9303482464aea6368d407362bd4e8f4e173c266bb3  dev/evidence/manager6/final2_phase_baseline.log
+5c49c4592a6f29aab8007127481d35fb354177360c406872fd9275a6d9169654  dev/evidence/manager6/final2_phase_clock-fail.log
+84555d094e65b4c3065b481aa224a3dc20e824efd1ddbd916ffe8eb5105dd900  dev/evidence/manager6/final2_phase_clock-mono.log
+11a7853c7eaabd2053c5007138bd104ad28264ce5434096552fafe241e32dd58  dev/evidence/manager6/final2_phase_clock-mutant.log
+f6d338e65d937f4eed53a830e9124d84270cf8c14865ef1ea1332531c3be0b6d  dev/evidence/manager6/final2_phase_clock-saturate.log
+6ce61f7c6e2738ae9749cb5bb41f672860f5585ce783d37c81359fea7c7d766e  dev/evidence/manager6/final2_phase_owner-hup.log
+04ce3f19759a192de97f04630ef2f2fb78ee16f44332cea94935b19db3a1a088  dev/evidence/manager6/final2_phase_owner-int.log
+455d838367843def501cbd7bd6431bebead325e2449dd1220e7003c72274c2db  dev/evidence/manager6/final2_phase_owner-term.log
+466e5414ecbfda8c846771250e56d0d3304473c90016fccb6b42c966c6b055df  dev/evidence/manager6/final2_phase_selftest.log
+b3823ea764a53d6f878aed4723d403703b0a2d25fd0d2564f9767d01df781446  dev/evidence/manager6/negative_control_final3.log
+77bedb8996437f794e7dd49549d37663351b993c07d0794aea810a10e3f9772d  dev/evidence/manager6/negative_control_date_real.log
+5e742f24210dca03d076dd410289199daf90f14da465557274504584ceb5a673  dev/evidence/manager6/negative_control_corrected_record.txt
+7d0beabd15abb95f35ad79ea7eaaf0336fcdac30bde7f6b5bdf14c534b1cec3f  dev/evidence/manager6/phase_run_summary.txt
+bcc52f696c875f32495d9e6f698b91cc8121c0b64704089bc2ce051f87bb6d8c  dev/evidence/manager6/arch_after_final2.log
+# version check: repo test hash must equal 4b13b81f... (final3 as-run consumer); bin must equal c7048b3b...

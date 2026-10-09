@@ -1,0 +1,16 @@
+VERIFY run=2 sha256=9b92105494e982686ca91a1f1f2f75d014287888ce214b910e458e449fdff6b8 numeric_window_seconds=17.330192911; no posterior fit, only authenticated model scenario/Kelly comparisons
+verified date=2026-09-10 weight_L1=0.0
+verified date=2026-09-11 weight_L1=0.0
+verified date=2026-09-14 weight_L1=0.0
+verified date=2026-09-15 weight_L1=0.0
+verified date=2026-09-16 weight_L1=0.0
+verified date=2026-09-17 weight_L1=0.0
+verified date=2026-09-18 weight_L1=0.0
+verified date=2026-09-21 weight_L1=0.0
+Test Summary:                                                      | Pass  Total  Time
+Production schedule vs separately authenticated chronological fits |   24     24  3.5s
+Test Summary:                                      | Pass  Total  Time
+Independent complete earlier-window process replay |    4      4  0.3s
+replay_weight_L1_max=0.0 return_max=0.0
+VERIFIED; producer status retained separately
+scoped_run: rc=0 elapsed=14s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=1142MiB

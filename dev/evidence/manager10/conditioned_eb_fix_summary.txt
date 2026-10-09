@@ -1,0 +1,11 @@
+=== conditioned_eb fix wave summary 2026-10-08 11:37:48 CST ===
+Dense fix: 25/25 RESTORED (default run, rc=1 only due to companion)
+companion matrix (all show 'conditioned EB line search failed before stationarity' @ :420, error 1/1):
+  default (BLAS_THREADS=6): RED
+  OPENBLAS_NUM_THREADS=6 (actual 12): RED
+  OPENBLAS_NUM_THREADS=16 (actual 12): RED
+  MKL_NUM_THREADS=6 (actual 6): RED
+  MKL_NUM_THREADS=16 (actual 6): RED
+BLAS vendor: lbt; OPENBLAS var not honored (6/16 -> actual 12); MKL var: actual stayed 6
+=> stable reproduction across tested thread configs (6 and 12 actual), NOT environment sensitivity; no green path found, no skip observed (BLAS>=6 in all configs)
+historic note: companion was 4/4 GREEN at wave2 (10:17) on pre-11:22 response.jl; red appeared after 11:22 edit

@@ -1,0 +1,6 @@
+counts = "Test.TestCounts(true, 0, 0, 0, 0, 6703, 0, 0, 0, \"7.1s\")"
+entries = ["conditioned_lazy_gradient_tests.jl", "scalar_tensor_tests.jl", "conditioned_certificate_reuse_tests.jl", "conditioned_certificate_cache_tests.jl", "conditioned_storage_tests.jl", "conditioned_contraction_kernel_tests.jl"]
+julia = "1.12.7"
+opt_level = 2
+passed = true
+snapshot = "680f1494d2d435847af2b4972d8be440e9f4f519fb2af0889789e302dbabeeba"

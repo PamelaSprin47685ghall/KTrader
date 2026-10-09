@@ -1,0 +1,23 @@
+Test Summary:                                                                                               | Pass  Total  Time
+M1-A/B/C: production include tree AST scan — real tree (expected GREEN: the probe dev-migration has landed) |    3      3  0.6s
+Test Summary:                                                             | Pass  Total  Time
+M1-D: PreparedProblem typed boundary with single solve (runtime metadata) |    2      2  0.0s
+Test Summary:                                                  | Pass  Total  Time
+M1-E: profiling types absent from production runtime namespace |    2      2  0.0s
+Test Summary:                                                        | Pass  Total  Time
+M1 gate self-check: known-bad fixtures go red via the same primitive |   15     15  0.1s
+Test Summary:                                           | Pass  Total  Time
+M1 gate self-check: legal minimal structure stays green |    3      3  0.0s
+Test Summary:                                                               | Pass  Total  Time
+Fit-owned alpha storage: rewritten values, stale rejection, no output alias |  608    608  7.3s
+Test Summary:                                                      | Pass  Total  Time
+Independent caches keep their prior alpha after later preparations |    4      4  0.0s
+Test Summary:                                               | Pass  Total  Time
+Certificate alpha-cache reuse never reuses Sigma acceptance |  456    456  0.1s
+Test Summary:                                                           | Pass  Total  Time
+Lazy optimizer gradient: eager formula, floor, gauge and dual agreement |  960    960  0.5s
+Test Summary:                                                            | Pass  Total  Time
+Alpha geometry: fit-local reuse, exact values, independent mutable state |  968    968  0.8s
+Test Summary:                                                          | Pass  Total  Time
+Core symmetrization uses both triangles and keeps independent matrices |    5      5  0.3s
+scoped_run: rc=0 elapsed=16s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=950MiB
