@@ -1,4 +1,3247 @@
-# KTrader / Path Kelly — 最新权威 SPEC
+# KTrader / Path Kelly — 所有需要的保姆级裁决
+
+**文档状态：Normative Decision Book / Gate-0 裁决书**  
+**目的：一次性裁决 KTrader 2.0 回测失败后暴露的全部规范性歧义。**  
+**适用范围：当前 2.0 CPU 代码线及其后续纠偏；本文件优先于旧 SPEC 中与本裁决冲突的条款，直到这些裁决被正式并入新的唯一权威 SPEC。**  
+**开发纪律：严格服从《KTrader 开发守则》——静态手段未穷尽不得测试，微基准未穷尽不得执行预计超过 1 分钟的大任务，后 Gate 破坏前 Gate 必须回退，不准带伤前进。**
+
+---
+
+# 0. 为什么需要这份裁决书
+
+当前项目并不是因为“回测亏钱”而回退 Gate。
+
+真正触发 Gate-0 重开的原因是：
+
+\[
+\boxed{
+\text{项目声称的数学对象}
+\neq
+\text{当前生产实现中若干关键对象}
+}
+\]
+
+目前已经静态确认的主要差距包括：
+
+1. 理论 Kelly 是
+   \[
+   \arg\max_w E[\log R^\top w\mid\mathcal H_t],
+   \]
+   但正式两年回测使用的是固定 \(S=300\) 的 sample-Kelly，且 `adaptive=false`。
+2. 当前 response posterior 只积分
+   \[
+   G\mid\hat\alpha,\hat\Sigma,
+   \]
+   而 \(\alpha,\Sigma,\sigma^2\) 是 point-estimate plug-in。
+3. 当前 innovation law 是
+   \[
+   \text{历史 OOF residual row}
+   \times
+   \text{一个 common scalar fractional volatility multiplier},
+   \]
+   不是完整 vector conditional innovation law。
+4. 每 band / 每 Q-P channel 的 14 条 trace-zero constraint 已被实现得非常精确，但没有从更高层理论推出。
+5. 当前 macro 与 relative response 被分别拟合，等价于默认删除 macro↔relative cross-response block；这一点没有被理论证明。
+6. 早期 `shrink_drift` 的缺陷被清除是正确的，但随后“任何 DC / unconditional drift 都不存在”也被悄悄固化，二者不是同一件事。
+7. 当前 fully-invested simplex 把 cash 排除在 Kelly feasible set 外；这与一般形式
+   \[
+   \log(1+w^\top r)
+   \]
+   所隐含的 cash numeraire 并不等价。
+8. 回测脚本通过篡改 `Bars.bar` 表达 252 日可交易规则，把“是否有真实观测”和“是否允许交易”混为一谈。
+9. 等权回测的可交易集合依赖 Path Kelly 的 `active_indices`，benchmark 不是完全外生。
+10. 回测报告对 “Volatility Pump”“完全脱离 beta”“低 SNR 导致 Kelly 集中”作了当前证据不支持的因果解释。
+
+因此，本文件不讨论“怎样调到赚钱”。
+
+本文件只做一件事：
+
+\[
+\boxed{
+\text{重新钉死 Path Kelly 到底是什么。}
+}
+\]
+
+---
+
+# 1. 裁决优先级与生效方式
+
+## D-001 — 本文件是临时最高规范裁决
+
+在新 SPEC 合并完成前：
+
+\[
+\boxed{
+\text{本裁决书}
+>
+\text{旧 SPEC 中冲突条款}
+>
+\text{当前实现}
+>
+\text{历史注释}
+}
+\]
+
+不冲突的旧 SPEC 条款继续有效。
+
+---
+
+## D-002 — 不改写历史证据
+
+当前已经发布、打 tag、保存 hash 的 “2.0.0 Final” 文件、日志、回测结果、artifact：
+
+**全部保留原字节、原 hash、原时间线。**
+
+禁止：
+
+- 修改旧报告冒充“当时其实没发布”；
+- 重写旧日志；
+- 覆盖旧 artifact；
+- 删除失败结果；
+- 改 git tag 以隐藏失败。
+
+正确做法是新增状态文件说明：
+
+> “2.0.0 Final 作为历史发布物保留，但其数学闭合声明已被后续 Gate-0 审计撤销，不再是当前推荐规范。”
+
+---
+
+# 2. 当前版本地位裁决
+
+## D-003 — 撤销“当前数学 Final”地位
+
+当前代码不得继续被称为：
+
+> KTrader 2.0 Final mathematical model
+
+当前开发状态统一改为：
+
+\[
+\boxed{
+\text{KTrader 2.0-RC / Gate 0 Reopened}
+}
+\]
+
+这是规范状态，不要求删除历史 `2.0.0` tag。
+
+---
+
+## D-004 — 两年 -62.22% 不是理论裁决
+
+当前两年结果只能被视为：
+
+\[
+\boxed{
+\text{当前 RC 实现的 failure fixture}
+}
+\]
+
+它证明：
+
+> 当前生产 predictive law + 当前有限 scenario numerical integration + 当前 feasible set 在该历史上产生了极差结果。
+
+它**不证明**：
+
+- Kelly 理论错误；
+- price-only 理论错误；
+- path response 错误；
+- 低信噪比必然导致集中；
+- 等权一定优于 Path Kelly；
+- trace neutrality 一定错误；
+- 早期版本一定更正确。
+
+---
+
+## D-005 — 不回滚到早期“赢家”
+
+V0 / 0.7 / 0.9 中已经静态确认的：
+
+- selection leakage；
+- in-sample residual；
+- zero residual fallback；
+- moment matching；
+- ARD/BF gate；
+- locked risk as cash；
+- 几何 eigenvector identity 问题；
+
+不得恢复。
+
+\[
+\boxed{
+\text{纠偏不是回滚。}
+}
+\]
+
+目标是从当前理论继续前进，而不是用早期回测收益挑旧机制。
+
+---
+
+# 3. 开发 Gate 裁决
+
+## D-006 — 当前立即回到 Gate 0
+
+即日起暂停：
+
+- 性能优化；
+- incremental 新功能；
+- GPU；
+- Vulkan；
+- full 2-year backtest；
+- 10-year benchmark；
+- 参数搜索；
+- Sharpe 对比实验；
+- portfolio cap / fractional Kelly；
+- 新 scheduler；
+- 新 cache；
+- 新 performance route。
+
+只允许：
+
+\[
+\boxed{\text{Gate 0 数学定义、静态重构、reference 实现}}
+\]
+
+---
+
+## D-007 — 后续顺序不变
+
+项目顺序正式重申：
+
+\[
+\boxed{
+\text{数学正确性}
+\rightarrow
+\text{数学加速}
+\rightarrow
+\text{计算机科学加速}
+\rightarrow
+\text{跨日增量化}
+\rightarrow
+\text{GPU}
+}
+\]
+
+任何后层破坏前层：
+
+\[
+\boxed{\text{立即回退。}}
+\]
+
+---
+
+# 4. 项目本体论继续保留的裁决
+
+以下旧原则继续有效，不重开：
+
+## D-008 — 规律固定
+
+\[
+\boxed{
+\mathcal F:\mathcal H_t\mapsto P(r_{t+1}\mid\mathcal H_t)
+}
+\]
+
+规律不时变，输入历史在演化。
+
+---
+
+## D-009 — 全历史是原语
+
+不把有限 state 当市场本体。
+
+有限 basis 只是当前模型表示。
+
+---
+
+## D-010 — 价格是唯一 alpha 原始输入
+
+不引入：
+
+- 财报；
+- 新闻；
+- 行业标签；
+- 人工 regime；
+- factor bag。
+
+execution 所需账户/报价信息继续独立。
+
+---
+
+## D-011 — 日频语义不重开
+
+当前 theoretical step = one trading day。
+
+不再讨论 intraday live 语义。
+
+---
+
+# 5. 数据语义裁决：四种 mask 必须彻底拆开
+
+这是本轮必须最先施工的代码边界之一。
+
+---
+
+## D-012 — `Bars.bar` 永远只表示物理观测事实
+
+定义：
+
+\[
+O_{t,i}
+=
+\mathbf 1
+\{\text{日期 }t\text{ 资产 }i\text{ 有真实市场 bar}\}.
+\]
+
+`Bars.bar[t,i]` 唯一语义就是 \(O_{t,i}\)。
+
+绝对禁止：
+
+- 因为不想交易而改成 false；
+- 因为历史不足而改成 false；
+- 因为模型不 admission 而改成 false；
+- 因为风控而改成 false。
+
+市场事实不是策略配置。
+
+---
+
+## D-013 — 新增独立 model-admission mask
+
+定义：
+
+\[
+A^{model}_{t,i}.
+\]
+
+它回答：
+
+> 该资产真实观测是否允许进入当日模型的信息空间？
+
+默认核心模型裁决：
+
+\[
+\boxed{
+A^{model}_{t,i}=1
+\quad\text{当且仅当 prefix 中至少存在一条有效 daily return。}
+}
+\]
+
+理由：
+
+- 弱证据由 posterior 表达；
+- 不用任意 MINROWS 门槛替代认识论不确定性；
+- 全 NaN dummy asset 严格排除。
+
+若未来提出更严格 admission rule：
+
+必须作为**理论变更**单独审查，不得藏在 `bar` 中。
+
+---
+
+## D-014 — 新增独立 trade-eligibility mask
+
+定义：
+
+\[
+E^{trade}_{t,i}.
+\]
+
+它回答：
+
+> 即使模型看到了该资产，今天是否允许新建/增加风险仓位？
+
+例如用户设定的 252 有效交易日规则属于这里。
+
+---
+
+## D-015 — 新增 physical-execution mask
+
+定义：
+
+\[
+T^{exec}_{t,i}.
+\]
+
+它由：
+
+- 当天真实 bar；
+- broker quote；
+- 市场可执行性；
+
+决定。
+
+理论 backtest 的简单形式至少需要：
+
+\[
+T^{exec}_{t,i}=O_{t,i}.
+\]
+
+---
+
+## D-016 — free mask 的唯一合法定义
+
+新建风险仓位的自由集合：
+
+\[
+\boxed{
+free_{t,i}
+=
+E^{trade}_{t,i}
+\land
+T^{exec}_{t,i}
+}
+\]
+
+模型 admission 不得偷偷混入 free。
+
+当前模型是否预测该资产，是另一个问题。
+
+---
+
+## D-017 — held position 永远单独处理
+
+若：
+
+\[
+w^{held}_i>0
+\]
+
+但：
+
+\[
+free_i=0,
+\]
+
+该资产成为 locked risk。
+
+它的 scenario wealth contribution 必须保留。
+
+绝不当 cash。
+
+---
+
+# 6. PONY / 252 日规则裁决
+
+## D-018 — 当前报告中的 252 日规则属于 trade eligibility
+
+因为报告原文称：
+
+> “1 年数据回看与可交易性硬约束”
+
+所以本次裁决把它解释为：
+
+\[
+\boxed{
+E^{trade}_{t,PONY}=0
+\quad\text{直到累计 252 个有效 bar。}
+}
+\]
+
+但：
+
+\[
+O_{t,PONY}
+\]
+
+仍然保持真实市场事实。
+
+因此 252 日以前：
+
+- 模型可以看见真实 PONY 价格；
+- PONY 可以作为预测信息；
+- PONY 不允许持仓；
+- 等权 benchmark 也不持仓 PONY。
+
+---
+
+## D-019 — 禁止再通过篡改 `Bars.bar` 表达 252 日规则
+
+当前回测脚本：
+
+```julia
+b_bar[1:t_252-1, pony_j] .= false
+```
+
+这种写法正式判为：
+
+\[
+\boxed{\text{语义错误}}
+\]
+
+即使 PnL 恰好符合实验意图，也必须重写。
+
+---
+
+## D-020 — benchmark universe 不得依赖 Path Kelly active set
+
+等权 benchmark 的候选集合只能来自：
+
+\[
+E^{trade}\land T^{exec}.
+\]
+
+不得写成：
+
+\[
+model.active\_indices \cap free.
+\]
+
+实验组不能决定对照组有哪些资产。
+
+---
+
+# 7. Macro / Relative 几何裁决
+
+## D-021 — center-of-mass / relative decomposition 保留
+
+对 observed normalized returns：
+
+\[
+u_{t,i}=r_{t,i}/s_{1,i}
+\]
+
+继续分解为：
+
+- macro scalar；
+- zero-sum relative field。
+
+这个结构是核心价格几何。
+
+---
+
+## D-022 — zero embedding 继续保留，但只能是 field algebra
+
+未观测坐标：
+
+\[
+e_{t,i}=0
+\]
+
+只表示：
+
+> 在当前 active coordinate space 中 relative field 的嵌入值为零。
+
+它**不表示**：
+
+\[
+r_{t,i}=0.
+\]
+
+observation mask 必须永久保留。
+
+---
+
+## D-023 — fixed Helmert gauge 继续是纯数值 gauge
+
+Helmert \(Q\)：
+
+\[
+Q^TQ=I,\qquad Q^T\mathbf1=0
+\]
+
+继续使用。
+
+它不是板块、不是 factor、不是市场模式。
+
+自然模式来自 operator spectrum。
+
+---
+
+## D-024 — ruler / gauge 不作为 posterior 随机对象
+
+本轮正式裁决：
+
+\[
+\boxed{
+s_1,\ s_m,\ s_\perp,\ Q
+}
+\]
+
+属于固定模型定义下的**确定性历史泛函 / 数值 gauge**。
+
+因此：
+
+- 不恢复 geometry bootstrap；
+- 不恢复 `Phi_draws`；
+- 不为 Helmert basis 加 posterior；
+- 不把 gauge tracking 当 epistemic uncertainty。
+
+若未来要让尺度律本身成为未知 law parameter：
+
+那是新的理论版本。
+
+---
+
+# 8. Response Operator 的重大裁决：取消无证明的 block-diagonal 假设
+
+当前代码实际上拆成：
+
+\[
+macro \rightarrow macro
+\]
+
+以及：
+
+\[
+relative \rightarrow relative.
+\]
+
+这意味着默认：
+
+\[
+G_{m\leftarrow\perp}=0,
+\qquad
+G_{\perp\leftarrow m}=0.
+\]
+
+没有理论推导支持这两个 block 恒为零。
+
+---
+
+## D-025 — 新 reference response 必须允许 macro↔relative cross-response
+
+统一 mode output：
+
+\[
+y_t
+=
+\begin{bmatrix}
+m_t\\
+q_t
+\end{bmatrix},
+\qquad
+q_t=Q^T e_t.
+\]
+
+统一 mode input：
+
+\[
+x_t
+=
+\begin{bmatrix}
+B_m(t)\\
+B_\perp(t)
+\end{bmatrix}.
+\]
+
+其中：
+
+\[
+B_m\in\mathbb R^{14},
+\qquad
+B_\perp\in\mathbb R^{14(N-1)}.
+\]
+
+总输入维度：
+
+\[
+14N.
+\]
+
+统一 response：
+
+\[
+\boxed{
+y_{t+1}
+=
+G x_t+\epsilon_{t+1}
+}
+\]
+
+其中：
+
+\[
+G\in\mathbb R^{N\times 14N}.
+\]
+
+block 展开：
+
+\[
+G=
+\begin{bmatrix}
+G_{mm} & G_{m\perp}\\
+G_{\perp m} & G_{\perp\perp}
+\end{bmatrix}.
+\]
+
+四个 block 全部允许由数据/posterior决定。
+
+---
+
+## D-026 — “sector rotation / mode transfer” 必须允许跨 macro-relative
+
+尤其不得预先禁止：
+
+- relative path 预测整体市场；
+- macro path 预测横截面 rotation。
+
+这才符合原来的 full response operator 理念。
+
+---
+
+# 9. Trace Neutrality 最终裁决
+
+这是本轮最重要裁决之一。
+
+---
+
+## D-027 — 当前 14 条 per-band trace neutrality 不再属于核心公理
+
+当前：
+
+\[
+\operatorname{tr}A_b=0,
+\qquad
+\operatorname{tr}B_b=0
+\]
+
+逐 band、逐 channel 的 14 条约束：
+
+正式分类为：
+
+\[
+\boxed{\text{candidate modeling hypothesis}}
+\]
+
+不是：
+
+- theorem；
+- identification theorem；
+- price-only symmetry 的必然结果。
+
+---
+
+## D-028 — 修正版 2.x core 默认关闭 14 条 trace constraint
+
+新 reference core：
+
+\[
+\boxed{
+\text{不施加 }
+\operatorname{tr}A_b=
+\operatorname{tr}B_b=0.
+}
+\]
+
+理由：
+
+1. 没有高层推导；
+2. likelihood 一般对这些方向有信息；
+3. 它可能改变 diagonal/off-diagonal 经济归因；
+4. 当前 evidence 只能证明“约束实现正确”，不能证明“约束理论正确”。
+
+---
+
+## D-029 — 旧 trace-conditioned solver 不删除
+
+保留为：
+
+```text
+experiments/trace_neutral_hypothesis/
+```
+
+或等价 dev 路径。
+
+用途：
+
+- 理论反例；
+- ablation；
+- 未来若获得推导可复活。
+
+但：
+
+\[
+\boxed{\text{不得成为默认 production core}}
+\]
+
+---
+
+## D-030 — 真正必须 hard enforce 的只有可达 support
+
+relative input 本身位于：
+
+\[
+\mathbf1^\perp.
+\]
+
+relative output 也位于：
+
+\[
+\mathbf1^\perp.
+\]
+
+因此新实现直接在 gauge 坐标：
+
+\[
+Q^T e
+\]
+
+中工作。
+
+这构造性删除：
+
+- input common unreachable direction；
+- output common/relative 重复表示；
+
+无需 14 条 trace constraint。
+
+---
+
+# 10. Drift / DC 分量裁决
+
+早期 `shrink_drift` 有缺陷，并不推出：
+
+\[
+\text{真实条件均值的 DC component 必须为 0}.
+\]
+
+Q/P path basis 本质上主要描述动态 path variation。
+
+没有 DC channel 等价于给模型强加：
+
+> 如果所有 dynamic path feature 不解释收益，则 unconditional expected field 必须为零。
+
+该假设没有被证明。
+
+---
+
+## D-031 — 恢复一个统一 DC / intercept channel
+
+新 response 设计矩阵增加常数通道：
+
+\[
+x_{0,t}=1.
+\]
+
+于是：
+
+\[
+\boxed{
+y_{t+1}
+=
+b_0+Gx_t+\epsilon_{t+1}.
+}
+\]
+
+其中：
+
+\[
+b_0\in\mathbb R^N
+\]
+
+位于统一 mode output 空间。
+
+它可以包含：
+
+- macro unconditional drift；
+- zero-sum relative long-run drift。
+
+---
+
+## D-032 — DC prior 必须零中心
+
+禁止：
+
+- 人工正收益 prior；
+- `shrink_drift` 式“默认股票长期上涨”的注入；
+- 根据历史赢家指定正先验。
+
+DC prior 均值：
+
+\[
+\boxed{0}
+\]
+
+其非零 posterior 只能来自价格证据。
+
+---
+
+## D-033 — DC 与 dynamic path 使用两个自然 group precision
+
+定义两个未知正精度：
+
+\[
+\alpha_0
+\]
+
+用于 DC，
+
+以及：
+
+\[
+\alpha_p
+\]
+
+用于全部 path coefficients。
+
+禁止：
+
+- 每 band 一个 alpha；
+- 每资产一个 alpha；
+- ARD/BF 关闭通道；
+- 根据 Sharpe 选 group。
+
+两个 group 的理由仅是：
+
+\[
+\boxed{
+\text{zero-frequency DC}
+\neq
+\text{dynamic path response}
+}
+\]
+
+---
+
+# 11. Posterior 最终裁决：生产不再使用 plug-in EB
+
+这是当前过度确信问题必须纠正的核心。
+
+---
+
+## D-034 — \(\alpha\)、response covariance 不再是 production point estimate
+
+当前：
+
+\[
+\hat\alpha,\hat\Sigma
+\]
+
+作为确定值代入下游的做法：
+
+正式降级为：
+
+\[
+\boxed{\text{diagnostic / approximation reference only}}
+\]
+
+生产 corrected core 必须积分它们的不确定性。
+
+---
+
+## D-035 — 采用 reference prior，而不是人为 proper prior
+
+统一 mode-space response 模型：
+
+\[
+Y=XB+E.
+\]
+
+给定 row/output covariance \(\Sigma_R\)：
+
+\[
+B\mid\Sigma_R,\alpha_0,\alpha_p
+\]
+
+采用 Gaussian / Matrix-Normal prior，feature precision matrix：
+
+\[
+\Lambda_\alpha
+=
+\operatorname{diag}
+(
+\alpha_0,
+\alpha_p,\ldots,\alpha_p
+).
+\]
+
+超参先验：
+
+\[
+\boxed{
+p(\alpha_0)\propto1/\alpha_0,
+\qquad
+p(\alpha_p)\propto1/\alpha_p
+}
+\]
+
+即 log-scale reference prior。
+
+covariance prior：
+
+\[
+\boxed{
+p(\Sigma_R)
+\propto
+|\Sigma_R|^{-(N+1)/2}
+}
+\]
+
+即 covariance 的 Jeffreys/reference prior。
+
+这些不是通过回测选出来的。
+
+---
+
+## D-036 — improper prior 必须有 posterior-propriety gate
+
+使用 reference prior 的前提：
+
+\[
+\boxed{\text{posterior proper}}
+\]
+
+工程师必须静态推导 propriety 条件，并用最小解析/数值 reference 测试验证。
+
+若某日不满足：
+
+- 不得偷偷 clamp；
+- 不得改成 EB；
+- 不得套 inverse-Wishart 超参数。
+
+必须：
+
+\[
+\boxed{\text{fail loudly}}
+\]
+
+并回 SPEC 审查 proper prior。
+
+---
+
+## D-037 — \(\Sigma_R\) 优先解析积分
+
+当前 Matrix-Normal 结构允许：
+
+给定 \((\alpha_0,\alpha_p)\) 后，
+
+尽可能解析积分：
+
+\[
+B,\Sigma_R.
+\]
+
+高维 \(\Sigma\) 的 Laplace/quadrature 不作为第一方案。
+
+必须先推导共轭/reference-prior 下的：
+
+- marginal evidence；
+- coefficient predictive；
+- decision-time \(Bx_t\) predictive；
+- Student-t / matrix-t 形式。
+
+只有证明解析路线失败后，才允许数值积分 \(\Sigma\)。
+
+---
+
+## D-038 — alpha 在 log-space 做 deterministic adaptive quadrature
+
+新的 production posterior 要积分：
+
+\[
+(\log\alpha_0,\log\alpha_p)\in\mathbb R^2.
+\]
+
+不得：
+
+- profile argmax 后当已知；
+- 固定 `EB_ALPHA_MIN/MAX` 作为 prior support；
+- 让 grid node 数成为策略参数。
+
+数值 integration：
+
+- adaptive；
+- tail mass 有证书；
+- refinement 有证书；
+- 不收敛 fail loudly。
+
+旧 EB optimizer 可以提供：
+
+- mode；
+- initial bracket；
+- diagnostic comparison。
+
+不能再定义 posterior。
+
+---
+
+## D-039 — macro \(\sigma^2\) 独立 point estimate 被取消
+
+因为 macro 不再独立成一个 regression。
+
+统一 mode-space covariance \(\Sigma_R\) 负责 response working likelihood 的 output covariance。
+
+因此删除：
+
+```text
+sig2 = SSE/(n-gamma)
+```
+
+作为生产 posterior 的特殊 macro 点估计。
+
+---
+
+# 12. 这不是“纯 generative Bayesian”——正式采用 Modular Predictive 语言
+
+response posterior 与 innovation law 的角色必须分开。
+
+---
+
+## D-040 — Response 模块负责 epistemic uncertainty
+
+它回答：
+
+> 给定有限历史，我们对条件均值算子 \(G\) 有多不确定？
+
+其输出是：
+
+\[
+P(\mu_{t+1}\mid\mathcal H_t)
+\]
+
+或等价参数 posterior。
+
+---
+
+## D-041 — Innovation 模块负责 out-of-fit aleatoric predictive law
+
+它回答：
+
+> 在 OOF 意义下，真实下一日残差可能是什么样？
+
+它使用 cross-fitted residual。
+
+---
+
+## D-042 — 顶层名称
+
+在 innovation 仍使用经验 / quasi-likelihood 结构时：
+
+禁止称：
+
+> fully Bayesian generative posterior predictive
+
+正式名称使用：
+
+\[
+\boxed{
+\text{modular posterior predictive}
+}
+\]
+
+或：
+
+> Bayesian response posterior + cross-fitted semiparametric innovation predictive.
+
+只有未来把 innovation 也做成完整 generative Bayesian law 后，才恢复“fully Bayesian”。
+
+---
+
+# 13. OOF 裁决
+
+## D-043 — OOF 保留，且扩展到新统一 response
+
+每个 fold：
+
+- 独立 fit；
+- 独立 \((\alpha_0,\alpha_p)\) posterior integration；
+- 不读取 held-out rows；
+- 不复用 full-data posterior；
+- 昨日同 fold state 只能作为 numerical warm-start。
+
+---
+
+## D-044 — OOF 不是模型选择工具
+
+OOF 只用于：
+
+\[
+\epsilon_t^{OOF}
+=
+y_{t+1}
+-
+E[y_{t+1}\mid H_t,\text{train excluding fold}]
+\]
+
+构造 innovation calibration。
+
+不根据 OOF Sharpe 选：
+
+- bands；
+- priors；
+- constraints；
+- d；
+- alpha；
+- universe。
+
+---
+
+# 14. Innovation Law 最终裁决
+
+当前 scalar macro scaling 正式退出最终 core。
+
+---
+
+## D-045 — innovation memory 必须是 vector / mode-space 对象
+
+对统一 mode residual：
+
+\[
+\epsilon_s\in\mathbb R^N
+\]
+
+定义：
+
+\[
+\boxed{
+V_t(d)
+=
+\frac{
+\sum_{\tau\ge1}
+k_d(\tau)
+\epsilon_{t+1-\tau}\epsilon_{t+1-\tau}^T
+}{
+\sum_{\tau\ge1}k_d(\tau)
+}.
+}
+\]
+
+\(V_t(d)\) 在：
+
+\[
+[m,\ Q^Te]
+\]
+
+mode 坐标中定义。
+
+因此天然包含：
+
+- macro variance；
+- relative covariance；
+- macro-relative cross covariance；
+- sector/mode risk rotation。
+
+---
+
+## D-046 — fractional kernel 继续统一
+
+继续使用同一个 fractional family：
+
+\[
+k_d(\tau).
+\]
+
+不得：
+
+- macro 一套；
+- relative 一套；
+- 每资产一套；
+- 每 sector 手工一套。
+
+这保持 Maxwell-like 统一。
+
+---
+
+## D-047 — \(d\) 的先验正式定为连续 Uniform(0,1)
+
+\[
+\boxed{
+d\sim Uniform(0,1)
+}
+\]
+
+\(d=1\) 可作为闭区间端点极限包含。
+
+当前 `DGRID_V1`：
+
+不再是理论对象。
+
+它只能作为数值 quadrature 节点。
+
+任何非均匀网格都必须带 cell mass。
+
+---
+
+## D-048 — kernel 使用全部可用因果历史
+
+不设固定 rolling window。
+
+对 decision day \(t\)：
+
+使用所有满足 causal 条件的历史 residual。
+
+kernel 自动决定远历史权重。
+
+禁止根据回测设置：
+
+- 63 日；
+- 252 日；
+- 3 年；
+- 5 年。
+
+---
+
+## D-049 — `burn=30` 不再是理论参数
+
+早期没有足够过去数据来形成 \(V_{s-1}\) 的 rows：
+
+直接不进入 likelihood / score。
+
+有效起点由数学可定义性决定。
+
+不再硬编码 “burn 30” 作为模型定义。
+
+---
+
+# 15. Innovation 的 PSD / singular support 裁决
+
+## D-050 — 不允许固定 covariance floor 成为理论
+
+理论对象允许：
+
+\[
+V_t(d)\succeq0.
+\]
+
+若某方向历史数据不足而 rank deficient：
+
+该方向 variance 可以为 0 / 未识别 support。
+
+不得通过：
+
+\[
+V+\delta I
+\]
+
+偷偷创造理论风险。
+
+---
+
+## D-051 — inverse square root 使用 support pseudoinverse
+
+标准化时：
+
+\[
+V^{-1/2}
+\]
+
+理解为：
+
+\[
+\boxed{
+\text{Moore-Penrose inverse square root on observed positive support}.
+}
+\]
+
+零特征方向：
+
+- 不逆；
+- 不注入随机噪声；
+- 保留为 null support。
+
+任何 numerical eigen floor 只能用于浮点分类，并必须做 floor→0 refinement。
+
+---
+
+# 16. Innovation shape 裁决
+
+我们保留经验 tail shape，而不强行 Gaussian 化。
+
+---
+
+## D-052 — standardized residual shape
+
+对每个 \(d\)：
+
+\[
+\boxed{
+z_s(d)
+=
+V_{s-1}(d)^{+1/2}
+\epsilon_s.
+}
+\]
+
+这里 \(+\) 表示 support pseudoinverse。
+
+预测时：
+
+\[
+\boxed{
+\epsilon_{t+1}
+=
+V_t(d)^{1/2}z_{s'}(d).
+}
+\]
+
+---
+
+## D-053 — empirical standardized shape 是 2.x 的规范
+
+\(z\) 的 predictive shape 使用历史 OOF standardized rows 的经验测度。
+
+这明确是：
+
+\[
+\boxed{\text{semiparametric empirical predictive}}
+\]
+
+不是声称已知真实 tail distribution。
+
+优点：
+
+- 保留 tail；
+- 保留 skew；
+- 保留 cross-mode shock shape；
+- 不新增 Student-t df 等手工参数。
+
+---
+
+## D-054 — 禁止 own-row cell stitching
+
+当前：
+
+> shared row 某 asset 缺失 → 单独从该资产 own-row 抽一个 cell
+
+会破坏联合 residual vector 的 cross-sectional dependence。
+
+新规范：
+
+\[
+\boxed{
+\text{一个 scenario innovation 必须来自一个联合合法 shape row。}
+}
+\]
+
+不得把不同日期的 asset cells 拼成一个“历史向量”。
+
+---
+
+## D-055 — ragged shape 按 mask/support 处理
+
+历史 standardized row 只能用于与当前 decision risk set **兼容**的 support。
+
+默认严格规则：
+
+> 被用于一个联合 scenario 的历史 residual row，必须覆盖当前需要生成风险的全部 risky assets。
+
+若不满足：
+
+该 row 不进入当前 joint empirical shape pool。
+
+---
+
+## D-056 — 无足够 joint rows 时 fail / 保留 cash，不拼残差
+
+若当前 risky set 没有足够联合历史：
+
+- 不 own-row stitch；
+- 不 zero-fill；
+- 不假装 covariance full-rank。
+
+优先：
+
+1. 该资产不进入 free risky set；
+2. 已持有则 locked；
+3. 资金可以留在 cash。
+
+这正是 cash 被纳入 Kelly 的重要原因之一。
+
+---
+
+# 17. \(d\) 的更新身份裁决
+
+经验 shape 不是高斯时，Gaussian covariance likelihood 不再是完整 likelihood。
+
+因此：
+
+## D-057 — \(d\) 使用 Gaussian covariance quasi-likelihood
+
+定义：
+
+\[
+\ell_d
+=
+-\frac12
+\sum_s
+\left[
+\log\det^+ V_{s-1}(d)
++
+\epsilon_s^T V_{s-1}(d)^+\epsilon_s
+\right]
+\]
+
+只在该 row 的有效 support 上计算。
+
+然后：
+
+\[
+q(d\mid H)
+\propto
+\exp(\ell_d)\cdot 1_{(0,1)}(d).
+\]
+
+正式名称：
+
+\[
+\boxed{\text{quasi-posterior over }d}
+\]
+
+不是普通 Bayes posterior。
+
+---
+
+## D-058 — 不引入 generalized-Bayes temperature
+
+learning-rate / temperature：
+
+\[
+\eta
+\]
+
+固定为 1。
+
+不允许根据回测调。
+
+若未来理论要求 calibration temperature：
+
+必须另立理论版本。
+
+---
+
+# 18. Innovation absolute scale 裁决
+
+## D-059 — 删除 `v_bootstrap` scalar anchor
+
+vector law 已直接包含绝对二阶矩：
+
+\[
+V_t(d).
+\]
+
+因此不再需要：
+
+\[
+\sqrt{v_{forecast}/v_{bootstrap}}
+\]
+
+的 scalar anchor。
+
+这不是丢失 absolute scale。
+
+恰恰相反：
+
+\[
+\boxed{
+V_t(d)
+}
+\]
+
+自身就是绝对 scale。
+
+---
+
+# 19. 总 predictive law 裁决
+
+最终 corrected 2.x one-step law：
+
+1. 从 response posterior 抽/积分 conditional mean：
+   \[
+   \mu_{t+1}.
+   \]
+2. 从 \(q(d\mid H)\) 抽/integrate \(d\)。
+3. 从 compatible standardized residual empirical measure 抽 \(z(d)\)。
+4. 构造：
+   \[
+   \epsilon_{t+1}=V_t(d)^{1/2}z(d).
+   \]
+5. mode field：
+   \[
+   y_{t+1}=\mu_{t+1}+\epsilon_{t+1}.
+   \]
+6. 映射回 asset normalized return field。
+7. 乘 \(s_1\) 恢复 asset log returns。
+8. exponentiate 成 gross returns。
+
+---
+
+## D-060 — response uncertainty 与 innovation noise 不得重复计算
+
+报告必须区分：
+
+\[
+\boxed{
+\underbrace{
+Var(\mu\mid H)
+}_{epistemic}
++
+\underbrace{
+E[V_{\epsilon}\mid H]
+}_{aleatoric}
+}
+\]
+
+scenario generator：
+
+- response posterior draw 负责 mean uncertainty；
+- innovation draw 负责 residual uncertainty。
+
+不得把 regression \(\Sigma_R\) 又作为额外 future residual shock重复加一次。
+
+\(\Sigma_R\) 在 response 模块里是 working-likelihood covariance / posterior scaling nuisance。
+
+真正未来 aleatoric risk 由 vector innovation law 提供。
+
+---
+
+# 20. Numerical Integration 最终裁决
+
+当前固定 \(S=300\) 正式退出 production definition。
+
+---
+
+## D-061 — “Full Kelly” 禁止再指固定 sample Kelly
+
+只有同时满足：
+
+\[
+I_M(w)\to I(w)
+\]
+
+和：
+
+\[
+w_M\to w^*
+\]
+
+的数值收敛证书后，
+
+才允许称：
+
+> numerical approximation to full Kelly.
+
+---
+
+## D-062 — 生产必须 adaptive
+
+生产决策禁止：
+
+```text
+adaptive=false, S=300
+```
+
+固定 \(S\) 只允许：
+
+- unit tests；
+- artifact replay；
+- microbenchmark；
+- historical fixture。
+
+---
+
+## D-063 — Halton 不作为最终 production 默认
+
+高维：
+
+\[
+D\approx O(N)
+\]
+
+下 production numerical integral：
+
+默认目标 backend：
+
+\[
+\boxed{\text{nested Owen-scrambled Sobol}}
+\]
+
+Halton：
+
+保留为 reference / legacy comparison。
+
+原因是数值积分结构，不是回测表现。
+
+---
+
+## D-064 — 至少两个独立 numerical certificate
+
+### Certificate A — weight convergence
+
+\[
+\boxed{
+\|w_{2M}-w_M\|_1
+\le
+\epsilon_w.
+}
+\]
+
+### Certificate B — utility regret
+
+在更细/独立 audit rule 上：
+
+\[
+\boxed{
+I_{audit}(w_{2M})
+-
+I_{audit}(w_M)
+\le
+\epsilon_U.
+}
+\]
+
+Kelly solver 自己的 KKT：
+
+是第三种 certificate。
+
+三者不能互相替代。
+
+---
+
+## D-065 — integration convergence 必须使用独立 audit replicate
+
+因为：
+
+\[
+w_M
+\]
+
+是在 optimization scenarios 上选择出来的。
+
+只用同一 scenario set 检查 objective：
+
+会存在 sample optimization optimism。
+
+因此 production 至少维护：
+
+- optimization nested rule；
+- independent audit scrambled rule。
+
+两者 seed 可确定性派生。
+
+---
+
+## D-066 — 数值容差不在本裁决书里拍脑袋
+
+\[
+\epsilon_w,\epsilon_U,M_{max}
+\]
+
+必须通过 numerical refinement 定稿：
+
+1. synthetic laws 有解析答案；
+2. realistic single-day fixtures；
+3. tolerance 减半；
+4. weight / utility 稳定；
+5. 与 Sharpe/PnL 完全无关。
+
+一旦定稿：
+
+记录为 numerical configuration。
+
+---
+
+## D-067 — integration budget 耗尽必须 fail loudly
+
+错误统一：
+
+```text
+Numerical integration did not converge
+```
+
+不得返回最后一层权重。
+
+---
+
+# 21. Kelly feasible set 最终裁决：cash 回归
+
+这是本轮第二个非常重要的理论纠正。
+
+---
+
+## D-068 — cash 是 Kelly 的显式 numeraire asset
+
+无利息 cash gross return：
+
+\[
+R_{cash}=1.
+\]
+
+risky weights：
+
+\[
+w_i\ge0.
+\]
+
+cash：
+
+\[
+w_c\ge0.
+\]
+
+总预算：
+
+\[
+\boxed{
+w_c+\sum_iw_i=1.
+}
+\]
+
+等价：
+
+\[
+\boxed{
+\sum_iw_i\le1.
+}
+\]
+
+剩余自动留 cash。
+
+---
+
+## D-069 — fully-invested risky simplex 降级为特殊实验约束
+
+当前：
+
+\[
+\sum_i w_i=1
+\]
+
+且没有 cash：
+
+不再称“canonical exact Kelly”。
+
+它只是一种：
+
+> fully-invested risky-only Kelly constraint.
+
+如果以后要测试：
+
+可以作为显式 experiment。
+
+不能作为默认理论。
+
+---
+
+## D-070 — cash 不是 fractional Kelly
+
+允许留 cash 是 exact feasible set。
+
+它不是：
+
+- 人工缩仓；
+- 置信度乘数；
+- 0.5 Kelly；
+- volatility targeting。
+
+如果 posterior 没有足够 edge：
+
+exact Kelly 自己选择 cash。
+
+---
+
+## D-071 — 不允许仓位上限修 concentrated output
+
+禁止：
+
+- `max_weight=0.1`；
+- entropy penalty；
+- diversification penalty；
+- risk parity blend。
+
+除非未来 execution / mandate 明确要求。
+
+这些都不是当前纠偏工具。
+
+---
+
+# 22. Benchmark 裁决
+
+## D-072 — 至少保留三个 benchmark
+
+未来正式报告：
+
+1. **Cash**
+   \[
+   R=1.
+   \]
+2. **Daily equal-weight risky**
+3. **Initial equal-weight buy-and-hold**
+
+其中 2 vs 3 才能讨论 rebalancing premium。
+
+---
+
+## D-073 — 禁止未经识别称“Volatility Pump”
+
+只有：
+
+\[
+EW_{daily}
+-
+EW_{buyhold}
+\]
+
+的 counterfactual 分解完成后，
+
+才能讨论 rebalancing bonus。
+
+---
+
+## D-074 — correlation 不能替代 beta decomposition
+
+收益相关：
+
+\[
+corr(r_{PK},r_{EW})=0.4184
+\]
+
+只能描述相关性。
+
+不能写：
+
+> 完全脱离大盘 beta。
+
+若要讲 beta：
+
+必须定义 benchmark factor 并做明确回归/投影。
+
+---
+
+# 23. Concentration 诊断裁决
+
+## D-075 — 高集中不是独立 bug
+
+未来：
+
+\[
+w_{max}>95\%
+\]
+
+只有在以下均通过后才可解释为理论答案：
+
+1. posterior object 正确；
+2. innovation law 正确；
+3. scenario integration 收敛；
+4. Kelly KKT 通过；
+5. cash feasible；
+6. decision utility margin 显著。
+
+---
+
+## D-076 — 必须输出 concentration cause report
+
+对每个高集中日，记录：
+
+- top asset；
+- risky weight；
+- cash weight；
+- posterior expected log-growth；
+- response epistemic variance；
+- innovation variance；
+- utility regret if 1% weight shifted to next alternatives；
+- integration \(M\)；
+- convergence certificate；
+- top posterior mean directions；
+- top innovation covariance eigenmodes。
+
+不能只打印：
+
+> “Kelly concentrated.”
+
+---
+
+# 24. Geometry uncertainty 最终裁决
+
+## D-077 — 不恢复旧 geometry bootstrap
+
+旧 eigenmodes 的 bootstrap uncertainty：
+
+主要包含：
+
+- eigenvector sign；
+- degenerate rotation；
+- coordinate tracking；
+
+这些已经由 fixed gauge 消灭。
+
+因此：
+
+\[
+\boxed{
+\text{不把旧 }\Phi\text{ bootstrap 恢复进 posterior。}
+}
+\]
+
+---
+
+## D-078 — 价格几何若未来成为未知 law，必须另立理论
+
+例如想让：
+
+- ruler exponent H；
+- scale functional；
+- kernel family；
+
+本身随机：
+
+必须在未来版本显式定义 prior。
+
+不能把 sampling variability 随手叫 posterior uncertainty。
+
+---
+
+# 25. BANDS / TAUS 裁决
+
+## D-079 — 当前 BANDS/TAUS 是 2.x 模型类定义
+
+它们不是：
+
+- 市场本体；
+- 可用 Sharpe 调的超参数；
+- 当前需要做 scenario refinement 的 numerical quadrature。
+
+改变：
+
+```text
+TAUS
+BANDS
+```
+
+视为：
+
+\[
+\boxed{\text{模型类 / 理论版本变更}}
+\]
+
+需要 separate theory review。
+
+---
+
+## D-080 — 不在本轮同时研究 continuum bands
+
+Gate 0 当前目标是恢复 predictive law 的一致性。
+
+不要同时：
+
+- 连续化 band；
+- 加 wavelet family；
+- 增加更多 temporal basis。
+
+一次只解决一层问题。
+
+---
+
+# 26. API / 类型裁决
+
+纠偏后建议的最小核心类型：
+
+```julia
+struct MarketFacts
+    dates
+    symbols
+    close
+    adj
+    observed
+end
+```
+
+```julia
+struct Eligibility
+    model_admitted
+    trade_eligible
+    executable
+end
+```
+
+```julia
+struct PreparedProblem
+    # geometry
+    ...
+    # unified mode design/targets
+    X
+    Y
+    # fold stats
+    ...
+    # observation/mask provenance
+    ...
+end
+```
+
+```julia
+struct ResponsePosterior
+    # posterior quadrature / analytic representation
+    ...
+end
+```
+
+```julia
+struct InnovationState
+    # OOF vector residuals / V_t(d) / d quasi-posterior
+    ...
+end
+```
+
+```julia
+struct PredictiveLaw
+    ...
+end
+```
+
+---
+
+## D-081 — `V1Model` 大杂烩结构必须拆
+
+当前把：
+
+- response；
+- mean；
+- residual provider；
+- d posterior；
+- bootstrap scale；
+
+塞在一个 model struct。
+
+纠偏后每个数学概念有一个 owner。
+
+---
+
+# 27. Reference 实现裁决
+
+## D-082 — 先写新的 slow reference，不在当前 fast core 上继续补丁
+
+旧 2.0 production：
+
+保留为 historical fixture。
+
+新 Gate-0 reference：
+
+- 单线程；
+- 无 incremental；
+- 无 workspace cleverness；
+- 无 scheduler；
+- 无 GPU；
+- 无 special performance path。
+
+先把新数学写清楚。
+
+---
+
+## D-083 — Reference 不追求 1 分钟
+
+Gate 0 reference 即使：
+
+- 单日慢；
+- 两年不能跑；
+
+也可以接受。
+
+数学正确优先。
+
+---
+
+# 28. 旧 conditioned-EB 代码裁决
+
+## D-084 — 不继续优化它
+
+`optimize_conditioned_eb`：
+
+已经证明工程上做得非常认真。
+
+但由于：
+
+- trace neutrality 已降级；
+- plug-in EB 已退出 production posterior；
+
+它不再是 corrected core 的中心。
+
+处理方式：
+
+1. 保留 source/history；
+2. 保留 tests；
+3. 移入 legacy/hypothesis；
+4. 不再继续性能优化。
+
+不要因为 sunk cost 强行保住理论地位。
+
+---
+
+# 29. 数值 integration of response hyperparameters 的实现顺序
+
+## D-085 — 能解析绝不采样
+
+给定 \((\alpha_0,\alpha_p)\)：
+
+优先解析积分：
+
+- coefficient matrix；
+- response covariance nuisance；
+- decision-time linear form。
+
+然后只对低维 hyperparameters 做 deterministic quadrature。
+
+---
+
+## D-086 — 不允许 MCMC 作为第一版
+
+两维 alpha：
+
+先 adaptive deterministic quadrature。
+
+只有证明：
+
+- posterior 多峰；
+- deterministic integration 不可承受；
+
+才重开 MCMC。
+
+---
+
+# 30. 结果报告必须新增的不确定性分解
+
+未来单日 model audit 必须给：
+
+\[
+\boxed{
+Var(r\mid H)
+=
+Var_{response}
++
+Var_{innovation}
+}
+\]
+
+并进一步把 response 拆：
+
+- coefficient conditional；
+- \(\alpha_0,\alpha_p\) hyperposterior；
+- covariance nuisance integration。
+
+任何无法计算部分：
+
+必须写：
+
+> NOT COMPUTED
+
+不能显示 0。
+
+---
+
+# 31. 旧 `S=300` 回测怎么处理
+
+## D-087 — 保留为 regression fixture
+
+两年 -62.22%：
+
+永久保留。
+
+它用于未来回答：
+
+> 哪个数学纠偏改变了什么。
+
+但禁止拿它作为：
+
+- performance target；
+- tuning objective；
+- acceptance threshold。
+
+---
+
+# 32. 纠偏后的实验纪律
+
+## D-088 — 第一阶段完全禁止两年重跑
+
+直到下面全部完成：
+
+1. new SPEC；
+2. static owner review；
+3. tiny analytic tests；
+4. single-day integration convergence；
+5. OOF isolation；
+6. innovation PSD/support tests；
+7. cash Kelly tests；
+8. reference vs formulas。
+
+之后才允许短窗口。
+
+---
+
+## D-089 — 测试升级阶梯
+
+固定：
+
+\[
+\boxed{
+\text{static}
+\rightarrow
+\text{tiny analytic}
+\rightarrow
+\text{single day}
+\rightarrow
+5\text{ days}
+\rightarrow
+20\text{ days}
+\rightarrow
+60\text{ days}
+\rightarrow
+501\text{ days}
+}
+\]
+
+任何一级红：
+
+立即停止升级。
+
+---
+
+# 33. 需要新增的最小解析测试
+
+## D-090 — Symmetric world
+
+构造 \(N=3\)：
+
+三个资产 predictive law 完全 exchangeable。
+
+有 cash 且 risky expected log-growth > cash 时：
+
+risky 权重必须对称。
+
+若 risky law 没有正优势：
+
+允许全部 cash。
+
+---
+
+## D-091 — No-signal world
+
+response posterior：
+
+\[
+E[G]=0.
+\]
+
+innovation 对称。
+
+Kelly 不得由于 finite scenario 偶然赢家稳定地产生 95% 单票。
+
+integration refinement 后应收敛到对称 solution / cash。
+
+---
+
+## D-092 — Known cross-mode world
+
+人工：
+
+\[
+G_{\perp m}\neq0
+\]
+
+或：
+
+\[
+G_{m\perp}\neq0.
+\]
+
+新 full response 必须 recover。
+
+旧 block-diagonal 实现应故意失败，用于证明新模型确实修复了被删 block。
+
+---
+
+## D-093 — Known DC world
+
+人工 constant drift：
+
+新 DC channel recover。
+
+dynamic Q/P coefficients 保持 0。
+
+---
+
+## D-094 — Trace-hypothesis counterexample
+
+构造真实 diagonal common response：
+
+验证：
+
+- unconstrained new core 能 recover；
+- old trace-neutral branch 会系统性删除。
+
+这是 trace constraint 从 core 降级的重要反例测试。
+
+---
+
+## D-095 — Vector volatility world
+
+人为让某一 relative direction volatility 最近显著上升。
+
+新 \(V_t(d)\) 必须只放大该方向。
+
+旧 scalar law 会错误放大全场。
+
+---
+
+# 34. OOF tests
+
+必须证明：
+
+- held-out row 不进 response posterior；
+- held-out row 不进 alpha quadrature evidence；
+- fold residual 与 dense reference 一致；
+- unified macro-relative cross blocks也严格 OOF；
+- row with no observations 不得当 residual=0 进入 likelihood。
+
+---
+
+# 35. Ragged tests
+
+必须覆盖：
+
+1. dummy all-NaN asset；
+2. IPO；
+3. 单日 missing；
+4. held but unobservable；
+5. current free set 是 historical subset；
+6. no compatible joint residual shape rows；
+7. asset permutation；
+8. gauge rotation。
+
+---
+
+# 36. Numerical integration tests
+
+至少：
+
+- known Gaussian 2-asset analytic Kelly；
+- nested \(M\to2M\)；
+- optimization/audit independent replicate；
+- same seed replay；
+- different seed convergence to same weight；
+- budget exhaustion fail-loud；
+- no fixed-S production shortcut。
+
+---
+
+# 37. Cash Kelly tests
+
+必须覆盖：
+
+### Case A
+
+所有 risky gross deterministically < 1：
+
+\[
+w_{cash}=1.
+\]
+
+### Case B
+
+一资产 deterministically > 1：
+
+\[
+w_{asset}=1.
+\]
+
+### Case C
+
+高均值高风险 risky：
+
+根据 exact log utility 选择内部解。
+
+### Case D
+
+locked position：
+
+cash + free + locked wealth 正确相加。
+
+---
+
+# 38. Naming 裁决
+
+## D-096 — 以下名称立即禁用
+
+直到条件满足：
+
+- “Exact Bayesian Kelly”
+- “Full Bayesian posterior”
+- “Full Kelly” 用于固定 300 scenario
+- “Trace neutrality is an identification theorem”
+- “Low SNR causes Kelly concentration”
+- “Volatility Pump explains EW outperformance”
+- “Completely detached from beta”
+
+---
+
+## D-097 — Gate-0 期间推荐名称
+
+当前旧实现：
+
+> KTrader 2.0 RC legacy implementation.
+
+新纠偏模型：
+
+> Path Kelly modular predictive reference.
+
+当 numerical integration 收敛：
+
+> converged log-Kelly decision.
+
+---
+
+# 39. 回测报告最终模板裁决
+
+未来正式报告必须至少包含：
+
+### Data
+
+- hashes；
+- observed mask policy；
+- model admission；
+- trade eligibility；
+- execution mask。
+
+### Model
+
+- response posterior definition；
+- DC prior；
+- alpha prior；
+- innovation definition；
+- trace hypothesis on/off；
+- bands/version。
+
+### Numerical
+
+- quadrature backend；
+- M per day distribution；
+- fail count；
+- weight convergence；
+- utility convergence；
+- KKT certificate。
+
+### Portfolio
+
+- risky exposure；
+- cash weight；
+- max single risky weight；
+- locked weight。
+
+### Predictive diagnostics
+
+- epistemic variance；
+- innovation variance；
+- \(d\) quasi-posterior；
+- \(V_t\) spectrum；
+- concentration utility margin。
+
+### Benchmarks
+
+- cash；
+- EW daily；
+- EW buy-hold。
+
+### PnL
+
+最后才给。
+
+---
+
+# 40. 下一阶段保姆级施工顺序
+
+必须严格按以下顺序。
+
+---
+
+## Step 0 — 只改文档
+
+先把本裁决正式并入：
+
+- SPEC；
+- ROADMAP；
+- README release status。
+
+不改 runtime。
+
+静态审查无冲突后再开 Step 1。
+
+---
+
+## Step 1 — 拆 observation / eligibility
+
+实现：
+
+- `observed`
+- `model_admitted`
+- `trade_eligible`
+- `executable`
+
+删掉所有“改 bar 表达政策”的代码。
+
+此步只改数据语义。
+
+不碰 posterior。
+
+---
+
+## Step 2 — Kelly cash feasible set
+
+把：
+
+\[
+\sum risky=1
+\]
+
+改成：
+
+\[
+\sum risky\le1
+\]
+
+或显式 cash column gross=1。
+
+保留 exact same objective。
+
+先完成 tiny analytic tests。
+
+---
+
+## Step 3 — 统一 mode coordinate producer
+
+只做：
+
+\[
+[m,\ Q^Te]
+\]
+
+以及：
+
+\[
+[B_m,\ B_\perp].
+\]
+
+暂不改 posterior。
+
+验证：
+
+- reconstruct；
+- permutation；
+- gauge。
+
+---
+
+## Step 4 — Full block response reference
+
+允许四块：
+
+\[
+G_{mm},
+G_{m\perp},
+G_{\perp m},
+G_{\perp\perp}.
+\]
+
+先用固定 ridge / simple Gaussian reference，
+
+只为验证 design/target algebra。
+
+不要立刻上 full posterior。
+
+---
+
+## Step 5 — 加 DC channel
+
+在 full response 中加 constant feature。
+
+验证 known-DC synthetic world。
+
+---
+
+## Step 6 — 移除 production trace neutrality
+
+默认 core 不调用 14 constraints。
+
+旧 conditioned branch 留 dev。
+
+验证 trace counterexample。
+
+---
+
+## Step 7 — 推导 full response posterior
+
+在纸面/Markdown先完成：
+
+- reference prior；
+- posterior propriety；
+- analytic integration；
+- alpha marginal evidence；
+- decision-time predictive。
+
+静态 review 完成以前：
+
+\[
+\boxed{\text{严禁写复杂 optimizer}}
+\]
+
+---
+
+## Step 8 — 写 slow full-posterior reference
+
+先单日。
+
+不优化。
+
+---
+
+## Step 9 — 重建 OOF full-mode folds
+
+每 fold 全 posterior。
+
+dense residual reference 先实现。
+
+lazy oracle 以后再说。
+
+---
+
+## Step 10 — 写 vector innovation reference
+
+直接 \(O(T^2N^2)\) 都可以。
+
+这是 reference。
+
+先证明数学。
+
+禁止先 FFT / incremental。
+
+---
+
+## Step 11 — standardized empirical shape
+
+实现同 mask joint row。
+
+删除 own-cell stitching。
+
+---
+
+## Step 12 — continuous d quasi-posterior
+
+先 direct sums。
+
+不要 FFT。
+
+---
+
+## Step 13 — 组合 PredictiveLaw
+
+只做 one-day scenario/reference draws。
+
+---
+
+## Step 14 — adaptive RQMC
+
+实现 nested Sobol + audit replicate。
+
+先 tiny/single day。
+
+---
+
+## Step 15 — 端到端 Kelly
+
+full posterior + vector innovation + converged integration + cash。
+
+至此才重新拥有：
+
+\[
+\mathcal H_t
+\to
+P(r_{t+1}\mid H_t)
+\to
+w_t^*.
+\]
+
+---
+
+## Step 16 — Gate-0 constitutional suite
+
+全部通过后，
+
+才宣布 Gate 0 closed。
+
+---
+
+# 41. Gate 0 Exit 条件
+
+以下全部为真：
+
+- [ ] `Bars.bar` 只表示 observation；
+- [ ] model/trade/execution mask 分离；
+- [ ] benchmark universe 外生；
+- [ ] full mode response 含 cross blocks；
+- [ ] DC channel 存在且 zero-centered；
+- [ ] 14 trace constraints 不在 default core；
+- [ ] response hyperparameters 不再 point plug-in；
+- [ ] posterior propriety 有证明；
+- [ ] vector innovation law 实现；
+- [ ] no own-cell stitching；
+- [ ] d prior 显式；
+- [ ] fixed S production path 删除；
+- [ ] integration 有 independent audit certificate；
+- [ ] cash 在 feasible set；
+- [ ] OOF full isolation；
+- [ ] permutation / gauge / dummy invariance；
+- [ ] synthetic worlds 全部通过；
+- [ ] 所有 fail condition fail loudly。
+
+少一项：
+
+\[
+\boxed{\text{Gate 0 不得关闭。}}
+\]
+
+---
+
+# 42. Gate 0 后的数学加速清单
+
+Gate 0 closed 后才允许：
+
+1. 解析积分 \(B,\Sigma_R\)；
+2. alpha quadrature cache；
+3. sufficient statistics；
+4. vector fractional convolution FFT；
+5. direct \(Gx\) marginalization；
+6. mode-space Kronecker identities；
+7. joint residual lazy evaluation；
+8. exact low-rank covariance actions。
+
+---
+
+# 43. 数学加速完成后才能恢复 CS 优化
+
+之后才：
+
+- workspace；
+- BLAS；
+- threading；
+- allocations；
+- precompile；
+- scheduler；
+- file spool；
+- cache。
+
+---
+
+# 44. CS 加速完成后才能恢复 incremental
+
+新的 incremental 必须针对**新 PreparedProblem**。
+
+旧 incremental engine：
+
+不得因为投入太大而绑架新数学。
+
+若新 model 结构变化让旧 engine 无法复用：
+
+\[
+\boxed{\text{允许删除重写。}}
+\]
+
+---
+
+# 45. GPU 仍然最后
+
+不变。
+
+只有：
+
+- 数学正确；
+- 数学加速做尽；
+- CPU CS 做尽；
+- incremental 做尽；
+
+才打开 GPU。
+
+---
+
+# 46. 哪些旧资产必须保留
+
+保留：
+
+- 原 2.0 source snapshot；
+- two-year failure artifact；
+- hashes；
+- conditioned EB tests；
+- trace hypothesis branch；
+- old response semantic diff；
+- residual dense reference；
+- old incremental equality fixtures。
+
+它们是历史/反例资产。
+
+不是 production owner。
+
+---
+
+# 47. 哪些概念必须删除或降级
+
+默认 core 删除/降级：
+
+- per-band trace hard constraint；
+- separate macro-only response；
+- separate relative-only response；
+- plug-in EB predictive；
+- scalar fractional scale；
+- `v_bootstrap`；
+- own-row cell stitching；
+- fixed-S production；
+- risky-only forced full investment；
+- `Bars.bar` policy mutation；
+- benchmark dependency on model.active；
+- causal story “low SNR → concentration”。
+
+---
+
+# 48. 什么绝对不能作为“救回测”的工具
+
+禁止：
+
+- 10% 单票上限；
+- 20% 单票上限；
+- fractional Kelly；
+- half Kelly；
+- entropy；
+- risk parity；
+- volatility targeting；
+- sector caps；
+- manual blacklist；
+- “ZIM 太危险”特判；
+- 改 seed；
+- 根据 2024-2026 结果选 prior；
+- 根据 2024-2026 结果开/关 trace；
+- 根据 2024-2026 结果选 d；
+- 根据 2024-2026 结果选 bands；
+- 根据 2024-2026 结果选 S。
+
+---
+
+# 49. 如果纠偏后仍然亏损怎么办
+
+如果：
+
+- Gate 0 完整通过；
+- numerical integration 收敛；
+- cash 正确；
+- posterior uncertainty 完整；
+- innovation vector risk 完整；
+
+然后两年仍然显著落后：
+
+接受结果。
+
+那时结论可以是：
+
+\[
+\boxed{
+\text{当前 price-only finite path response model 没有足够预测力。}
+}
+\]
+
+然后才进入新的理论研究。
+
+不能因为亏损再偷偷回到旧缺陷。
+
+---
+
+# 50. 如果纠偏后突然大幅赚钱怎么办
+
+也不能宣布成功。
+
+必须首先检查：
+
+- 是否引入未来信息；
+- 是否 benchmark universe 不同；
+- 是否 trade eligibility 泄漏；
+- 是否 integration tolerance 太松；
+- 是否 prior 不proper；
+- 是否 OOF 泄漏；
+- 是否 cash accounting 错；
+- 是否 test period 被用于选择设计。
+
+收益不是 correctness certificate。
+
+---
+
+# 51. 本轮最关键的七项裁决摘要
+
+若工程师只能记住七件事：
+
+### 1
+
+\[
+\boxed{\text{2.0 Final 数学地位撤销，Gate 0 重开}}
+\]
+
+### 2
+
+\[
+\boxed{\text{14 条 trace neutrality 不再进入默认 core}}
+\]
+
+### 3
+
+\[
+\boxed{\text{macro / relative 必须允许完整 cross-response}}
+\]
+
+### 4
+
+\[
+\boxed{\text{恢复零中心 DC channel，不恢复正漂移作弊}}
+\]
+
+### 5
+
+\[
+\boxed{\text{response hyperparameters 必须积分，不再 plug-in EB}}
+\]
+
+### 6
+
+\[
+\boxed{\text{innovation 从 scalar scale 升级为 vector fractional law}}
+\]
+
+### 7
+
+\[
+\boxed{\text{cash + converged integration 才是 canonical Kelly}}
+\]
+
+---
+
+# 52. 最终理论链
+
+纠偏后的 2.x reference target：
+
+\[
+\boxed{
+\mathcal H_t
+\rightarrow
+\text{deterministic path geometry}
+\rightarrow
+\text{unified macro-relative path coordinates}
+\rightarrow
+\Pi(b_0,G,\alpha_0,\alpha_p,\Sigma_R\mid\mathcal H_t)
+}
+\]
+
+\[
+\boxed{
+\rightarrow
+\text{OOF vector innovations}
+\rightarrow
+q(d\mid\mathcal H_t)
+\rightarrow
+V_t(d)
+\rightarrow
+P(\epsilon_{t+1}\mid\mathcal H_t)
+}
+\]
+
+\[
+\boxed{
+\rightarrow
+P(R_{t+1}\mid\mathcal H_t)
+\rightarrow
+\arg\max_{\substack{w_i\ge0\\\sum_iw_i\le1}}
+E[\log(1+w^\top r_{t+1})\mid\mathcal H_t]
+}
+\]
+
+其中：
+
+\[
+w_{cash}=1-\sum_iw_i.
+\]
+
+这才是下一阶段所有工程工作的唯一目标。
+
+---
+
+# 53. 工程经理验收话术
+
+今后任何工程师声称：
+
+> “完成了”
+
+经理只问：
+
+1. 你完成的是哪个 Gate？
+2. 数学对象写出来是什么？
+3. 和 reference 的差异是什么？
+4. 哪些不确定性被积分？
+5. 哪些还是 plug-in？
+6. numerical integral 收敛证书在哪里？
+7. cash 是否在 feasible set？
+8. OOF 是否完全 held-out？
+9. innovation 是 scalar 还是 vector？
+10. 有没有用回测表现做任何选择？
+
+任何一个答不清：
+
+\[
+\boxed{\text{不验收。}}
+\]
+
+---
+
+# 54. 本裁决的最终精神
+
+这次失败最有价值的地方，不是证明“Kelly 太激进”。
+
+它证明：
+
+> 一个局部每一步都能写出漂亮公式、都有 certificate 的系统，仍然可能在对象层级上逐渐偏离最初想要的理论。
+
+因此后续只有一条纪律：
+
+\[
+\boxed{
+\text{先钉死对象，再证明算法，再优化计算。}
+}
+\]
+
+以及：
+
+\[
+\boxed{
+\text{如果一个限制没有从理论推出，就不要因为它曾经写进 SPEC 很久而把它当定理。}
+}
+\]
+
+还有：
+
+\[
+\boxed{
+\text{如果一种不确定性真实存在，就不要因为积分很贵而把它变成点估计，再把条件 posterior 称为完整 posterior。}
+}
+\]
+
+最后：
+
+\[
+\boxed{
+\text{如果 numerical approximation 尚未收敛，它就不是策略答案，只是计算中的中间数。}
+}
+\]
+
+---
+
+# 55. 立即执行清单
+
+工程师收到本文件后，第一阶段只做：
+
+- 更新规范；
+- 标记 release 状态；
+- 画出新 mode-space response 的维度图；
+- 推导 reference posterior；
+- 推导 vector innovation；
+- 设计新数据 mask 类型；
+- 写 static implementation plan。
+
+**不要运行任何测试。**
+
+直到静态设计审查完成。
+
+下一步才进入最小 reference 编码。
+
+---
+
+# 56. 明确废止的旧表述
+
+以下句子在新 SPEC 中必须删除或改写：
+
+> “Strict Trace Neutrality 是 identification requirement。”
+
+改成：
+
+> “历史 2.0 分支曾采用 per-band trace-neutral hypothesis；Gate-0 审计未找到其 identification theorem，因此已从默认 core 移出。”
+
+---
+
+> “当前模型是 exact Bayesian Kelly。”
+
+改成：
+
+> “历史 2.0 RC 使用 conditioned plug-in response posterior、scalar fractional innovation 与 fixed-scenario sample Kelly；新 Gate-0 reference 正在恢复完整 uncertainty 与 numerical convergence。”
+
+---
+
+> “低信噪比导致 Kelly 极端集中。”
+
+改成：
+
+> “历史 RC predictive law 经常给 Kelly 足以产生极端集中仓位的信念；该信念是否正确尚未通过完整 uncertainty 与 integration convergence 审核。”
+
+---
+
+> “Equal weight 的胜利来自 volatility pump。”
+
+改成：
+
+> “Daily equal-weight 在该历史窗口胜出；rebalancing contribution 尚未通过 buy-and-hold counterfactual 分解。”
+
+---
+
+> “相关 0.4184 说明完全脱离 beta。”
+
+改成：
+
+> “Path Kelly 与 daily equal-weight 的日收益相关为 0.4184；该统计量不能单独识别 beta exposure。”
+
+---
+
+# 57. 版本命名建议
+
+在 Gate 0 完成前：
+
+```text
+2.0.0       historical released artifact
+2.0-RC-G0   current corrective development line
+```
+
+Gate 0 通过但性能尚未恢复：
+
+```text
+2.0.1-reference
+```
+
+数学加速 / CS / incremental 全部重新通过后：
+
+```text
+2.1.0 CPU
+```
+
+GPU 若未来完成：
+
+```text
+2.2.0 GPU backend
+```
+
+版本号最终由 owner 决定，但不得再用 “Final” 掩盖 Gate 状态。
+
+---
+
+# 58. 最后一条裁决
+
+本项目现在不缺“再多一个聪明机制”。
+
+它缺的是：
+
+\[
+\boxed{
+\text{从最少、最统一、真正被证明的数学对象重新长出代码。}
+}
+\]
+
+因此：
+
+> **所有不能证明属于理论的约束，降级。**  
+> **所有真实存在但未传播的不确定性，恢复。**  
+> **所有数值离散，必须收敛。**  
+> **所有执行/eligibility 事实，不能污染市场 observation。**  
+> **所有 portfolio 风险，都交给正确的 predictive law + exact Kelly + cash，而不是事后加帽子。**
+
+这就是本轮全部裁决。
+
+---
+
+# KTrader / Path Kelly — 旧的权威 SPEC
 
 **文档状态：Normative / Source of Truth**  
 **适用版本：KTrader 2.0.0 Final（CPU）；数学合同仍为 Path Kelly 1.0，GPU 属于 2.1**
