@@ -1,6 +1,0 @@
-kill: sending signal to -704751 failed: No such process
-[phase=clock-mutant] begin — scope: date-mutant (mono_ms→date) under fake wall-clock rollback must FAIL its deadline — no TIMEOUT-EXCEEDED by 6s checkpoint, harness TERM finishes it (rc=143); owned group cleaned
-Test Summary:                                            | Pass  Total  Time
-[phase=clock-mutant] date-mutant red under fake rollback |    5      5  6.2s
-[phase=clock-mutant] end
-scoped_run: rc=0 elapsed=7s deadline=25 killed=0 cancelled=none rss_guard=2048 rss_peak=341MiB

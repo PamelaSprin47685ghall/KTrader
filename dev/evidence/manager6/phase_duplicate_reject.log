@@ -1,9 +1,0 @@
-┌ Warning: Assignment to `phase_arg` in soft scope is ambiguous because a global variable by the same name exists: `phase_arg` will be treated as a new local. Disambiguate by using `local phase_arg` to suppress this warning or `global phase_arg` to assign to the existing global variable.
-└ @ ~/Desktop/vibe/KTrader/test/scoped_run_tests.jl:74
-ERROR: LoadError: UndefVarError: `phase_arg` not defined in local scope
-Suggestion: check for an assignment to a local variable that shadows a global of the same name.
-Stacktrace:
- [1] top-level scope
-   @ ~/Desktop/vibe/KTrader/test/scoped_run_tests.jl:72
-in expression starting at /home/kunweiz/Desktop/vibe/KTrader/test/scoped_run_tests.jl:68
-scoped_run: rc=1 elapsed=1s deadline=15 killed=0 cancelled=none rss_guard=2048 rss_peak=334MiB

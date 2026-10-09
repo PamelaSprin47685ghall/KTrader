@@ -1,6 +1,0 @@
-# per-path SHA set (post solve-once refusal run) 2026-10-08T02:55:53+08:00
-e25a3fe1b5b6c063a76fb327b854d988bc980a44e06d1d747d8b1b1d75bc6755  dev/m1_artifact_replay.jl
-25c0a20c245c896b53dd95ace63f6edeee184e5fbfcdf750638339186befca60  test/artifact_replay_contract_tests.jl
-d290718e56fe1907196ffa62e3ef861dc11968d25005d315d6b441f6bdaa942d  dev/m1_replay_manifest.toml
-c3d776e40f39a32f0a144e3749a7ba2c3a9ccc6c7ddb3d4610d28277d04a26d6  bin/scoped_run.sh
-# old artifact: ae54c564f3005cff022703a15637f21be4c0a44f6261c92791c3948db0a2016c

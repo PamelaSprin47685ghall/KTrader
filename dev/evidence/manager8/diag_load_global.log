@@ -1,5 +1,0 @@
-/usr/bin/julia
-/usr/bin/julia
-ERROR: ArgumentError: Package FillArrays not found in current path.
-- Run `import Pkg; Pkg.add("FillArrays")` to install the FillArrays package.
-scoped_run: rc=1 elapsed=0s deadline=40 killed=0 cancelled=none rss_guard=2048 rss_peak=308MiB

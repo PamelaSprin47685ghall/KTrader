@@ -1,5 +1,24 @@
 # Changelog
 
+## 树结构调整：脚手架归入 archive/（2026-10-10）
+
+依据用户当日指令（记录于 AGENTS.md 第 12 任段）：全部开发用脚手架正规化
+或归入 `archive/`，被忽略文件退出 git 索引，历史不动，入口收敛。
+
+- 移动（内容字节未改，只改路径）：31 个轮次/研究证据目录与 `fit_local_reuse_*.log`
+  由 `dev/evidence/` 入 `archive/evidence/`；25 个一次性脚本由 `dev/` 入
+  `archive/scripts/`；两条研究线入 `archive/research/`；两份交付注记入 `archive/notes/`。
+- 保留在活动树（仍被发布/测试/工具链消费）：`dev/probes.jl`、`dev/m1_artifact_replay.jl`
+  及其 manifest 与注记、`dev/cpu20_acceptance.jl`、`dev/hip_core_*`，以及发布凭据链
+  `dev/evidence/{cpu20_acceptance, earlier_closure, final_2_0_0, release_freeze}_20261009/`。
+- git：根 `.gitignore` 统一全部规则并新增 `archive/`；8 个嵌套 `.gitignore` 删除；
+  `archive/` 下全部路径与此前跟踪的归档文件从索引剥离（`git rm --cached`，728 项），
+  工作树与 git 历史、tag `v2.0.0` 不变。取回：`git show 8d54f0d:<原路径>`。
+- 文档：README 新增「仓库结构」节；docs/ 与被改路径的文件引用同步改写；
+  AGENTS.md 以追加段记录（旧规范文本一字未改）。
+- 发布凭据链未受损（被钉路径全部在保留集合内）；`bin/verify_release.jl` 与
+  `dev/cpu20_acceptance.jl` 对 2.0.0 快照的预期拦截点不变，详见 AGENTS.md 第 12 任段。
+
 ## 状态变更：撤销 2.0.0 Final 地位，Gate 0 重开（2026-10-09）
 
 依据 AGENTS.md 的 Gate-0 裁决书（D-003、D-096、D-097、§57）：2.0.0 保留

@@ -1,6 +1,0 @@
-# manager5 ingress-repair verification 2026-10-08T03:28:39+08:00
-# arch gate RC0 7s guard2048 peak840; history_cache RC0 28s: 24+9+15+45+32+85=210/210 (new closed-keyword-surface testset 85/85 with real negative controls P1/P2); primal_prep RC0 (counts above); objects unchanged pre/post; zero fit/N65; logs: arch_gate.log history_cache_ingress.log primal_prep_ingress.log
-7a5ecb4e54eeaf91c0f68bf73fcc947cdb7e62215414ccb4753cdbbbd3ca3423  src/prepare.jl
-948fb405803a376674dfb61e2c0cca7bde1388a1c0c6de4b3882719d7044fe50  src/predict.jl
-a84c99932bc1b09663574ca757058eb8eab6116f59232fe9d7494156259f1c65  test/history_cache_contract_tests.jl
-51126d5799008ad25158e77a359cfb125524f79d322d1ed5792b2a38e89309d2  test/incremental_primal_prep_tests.jl

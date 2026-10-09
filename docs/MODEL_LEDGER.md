@@ -179,7 +179,7 @@
 
 [事实] adaptive 分支存在：adaptive_scenario_weights（src/predict.jl:627-653；min_scenarios=64、max_scenarios=512 默认，628）；doubling（634-635）；收敛双条件 norm(weights-previous,1)<=weight_tol 且 certificate.objective_gap<=tol（646-648，默认 1e-3 / 1e-5）；不收敛 error（652）。backtest 的 adaptive 路径（src/backtest.jl:71-77）。
 
-[事实] 固定 S=300 的显式仓库用法：dev/local_panel_stages.jl:118-119、dev/earlier_window_replay.jl:18 与 61（scenario_counts==fill(300,8)）、dev/release_freeze.jl:54。
+[事实] 固定 S=300 的显式仓库用法：archive/scripts/local_panel_stages.jl:118-119、archive/scripts/earlier_window_replay.jl:18 与 61（scenario_counts==fill(300,8)）、archive/scripts/release_freeze.jl:54。
 
 [推断] 证书范围：kelly_certificate 只证明"给定这套 S 个场景样本内"的 KKT/可行性/gap（src/kelly.jl:21-36）；adaptive 的双条件是 S 翻倍过程中的经验门限收敛；**固定 S=300 的非 adaptive 路径没有任何 S 收敛证书**（SPEC §65 的 ‖w_2S−w_S‖→0 只在 adaptive 模式里以门限形式体现，而它默认关闭）。
 
@@ -207,7 +207,7 @@
 
 定位事实：
 - [事实] universe.txt:46 为 PONY（universe 共 65 个标的，PONY 是第 45 个 symbol；行 2..66 为代码，行 1 为注释）。
-- [事实] 全仓检索未定位到名为 PONY wrapper 的脚本；PONY 字符串唯一出现在 universe.txt:46。仓库中存在的同类操作是"复制前缀"而非"置 false"：dev/earlier_window_replay.jl:37、50；dev/release_failure_probe.jl:15；dev/release_freeze.jl:103-104（Bars(... b.bar[1:t,:])）。
+- [事实] 全仓检索未定位到名为 PONY wrapper 的脚本；PONY 字符串唯一出现在 universe.txt:46。仓库中存在的同类操作是"复制前缀"而非"置 false"：archive/scripts/earlier_window_replay.jl:37、50；archive/scripts/release_failure_probe.jl:15；archive/scripts/release_freeze.jl:103-104（Bars(... b.bar[1:t,:])）。
 - 因此 (a)(b) 为按当前代码语义的纯静态推演（无 wrapper 文件可引）。
 
 (a) 若把 PONY 前 251 行 bar 置 false（假设性）：

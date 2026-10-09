@@ -1,3 +1,0 @@
-Test Summary:                          | Pass  Total  Time
-gate0 Step 8: full-posterior reference |   40     40  9.0s
-scoped_run: rc=0 elapsed=10s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=489MiB

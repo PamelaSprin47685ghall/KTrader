@@ -1,5 +1,0 @@
-# manager6 preflight 2026-10-08T03:55:57+08:00
-# observed NOW: julia_procs=0 (full ps scan; no this-route residue; nothing killed - no ownership evidence needed; no global pkill/killall)
-# git: HEAD 602b897, dirty 45, user dirty protected, no commit/reset/clean
-# bin/scoped_run.sh is under active modification by SixResourceGuardAudit (owner) - current byte state is floating, NOT a verification-fixed object; this route runs no test/Julia-load/arch/benchmark until owner returns + separate authorization
-# all future physical commands hard <=60s incl TERM/KILL/reap, RSS<=2048, short preflight = short budget

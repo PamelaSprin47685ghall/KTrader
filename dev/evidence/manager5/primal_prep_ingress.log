@@ -1,3 +1,0 @@
-Test Summary:                                         | Pass  Total  Time
-Primal preparation statistics vs batch (N=2, n_res>P) |   46     46  9.5s
-scoped_run: rc=0 elapsed=16s deadline=50 killed=0 rss_guard=2048 rss_peak=1029MiB

@@ -1,6 +1,0 @@
-counts = "child process assertions in log"
-entries = ["scoped_run_tests.jl::clock-mono", "scoped_run_tests.jl::clock-fail", "scoped_run_tests.jl::clock-saturate", "scoped_run_tests.jl::clock-start"]
-julia = "1.12.7"
-opt_level = 2
-passed = true
-snapshot = "680f1494d2d435847af2b4972d8be440e9f4f519fb2af0889789e302dbabeeba"

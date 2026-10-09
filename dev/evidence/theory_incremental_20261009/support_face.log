@@ -1,8 +1,0 @@
-BEGIN one third-fold support audit; no posterior fit; date=2026-09-10
-GRAPH r=45 null_relative=19 likelihood_dimensions=630 instead of 910
-FEATURE/TARGET relative leaks=3.555544521401842e-13 / 3.8825469034124564e-16 Sigma cross=4.55031927378998e-16 null floor absolute error=3.3374716549516697e-16
-REDUCED base curvature/n=0.49564869498772557 null evidence gradient=-4.678999998901813e11 null mean norm=2.262597118410656e-9 null mean formula error=1.7392963308856148e-17
-Test Summary:                                                      | Pass  Total  Time
-Authenticated third fold satisfies constructive support identities |    8      8  0.0s
-ONE_FOLD_STRUCTURE VERIFIED; no altered covariance, alpha, mean, fit or backtest
-scoped_run: rc=0 elapsed=10s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=1104MiB

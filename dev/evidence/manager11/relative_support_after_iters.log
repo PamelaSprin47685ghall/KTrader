@@ -1,3 +1,0 @@
-Test Summary:                            | Pass  Total  Time
-Relative support witness：解析消元、通用回退与表示不变性 |   15     15  2.2s
-scoped_run: rc=0 elapsed=5s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=753MiB

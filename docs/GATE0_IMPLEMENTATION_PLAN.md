@@ -623,9 +623,9 @@ $$
 
 | 资产 | 位置 | 保留理由 |
 |---|---|---|
-| 原 2.0 source snapshot | `src/` 全部 + `dev/evidence/manager13/old_src_*/`（V0 `1d9b7ad`、V1.0 `21017b9`、`602b897` 快照，见 docs/OLD_TO_CURRENT_SEMANTIC_DIFF.md §0） | 历史 fixture（§46/D-082） |
+| 原 2.0 source snapshot | `src/` 全部 + `archive/evidence/manager13/old_src_*/`（V0 `1d9b7ad`、V1.0 `21017b9`、`602b897` 快照，见 docs/OLD_TO_CURRENT_SEMANTIC_DIFF.md §0） | 历史 fixture（§46/D-082） |
 | two-year failure artifact（-62.22%） | 发布物与 log（原字节原 hash 原时间线，D-004） | regression fixture：未来回答「哪个纠偏改变什么」（D-087） |
-| hashes / manifest | `dev/evidence/manager*/`（final_snapshot、manifest 等） | 证据链（D-002） |
+| hashes / manifest | `archive/evidence/manager*/`（final_snapshot、manifest 等） | 证据链（D-002） |
 | conditioned EB tests | `test/conditioned_eb_tests.jl` 等（registry REQUIRED 内） | 守护旧线 fixture 语义 |
 | trace hypothesis branch | 旧 `src/response.jl` 的 `condition_trace_neutrality` 链 + `test/conditioned_*` | 理论反例 / ablation / 未来复活（D-029） |
 | 旧 response 语义 diff | docs/OLD_TO_CURRENT_SEMANTIC_DIFF.md | 历史语义（§46） |
@@ -655,7 +655,7 @@ $$
 
 ### 6.4 D-087：`S=300` 历史基准
 
-两年 -62.22% 永久保留为 regression fixture；`dev/m1_artifact_replay.jl`、`dev/release_freeze.jl`、`dev/earlier_window_replay.jl` 等历史对照基准（S=300）原样保留；禁止作为 performance target / tuning objective / acceptance threshold。
+两年 -62.22% 永久保留为 regression fixture；`dev/m1_artifact_replay.jl`、`archive/scripts/release_freeze.jl`、`archive/scripts/earlier_window_replay.jl` 等历史对照基准（S=300）原样保留；禁止作为 performance target / tuning objective / acceptance threshold。
 
 ---
 
@@ -682,7 +682,7 @@ $$
 
 | 位置 | 操作 |
 |---|---|
-| dev/earlier_window_replay.jl:37、50；dev/release_failure_probe.jl:15；dev/release_freeze.jl:104 | `Bars(dates[1:t], ..., b.bar[1:t,:])`——构造**新** Bars 截断历史窗口，语义是「历史窗口选择」，不改写任何观测事实；保留不动 |
+| archive/scripts/earlier_window_replay.jl:37、50；archive/scripts/release_failure_probe.jl:15；archive/scripts/release_freeze.jl:104 | `Bars(dates[1:t], ..., b.bar[1:t,:])`——构造**新** Bars 截断历史窗口，语义是「历史窗口选择」，不改写任何观测事实；保留不动 |
 
 ### 7.4 252 相关命中辨析
 
@@ -790,7 +790,7 @@ Case A 全 risky 确定性 <1 ⇒ w_cash=1；Case B 单资产确定性 >1 ⇒ w_
 - src/residual_oracle.jl:17-22（行身份契约）、:54-56（own rows）、:239（空观察行 e=0.0）
 - src/geometry.jl:11-14（TAUS/BANDS/WARMUP）、:20（center_of_mass）、:26（ruler）
 - src/KTrader.jl:14-25（include 顺序）
-- dev/earlier_window_replay.jl:37,50、dev/release_failure_probe.jl:15、dev/release_freeze.jl:104（前缀复制，非篡改）
+- archive/scripts/earlier_window_replay.jl:37,50、archive/scripts/release_failure_probe.jl:15、archive/scripts/release_freeze.jl:104（前缀复制，非篡改）
 - universe.txt:46（PONY 唯一命中）
 - docs/MODEL_LEDGER.md §4（E^trade 缺失）、§6（plug-in 现状）、§7（scalar innovation）、§9（fixed-S）、§11（PONY 静态推演）
 - docs/POSTERIOR_DEFINITION.md §1-2（未知对象清单与 plug-in 结构）、§5（方差分解缺口）

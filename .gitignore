@@ -1,16 +1,38 @@
-data/
+# KTrader — ignore policy
+#
+# Principle: source commits carry text that is part of the build, the test
+# entry, the executable entry points, the release-bound credential chain, or
+# the normative documentation. Everything else is local machine state and
+# stays out of git.
 
-# Local credentials, diagnostics and generated release output.
+# Market data, credentials, local machine state and generated release output.
+data/
 .env
 .env.*
 !.env.example
 .wanxiangshu/
 dist/
 
-# Preserve textual evidence, not local fitted models or device executables.
-dev/evidence/**/*.jls
-dev/evidence/**/*.jl2s
-dev/evidence/**/*.bin
-dev/evidence/**/hip_core_micro
-dev/evidence/**/*.so
-dev/evidence/**/*.o
+# Archived development history: round logs, one-off scripts, research lines
+# and delivery notes that left the active tree on 2026-10-10. Kept on disk for
+# provenance and greppability; the authoritative copy of anything older is
+# git history. This is NOT part of the release-bound credential chain under
+# dev/evidence/{cpu20_acceptance,earlier_closure,final_2_0_0,release_freeze}_20261009
+# (see RELEASE.toml and AGENTS.md tail). Only the convention README is tracked
+# so a fresh clone still finds the archive map.
+archive/*
+!archive/README.md
+
+# Local payloads. Fitted models, device executables and binaries are never
+# text evidence; only their .toml descriptors and logs are tracked. The one
+# deliberate exception is test/fixtures/t14294_conditioned_fold3.jls, which
+# is already tracked and pinned by the frozen acceptance chain.
+**/*.jls
+**/*.jl2s
+**/*.bin
+**/*.so
+**/*.o
+hip_core_micro
+
+# The one deliberate binary exception: pinned by the frozen acceptance chain.
+!test/fixtures/t14294_conditioned_fold3.jls

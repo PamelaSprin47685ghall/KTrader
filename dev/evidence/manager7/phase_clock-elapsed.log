@@ -1,7 +1,0 @@
-kill: sending signal to -729015 failed: No such process
-kill: sending signal to -729051 failed: No such process
-[phase=clock-elapsed] begin — scope: stub-copy final-elapsed boundary failure → 125 + elapsed=unknown for BOTH child rc sources — 0 (old false-green proper: success washed to rc=0 + elapsed=0) and 7 (non-zero swallowed)
-Test Summary:                                                     | Pass  Total  Time
-[phase=clock-elapsed] final elapsed clock failure → 125 + unknown |   14     14  0.2s
-[phase=clock-elapsed] end
-scoped_run: rc=0 elapsed=1s deadline=40 killed=0 cancelled=none rss_guard=2048 rss_peak=339MiB

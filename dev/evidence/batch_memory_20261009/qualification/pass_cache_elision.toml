@@ -1,6 +1,0 @@
-counts = "Test.TestCounts(true, 0, 0, 0, 0, 110, 0, 0, 0, \"7.3s\")"
-entries = ["backtest_cache_tests.jl"]
-julia = "1.12.7"
-opt_level = 2
-passed = true
-snapshot = "680f1494d2d435847af2b4972d8be440e9f4f519fb2af0889789e302dbabeeba"

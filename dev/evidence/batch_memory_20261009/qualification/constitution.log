@@ -1,6 +1,0 @@
-BEGIN group=constitution snapshot=680f1494d2d435847af2b4972d8be440e9f4f519fb2af0889789e302dbabeeba entries=["v1_constitutional_tests.jl"]
-FILE v1_constitutional_tests.jl
-Test Summary:              | Pass  Total  Time
-Release group constitution |   34     34  1.9s
-END group=constitution passed=true counts=Test.TestCounts(true, 0, 0, 0, 0, 34, 0, 0, 0, "1.9s")
-scoped_run: rc=0 elapsed=7s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=918MiB

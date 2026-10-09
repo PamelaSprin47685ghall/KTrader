@@ -56,8 +56,9 @@
 # new testset had NOT been run when this source was delivered; the
 # 54/54 record above is the pre-fix timeline and stays as history.
 # Post-delivery run evidence, where it exists, lives in the DevOps
-# records (dev/evidence/manager4/); this header does not restate or
-# compete with those records - they are the single source of run truth.
+# records (archive/evidence/manager4/ after the 2026-10-10 tree
+# restructure); this header does not restate or compete with those
+# records - they are the single source of run truth.
 
 using Test, LinearAlgebra, Random
 using Serialization, SHA

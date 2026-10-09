@@ -1,7 +1,0 @@
-BEGIN group=timeblocks snapshot=f7a11d7ea1f7b40e58244d8a6bf12957ddb4285ba67a97eeccef2fcf707b8304 entries=["timeblock_tests.jl", "backtest_target_tests.jl"]
-FILE timeblock_tests.jl
-
-[736210] signal 15: Terminated
-in expression starting at /home/kunweiz/Desktop/vibe/KTrader/test/timeblock_tests.jl:32
-TIMEOUT-EXCEEDED pgid=736210 deadline=45s child_rc=137 (timeout is never success)
-scoped_run: rc=124 elapsed=40s deadline=45 killed=1 cancelled=none rss_guard=2048 rss_peak=1267MiB

@@ -1,8 +1,0 @@
-N65/P910/rank910 synthetic eight-alpha cycle; initial buffers INCLUDED; same covariance per step
-CPU=znver4 Julia=1.12.7 BLAS=LBTConfig([ILP64] libopenblas64_.so) threads=1
-before_A (seconds = 0.416637154, bytes = 2.20123584e8, gc = 0.197440725, compile = 0.0)
-after_B (seconds = 0.232177302, bytes = 5.2462712e7, gc = 0.014671296, compile = 0.0)
-after_B2 (seconds = 0.227316395, bytes = 5.2462712e7, gc = 0.000365041, compile = 0.0)
-before_A2 (seconds = 0.414793136, bytes = 2.20123584e8, gc = 0.19659429, compile = 0.0)
-checksum exact; source=9fa232b1806026e271058af348af10f33024afd34df4b979732c3c698ee7f616 unchanged=true; not a whole solver speedup
-scoped_run: rc=0 elapsed=13s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=856MiB

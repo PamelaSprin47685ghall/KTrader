@@ -1,6 +1,0 @@
-counts = "Test.TestCounts(true, 0, 0, 0, 0, 125, 0, 0, 0, \"9.7s\")"
-entries = ["posterior_contract_tests.jl", "residual_oracle_flow_tests.jl", "principal_root_contract_tests.jl"]
-julia = "1.12.7"
-opt_level = 2
-passed = true
-snapshot = "680f1494d2d435847af2b4972d8be440e9f4f519fb2af0889789e302dbabeeba"

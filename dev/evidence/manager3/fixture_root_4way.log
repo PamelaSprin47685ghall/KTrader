@@ -1,4 +1,0 @@
-Test Summary:                                     | Pass  Total  Time
-fixture-root 4-way (stdlib only, no KTrader load) |    5      5  0.1s
-# FX4 DONE
-scoped_run: rc=0 elapsed=0s deadline=30 killed=0 rss_guard=0 rss_peak=0MiB

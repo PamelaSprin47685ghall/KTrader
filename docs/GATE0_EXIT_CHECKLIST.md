@@ -1,7 +1,13 @@
 # Gate-0 Exit 清单核对（AGENTS.md §41 十八项）
 
 **文档状态：核对文档，2026-10-10（最终更新轮）。核对对象：Gate-0 纠偏新线 KTraderGate0；旧线（KTrader 2.0 RC legacy implementation）冻结不改，其历史违规仅作对照口径记录，不构成本清单的扣分项。本轮更新后十八项全部满足（含注记），Gate 0 宣告关闭——见文末关闭声明。**
-**证据来源：dev/evidence/gate0_wave2/3/4/ 各 summary.md 与 dev/evidence/gate0_step16/summary.md（只读引用，不复制运行数字原文）与 Manager 轮次裁决记录。本核对为文档层核对：未逐 testset 复核源码断言；凡证据为「summary 声明承载」而非「专门测试」的项，已在结论列如实标注证据形态。**
+**证据来源：archive/evidence/gate0_wave2/3/4/ 各 summary.md 与 archive/evidence/gate0_step16/summary.md（只读引用，不复制运行数字原文）与 Manager 轮次裁决记录。本核对为文档层核对：未逐 testset 复核源码断言；凡证据为「summary 声明承载」而非「专门测试」的项，已在结论列如实标注证据形态。**
+
+## 树结构调整注记（2026-10-10）
+
+本文件的证据引用在仓库树结构调整（脚手架归入 `archive/`）后已统一改写为
+`archive/evidence/...` 路径；被引用文件的字节未改动。改动后原路径与新路径
+的对应关系见仓库根 `README.md` 的「仓库结构」一节与 `archive/README.md`。
 
 ## 十八项逐项核对
 
@@ -20,17 +26,17 @@
 | 11 | d prior 显式 | D-047 | Step 12 连续 d quasi-posterior | innovation_tests | 满足 |
 | 12 | fixed S production path 删除 | D-062/067 | Step 14 adaptive 路径 | wave summary | 满足（证据形态：summary 声明承载）。注（Manager 裁决 6，2026-10-10）：driver 层 adaptive 在无信号 fixture 的慢收敛是 μ 通道 matrix-t epistemic 噪声的数学性质（M^{-1/2} 速率）非实现缺陷；D-067 fail-loud 传导断言是正确语义（driver_tests 73/73 含该断言）；μ 通道 RQMC 化已 defer 为 Gate-0 后扩展项 |
 | 13 | integration 有 independent audit certificate | D-064/065 | Step 14 nested Sobol + audit replicate | quadrature_tests 54/54（Wave 4 裁决执行后原文件级全绿） | 满足（附 Manager 裁决 6 注记）：Step 14 机制级证书原文件级全绿；driver 层慢收敛经裁决 6 定性为 μ 通道 matrix-t epistemic 噪声的数学性质（M^{-1/2} 速率）非实现缺陷，D-067 fail-loud 传导断言为正确语义（driver_tests 73/73）；μ 通道 RQMC 化 defer 为 Gate-0 后扩展项 |
-| 14 | cash 在 feasible set | D-068/069/070 | Step 2/15 Kelly（Σw≤1 + cash） | kelly_cash_tests 59/59、rc=0（原文件级 dev/evidence/gate0_wave2/kelly_cash_tests_final.log） | 满足（原文件级证据 kelly_cash_tests_final.log：Wave 2 裁决执行轮，D-090b/D-091 断言按裁决修正后九 testset 全 Pass） |
+| 14 | cash 在 feasible set | D-068/069/070 | Step 2/15 Kelly（Σw≤1 + cash） | kelly_cash_tests 59/59、rc=0（原文件级 archive/evidence/gate0_wave2/kelly_cash_tests_final.log） | 满足（原文件级证据 kelly_cash_tests_final.log：Wave 2 裁决执行轮，D-090b/D-091 断言按裁决修正后九 testset 全 Pass） |
 | 15 | OOF full isolation | D-043 | Step 9 OOF folds | wave summary | 满足（证据形态：summary 声明承载 + 隔离测试指引待 Step 16 汇总确认） |
-| 16 | permutation / gauge / dummy invariance | §41 第 16 项 | Step 16 constitutional suite | dev/evidence/gate0_step16/summary.md（已落盘） | 满足（Step 16 汇总：十一入口同点快照、775 项断言全部通过、零计数漂移、module 加载 83 API——Manager 裁决转述） |
+| 16 | permutation / gauge / dummy invariance | §41 第 16 项 | Step 16 constitutional suite | archive/evidence/gate0_step16/summary.md（已落盘） | 满足（Step 16 汇总：十一入口同点快照、775 项断言全部通过、零计数漂移、module 加载 83 API——Manager 裁决转述） |
 | 17 | synthetic worlds 全部通过 | §33（D-090~095） | 各 world 测试分散于 wave 测试 + Step 16 汇总 | posterior_tests / innovation_tests 全绿 + Step 16（775 项断言全部通过、零计数漂移）——Manager 裁决转述 | 满足（单项 wave 测试 + Step 16 汇总双重证据，均 Manager 裁决转述） |
 | 18 | 所有 fail condition fail loudly | D-036/067 等 | 各模块 fail-loud 路径 | Step 16 汇总（十一入口同点快照全过）+ driver_tests 73/73（D-067 传导断言）——Manager 裁决转述 | 满足（证据形态：Step 16 汇总 + 具名传导断言） |
 
 ## 证据等级与形态说明
 
-- **A 级（专门测试）**：posterior_tests、innovation_tests 的具名断言全绿（logK、innovation_tests 9.5）；kelly_cash_tests 59/59、rc=0（原文件级 dev/evidence/gate0_wave2/kelly_cash_tests_final.log）；quadrature_tests 54/54（Wave 4 裁决执行后原文件级）；driver_tests 73/73（含 D-067 传导断言）——来源为 Manager 裁决转述，本核对未逐断言复核。
-- **B 级（summary 声明承载）**：轮次交付声明（dev/evidence/gate0_wave2/3/4/summary.md），非专门测试。
-- **C 级（Step 16 汇总）**：dev/evidence/gate0_step16/summary.md 已落盘（十一入口同点快照、775 项断言全部通过、零计数漂移、module 加载 83 API——Manager 裁决转述）；第 16/17/18 项据此升级为满足。
+- **A 级（专门测试）**：posterior_tests、innovation_tests 的具名断言全绿（logK、innovation_tests 9.5）；kelly_cash_tests 59/59、rc=0（原文件级 archive/evidence/gate0_wave2/kelly_cash_tests_final.log）；quadrature_tests 54/54（Wave 4 裁决执行后原文件级）；driver_tests 73/73（含 D-067 传导断言）——来源为 Manager 裁决转述，本核对未逐断言复核。
+- **B 级（summary 声明承载）**：轮次交付声明（archive/evidence/gate0_wave2/3/4/summary.md），非专门测试。
+- **C 级（Step 16 汇总）**：archive/evidence/gate0_step16/summary.md 已落盘（十一入口同点快照、775 项断言全部通过、零计数漂移、module 加载 83 API——Manager 裁决转述）；第 16/17/18 项据此升级为满足。
 - 本核对未逐行复核新线源码；「满足」结论的证据等级为 Manager 轮次裁决记录 + wave summary 声明 + 模块 / 测试文件存在性（附录 A）。
 
 ## 附录 A：新线模块与测试文件（本次静态 glob 事实）
@@ -61,9 +67,9 @@
 
 ## 附录 B：证据目录（summary.md 提取的结构性行）
 
-证据目录：dev/evidence/gate0_wave2、dev/evidence/gate0_wave3、dev/evidence/gate0_wave4
+证据目录：archive/evidence/gate0_wave2、archive/evidence/gate0_wave3、archive/evidence/gate0_wave4
 
-### dev/evidence/gate0_wave2/wave2_summary.md
+### archive/evidence/gate0_wave2/wave2_summary.md
 
 ```text
 命令 3 的补充观察（Test.jl 非交互模式在 testset fail/error 后中止 script，
@@ -83,7 +89,7 @@ permutation 协变 + fail-loudly + D-093 DC world + D-094 trace
 Wave 2 全量最终状态：module 加载 ✅（36 API）、market_tests 82/82 ✅
 ```
 
-### dev/evidence/gate0_wave3/wave3_summary.md
+### archive/evidence/gate0_wave3/wave3_summary.md
 
 ```text
 D-067 fail-loudly 语义不变）。
@@ -102,7 +108,7 @@ posterior_tests 临时 module 独立验证，骨架化留待后续裁决）。
 **错误**（Julia @testset 引入新作用域）——负向内重建。
 ```
 
-### dev/evidence/gate0_wave4/wave4_adjudication_summary.md
+### archive/evidence/gate0_wave4/wave4_adjudication_summary.md
 
 ```text
 # Gate-0 Wave 4 裁决执行轮 — 证据索引（裁决 4/5 + Step 15 driver）
@@ -117,7 +123,7 @@ geometry 起，UndefVarError 实证）+ module 内 using Dates（market.jl
 当前测试断言 D-067 传导（fail-loudly 正确行为）。选项：(a) driver
 ```
 
-### dev/evidence/gate0_wave4/wave4_summary.md
+### archive/evidence/gate0_wave4/wave4_summary.md
 
 ```text
 日期：2026-10-09。三段：quadrature_tests（Step 14）+ posterior_tests 复跑
@@ -176,7 +182,7 @@ g. **数学加速解锁（D-007 下一层）**——数学正确性 → 数学�
 - `src/gate0/posterior.jl`——裁决 7：tail 证书弱信息分支 + 常量三处（阈值 3 / 衰减率 1 / 余量 8）。
 - `src/gate0/oof.jl`——裁决 8 配套：tail_rel 10× 余量 + coarse_scan 补回。
 - `src/gate0/kelly.jl`——max_iter=1000（t=327 修复尝试；kelly_cash_tests 59/59 零回归，迭代预算不解除停滞）。
-- `src/gate0/backtest.jl` / `src/gate0/driver.jl` / `src/gate0/quadrature.jl`——各轮修复的 before/after 见各 summary（只读引用，不复制原文，给路径）：dev/evidence/gate0_wave2/3/4/ 各 summary.md 与 dev/evidence/gate0_step16/summary.md。
+- `src/gate0/backtest.jl` / `src/gate0/driver.jl` / `src/gate0/quadrature.jl`——各轮修复的 before/after 见各 summary（只读引用，不复制原文，给路径）：archive/evidence/gate0_wave2/3/4/ 各 summary.md 与 archive/evidence/gate0_step16/summary.md。
 
 本登记为文档层清单；源码字节以工作树为准，本核对未逐行复核 diff。
 

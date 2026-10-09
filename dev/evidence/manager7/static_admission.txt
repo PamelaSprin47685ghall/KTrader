@@ -1,5 +1,0 @@
-# static_admission 2026-10-08T06:15:51+08:00
-bash -n bin/scoped_run.sh: SYNTAX-OK (rc=0)
-16-phase manifest read statically (grep only; no Julia run): see phase names above
-resources: julia=0 sleep=0; no numeric side effects; command <2s, hard cap 15s respected
-old-21-all-run claim NOT made; ALL/fit/deserialize not performed; src/bin/test untouched; no git writes

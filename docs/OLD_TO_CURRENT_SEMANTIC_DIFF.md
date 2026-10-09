@@ -3,7 +3,7 @@
 **状态：分析文档（非规范、非发布凭据）**
 **基准：旧侧 = `1d9b7ad`（Path Kelly V0 baseline，2026-10-06 12:57:22 +0800）；新侧 = 当前工作树（release 基线 `fc54ce48`，2026-10-09 12:14:17 +0800）**
 **性质：纯静态语义比对。本文不含任何收益 / PnL / Sharpe 数字；不运行任何命令；不修改源码、测试与任何既有证据文件。**
-**证据来源：`dev/evidence/manager13/` 侦查材料（`defect_markers.txt`、`src_evolution.txt`、`old_src_snapshots.txt`）与三份快照目录；行号引用均指各文件的静态文本。**
+**证据来源：`archive/evidence/manager13/` 侦查材料（`defect_markers.txt`、`src_evolution.txt`、`old_src_snapshots.txt`）与三份快照目录；行号引用均指各文件的静态文本。**
 
 ---
 
@@ -11,7 +11,7 @@
 
 ### 0.1 为什么以 `1d9b7ad` 作为旧侧
 
-【事实】`dev/evidence/manager13/defect_markers.txt`（§A–§F）以 pickaxe 与逐提交存在性矩阵证明：答辩点名的判别性缺陷标志——`shrink_drift`、ARD（MacKay 分组 ARD）、BF 家族（`BF_MIN` / `bayes_ard` 稀疏门控）、selection 自选择缺陷承认注释——的**唯一宿主**是 `1d9b7ad`；从 `21017b9`（V1.0）起全部为零命中（`defect_markers.txt:309-316, 518-527, 562-564`）。`old_src_snapshots.txt:108-121` 的判定 1 与之一致：它同时是时间序上最早的实质提交，也是这些标志的最后（唯一）宿主。
+【事实】`archive/evidence/manager13/defect_markers.txt`（§A–§F）以 pickaxe 与逐提交存在性矩阵证明：答辩点名的判别性缺陷标志——`shrink_drift`、ARD（MacKay 分组 ARD）、BF 家族（`BF_MIN` / `bayes_ard` 稀疏门控）、selection 自选择缺陷承认注释——的**唯一宿主**是 `1d9b7ad`；从 `21017b9`（V1.0）起全部为零命中（`defect_markers.txt:309-316, 518-527, 562-564`）。`old_src_snapshots.txt:108-121` 的判定 1 与之一致：它同时是时间序上最早的实质提交，也是这些标志的最后（唯一）宿主。
 
 因此，`1d9b7ad` 是"缺陷标志意义上"可被证据锚定的旧侧端点，而不是凭印象挑选的版本。
 
@@ -216,7 +216,7 @@
 - 旧快照（V0，8 文件）：`old_src_1d9b7ad/src/model.jl`（含 Kelly `L553-568`）、`old_src_1d9b7ad/src/modecov.jl`、`old_src_1d9b7ad/src/backtest.jl`、`old_src_1d9b7ad/src/broker.jl`、`old_src_1d9b7ad/src/data.jl`、`old_src_1d9b7ad/src/KTrader.jl`、`old_src_1d9b7ad/src/live.jl`、`old_src_1d9b7ad/src/repomix-output.xml`（V0 无独立 kelly.jl / geometry.jl 文件；`old_src_snapshots.txt:12-20`）。
 - 中间对照（V1.0）：`old_src_21017b9/src/predict.jl`、`old_src_21017b9/src/response.jl` 等 9 文件（`old_src_snapshots.txt:29-38`）。
 - 当前源码：`src/predict.jl`、`src/response.jl`、`src/prepare.jl`、`src/kelly.jl`、`src/numerics.jl`、`src/geometry.jl`、`src/residual_oracle.jl`、`src/incremental.jl` 等 13 文件。
-- 侦查证据：`dev/evidence/manager13/defect_markers.txt`（A–F 节）、`src_evolution.txt`、`old_src_snapshots.txt`（含聚合与逐文件 SHA-256）。
+- 侦查证据：`archive/evidence/manager13/defect_markers.txt`（A–F 节）、`src_evolution.txt`、`old_src_snapshots.txt`（含聚合与逐文件 SHA-256）。
 - 规范对照：SPEC §11、§14、§19、§22、§24-§26、§27-§29、§30-§32、§33-§34、§37、§38-§40、§56（AGENTS.md 内）。
 
 ---

@@ -1,3 +1,0 @@
-Test Summary:                                | Pass  Total  Time
-M(S) kernel Frobenius contraction identities | 1359   1359  1.8s
-scoped_run: rc=0 elapsed=4s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=691MiB

@@ -17,7 +17,7 @@
 > 等）一律按历史时间线理解；裁决书 D-096 的禁用名称清单同时生效。
 
 > **Gate-0 纠偏新线名称与现状（2026-10-10，裁决书 D-042）**：纠偏新线 KTraderGate0
-> 已落地十一个模块、Step 1-15；测试证据目录为 dev/evidence/gate0_wave2/3/4/ 各
+> 已落地十一个模块、Step 1-15；测试证据目录为 archive/evidence/gate0_wave2/3/4/ 各
 > summary.md。新线的正式名称是「modular posterior predictive」——即 Bayesian
 > response posterior + cross-fitted semiparametric innovation predictive。在
 > innovation 仍使用经验 / quasi-likelihood 结构期间，禁止称 fully Bayesian
@@ -25,6 +25,24 @@
 > [docs/GATE0_EXIT_CHECKLIST.md](docs/GATE0_EXIT_CHECKLIST.md)。
 
 价格历史 → 因果多尺度特征 → 独立 OOF 后验 → 收益场景 → 原始对数 Kelly → 执行。
+
+## 仓库结构（2026-10-10 树结构调整后）
+
+| 目录 | 角色 |
+|---|---|
+| `src/` | 生产数学：`KTrader`（2.0-RC 现行工作线）+ `src/gate0/`（Gate-0 纠偏新线 `KTraderGate0`） |
+| `test/` | 标准测试入口 `test/runtests.jl` + 契约注册表 + `test/fixtures/` |
+| `bin/` | 可执行入口：`backtest / bench / report / fetch / live / scoped_run.sh / verify_release`；`ceiling_probes.jl` 为受门禁的 dev 命名空间入口 |
+| `docs/` | 规范与审计文档（六份分析 + Gate-0 四份） |
+| `release/` | 发布打包与校验工具（`package_source.py` / `verify_tests.jl` / `smoke.jl`） |
+| `dev/` | 开发侧活动资产：探针命名空间 `probes.jl`、M1 重放链路、验收驱动、GPU 原语，以及发布凭据链 `dev/evidence/{cpu20_acceptance, earlier_closure, final_2_0_0, release_freeze}_20261009/` |
+| `archive/` | 已离场的轮次日志、一次性脚本、研究线与注记（被 git 忽略；见 [archive/README.md](archive/README.md)） |
+| `data/` | 本地行情与账户数据（不随源码发布） |
+
+入口清晰性规则：`src/` 不 include `dev/`（由 `test/architecture_contract_tests.jl`
+的 AST 门禁强制）；发布/测试/工具链仍需消费的 dev 资产留在 `dev/`；
+其余一律入 `archive/` 并退出 git 索引（历史与 tag `v2.0.0` 原样保留）。
+归档文件取回方式：`git show 8d54f0d:<原路径>`。
 
 2.0.0 是 CPU 正式版本。保留原 1.0 数学定义和已有 `*_v1` API；GPU 属于
 [2.1](ROADMAP_2_1.md)，不是本版本依赖或发布门槛。

@@ -1,7 +1,0 @@
-kill: sending signal to -728723 failed: No such process
-kill: sending signal to -728789 failed: No such process
-[phase=clock-cleanup] begin — scope: stub-copy cleanup-window boundary failure (monitor healthy) → late-stage failure must carry through to 125 for BOTH child rc sources — 0 (the old false-green proper: a successful command washed to rc=0 + elapsed=0) and 7 (non-zero passthrough equally swallowed)
-Test Summary:                                                 | Pass  Total  Time
-[phase=clock-cleanup] late cleanup-window clock failure → 125 |   14     14  0.3s
-[phase=clock-cleanup] end
-scoped_run: rc=0 elapsed=1s deadline=40 killed=0 cancelled=none rss_guard=2048 rss_peak=348MiB

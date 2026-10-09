@@ -1,5 +1,0 @@
-Test Summary:                                                     | Pass  Total  Time
-Fixed-alpha Jacobian core cache: exact Sigma-iteration identities |  113    113  2.4s
-Test Summary:                                                        | Pass  Total  Time
-cross-core symmetry: deterministic 2x1 counterexample (kernel owner) |    5      5  0.3s
-scoped_run: rc=0 elapsed=5s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=713MiB

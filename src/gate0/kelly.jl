@@ -120,7 +120,7 @@ cash_kelly_certified(c; tol=1e-8) =
 # =============================================================================
 # Newton polish — Clarabel 解的 KKT 数值精修（同一 log 目标，非 heuristic）
 # =============================================================================
-# 动机（Wave 2 集成运行实证，dev/evidence/gate0_wave2/kelly_cash_tests.log）：
+# 动机（Wave 2 集成运行实证，archive/evidence/gate0_wave2/kelly_cash_tests.log）：
 # Convex 的 exp-cone 建模 + Clarabel 在内部解上的可达 KKT 精度约 1e-7
 # （Case C 实测 kkt_residual = objective_gap = 1.14e-7，解本身与解析值一致
 # 到同一量级），低于证书默认门槛 tol = 1e-8。本函数对**同一数学对象**做

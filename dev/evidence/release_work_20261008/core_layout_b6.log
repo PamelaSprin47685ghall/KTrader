@@ -1,8 +1,0 @@
-Julia=1.12.7 BLAS=LBTConfig([ILP64] libopenblas64_.so) threads=6
-N=65 P=910 rank=910 synthetic; warm-up excluded, five samples
-existing (seconds = 0.006924219, bytes = 3.450808e6) max_abs=0.0
-gemm_reuse_layout (seconds = 0.006693312, bytes = 1.6396392e7) max_abs=0.0
-syrk_reuse_layout (seconds = 0.007342565, bytes = 1.640376e7) max_abs=2.7755575615628914e-17
-gemm_with_pack (seconds = 0.012328394, bytes = 2.2919456e7) max_abs=0.0
-syrk_with_pack (seconds = 0.009762441, bytes = 2.2926824e7) max_abs=2.7755575615628914e-17
-scoped_run: rc=0 elapsed=9s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=1034MiB

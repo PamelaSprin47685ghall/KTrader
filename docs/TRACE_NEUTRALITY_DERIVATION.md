@@ -55,7 +55,7 @@ c=2b-1:\quad \operatorname{tr} A_b \;=\; \sum_{i=1}^{N} G[i,\,\text{asset }i\tex
 c=2b:\quad \operatorname{tr} B_b \;=\; \sum_{i=1}^{N} G[i,\,\text{asset }i\text{ 的 P 列}].
 \]
 
-这与 `src/response.jl:128` 的实现 `h[c] = tr(view(G, :, cols[r]))` 以及 `ridge_constraint_traces`（`src/response.jl:412-418`，直接收缩各块对角）逐字一致；`dev/response_deadwork_20261008.md:7-19` 的等价改写记录同样确认该语义。
+这与 `src/response.jl:128` 的实现 `h[c] = tr(view(G, :, cols[r]))` 以及 `ridge_constraint_traces`（`src/response.jl:412-418`，直接收缩各块对角）逐字一致；`archive/notes/response_deadwork_20261008.md:7-19` 的等价改写记录同样确认该语义。
 
 ### A.2 语义陈述
 
@@ -84,7 +84,7 @@ c=2b:\quad \operatorname{tr} B_b \;=\; \sum_{i=1}^{N} G[i,\,\text{asset }i\text{
 把现有材料拆成可检验的主张：
 
 1. **"必须存在于 posterior support 而非只修 mean"——成立且证据充分。** 后验协方差若不条件化，scenario 抽样（`generate_scenarios_v1` 消费 `L_rel`）仍会离开 neutral 子空间；`condition_trace_neutrality` 的 dense oracle 对照（`test/conditioned_eb_tests.jl:190-198`，`exact.G_c ≈ dense`、`exact.inv_M ≈ inv(Symmetric(M))`，atol 1e-10）证明实现与标准条件化公式一致。这一条是"hard conditioning 的正确实现方式"，不是识别性证明。
-2. **"它是 identification constraint 而非数值 regularizer"——作为识别性主张，仓库材料不足以支持。** 识别性（identification）的正式标准是：约束方向在观测分布上不可识别，或与已建模通道严格冗余/共线。仓库中没有任何一处证明 \(\operatorname{tr}A_b\)、\(\operatorname{tr}B_b\) 方向在 data-law 下不可区分。相反，`dev/theory_incremental_20261009/THEORY.md:243-251` 明确记录：约束后的修正被分配到"未识别方向"，且"未识别系数的均值不一定是 0"、"不同支撑块会经 14 个 trace 约束产生条件相关"。这段文字实际上把 forbidden 方向当作**可以被条件化机制触碰的方向**，与"这些方向已被识别掉、不存在"的强识别语义不符。
+2. **"它是 identification constraint 而非数值 regularizer"——作为识别性主张，仓库材料不足以支持。** 识别性（identification）的正式标准是：约束方向在观测分布上不可识别，或与已建模通道严格冗余/共线。仓库中没有任何一处证明 \(\operatorname{tr}A_b\)、\(\operatorname{tr}B_b\) 方向在 data-law 下不可区分。相反，`archive/research/theory_incremental_20261009/THEORY.md:243-251` 明确记录：约束后的修正被分配到"未识别方向"，且"未识别系数的均值不一定是 0"、"不同支撑块会经 14 个 trace 约束产生条件相关"。这段文字实际上把 forbidden 方向当作**可以被条件化机制触碰的方向**，与"这些方向已被识别掉、不存在"的强识别语义不符。
 3. **"无限算力下仍存在"——不蕴含 identification。** 一个硬先验/支撑选择同样在无限算力下存在；该句只能排除"这是数值截断/近似"的误读，不能排除"这是建模选择"。
 4. **一个尚未被仓库提出的潜在识别论证（本文档分析，非既有依据）**：relative 目标 \(Y\) 与 innovation 位于严格 zero-sum relative support（AGENTS §12；`fit_response_operator` 对 `Sigma` 做 `supported_covariance(..., gauge)`；`conditioned_eb` 以 `gauge` 参数投影），若模型把"\(E\) 严格支撑在 \(\mathbf{1}^\perp\)"当作精确约束，则每行预测 \(XG^T\) 也需行和为零；而对角均匀方向 \(cI\) 对行和的贡献是 \(c\cdot\sum_{p\in\text{block}}X[t,p]\)，一般不为零。这条路线**若**能被形式化，可以论证该方向被 target support 的似然结构识别为 0，硬约束只是把有限样本下的估计噪声提前截掉。但仓库没有做这个推导，且它需要与 §34 的 \(\mu_{rel}^{zero-sum}\) 使用端投影交互核对，因此当前只能列为"升级所需的可能推导形态"，不能算作既有证据。
 
@@ -99,7 +99,7 @@ c=2b:\quad \operatorname{tr} B_b \;=\; \sum_{i=1}^{N} G[i,\,\text{asset }i\text{
 ### C.1 事实
 
 - 14 = \(2\times|BANDS|=2\times7\)（AGENTS §22 line 765："把核心约束 solve 压到 14×14"）。
-- 粒度是 per-band、per-channel（A 项已证）。`test/relative_support_tests.jl` 的 fixture（N=2, gauge 维 1）与 `dev/theory_incremental_20261009/THEORY.md:251` 的"14 个 trace 约束"均按此粒度引用。
+- 粒度是 per-band、per-channel（A 项已证）。`test/relative_support_tests.jl` 的 fixture（N=2, gauge 维 1）与 `archive/research/theory_incremental_20261009/THEORY.md:251` 的"14 个 trace 约束"均按此粒度引用。
 
 ### C.2 为什么不能更弱——变体差异分析（本文档推导；仓库未给直接论证）
 
@@ -159,7 +159,7 @@ m_c-m=-\Omega C^\top(C\Omega C^\top)^{-1}Cm.
 
 - 修正位于 \(\mathrm{span}(\Omega C^\top)\)，即 14 个 forbidden 行在 \(\Omega\) 度量下的像所张成的子空间。\(\Omega\) 的结构决定这 14 个方向如何分布到具体系数上。
 - 若数据（或先验）在无约束后验里支持一个共同对角响应（所有资产的 own-response 相同，\(Cm\neq0\)），条件化会把它删除并沿 \(\Omega C^\top\) 的方向重新分配。若 \(\Omega\) 中 forbidden 方向与"同块 \(i\neq j\)"项相关较强，修正就会出现在 off-diagonal 系数上；预测层面等价于把"共同自响应"重写为"资产间互相响应"。
-- `dev/theory_incremental_20261009/THEORY.md:243-251` 记录了相关现象的两面：约束修正被分配到"未识别方向"（\(P_A G_c P_A=-(δ/α)\lambda_c P_A\)），并警告"不同支撑块会经 14 个 trace 约束产生条件相关，不能只留对角方差"。这证明项目已知修正会跨方向传播，**但没有量化其是否集中到少数 cross-asset 方向**。
+- `archive/research/theory_incremental_20261009/THEORY.md:243-251` 记录了相关现象的两面：约束修正被分配到"未识别方向"（\(P_A G_c P_A=-(δ/α)\lambda_c P_A\)），并警告"不同支撑块会经 14 个 trace 约束产生条件相关，不能只留对角方差"。这证明项目已知修正会跨方向传播，**但没有量化其是否集中到少数 cross-asset 方向**。
 - **仓库中没有**任何实验、日志或测试断言测量修正 \(\|m_c-m\|\) 在块内各资产上的分布，因此"人为制造少数 cross-asset signal sink"无法从现有材料证实或证伪。静态上可以确定的是：修正的集中性完全由 \(\Omega\) 的低秩/块结构决定，而不是 C 本身单独决定；当 \(\Omega\) 近各向同性时修正分散，当 \(\Omega\) 低秩时可能集中。
 - 另一点可以静态确定：无论修正如何分布，**它不改变条件后验的自洽性**（dense oracle 已证），改变的只是模型把数据信号表达为 diagonal 还是 off-diagonal 的**经济归因**。这是模型选择偏差问题，不是数值正确性问题。
 
@@ -183,7 +183,7 @@ m_c-m=-\Omega C^\top(C\Omega C^\top)^{-1}Cm.
 
 - `AGENTS.md`：§21/§22、§57-§61、§12/§13 历史段、附录 C 第 9 问（"trace neutrality 为什么是理论 constraint？"）。全部为**声明式/历史式**文本，没有任何"从价格序列的某个对称性或可观测等价性推出 C"的推导。
 - `README.md`：未检索到 trace neutrality 的推导段。
-- `CHANGELOG.md` 与 `dev/**/*.md`：仅有 `dev/evidence/final_2_0_0_20261009/README.pre-final.md:213-217` 的"theoretical constraints that would remain under unlimited compute"一句（声明），与 `dev/theory_incremental_20261009/THEORY.md:243-251,353`（讨论约束**之后**的后验几何与数值保留，不是约束的证成）。
+- `CHANGELOG.md` 与 `dev/**/*.md`：仅有 `dev/evidence/final_2_0_0_20261009/README.pre-final.md:213-217` 的"theoretical constraints that would remain under unlimited compute"一句（声明），与 `archive/research/theory_incremental_20261009/THEORY.md:243-251,353`（讨论约束**之后**的后验几何与数值保留，不是约束的证成）。
 - 源码注释：`src/response.jl` 相关函数注释只解释计算次序与等价改写（如 `ridge_constraint_traces` 的收缩），不含约束来源的推导。
 - 提交注记：本机 `.git` 存在，但本轮不允许运行任何命令；**无法查阅提交历史**。就仓库可读文本而言，AGENTS §13 的历史叙述（"早期双重 neutralization 被统一成 operator constraint"）表明其来源是设计演进中的收敛选择，而非从数据对称性演绎。若提交历史中存在推导，本文件无权声称已覆盖——按委托口径，此类内容记为"本机可读文本中未找到"。
 - 搜索关键词覆盖：`trace neutrality`、`neutrality`、`universal common`、`common timing`、`anticipatory bias`、`identification`、`structural constraint`、`gauge freedom`、`uniform`、`per-band` 等（大小写与中英文混用）。
@@ -243,6 +243,6 @@ m_c-m=-\Omega C^\top(C\Omega C^\top)^{-1}Cm.
 - `AGENTS.md:704-765` — §21/§22 规范文本。
 - `AGENTS.md:2083-2093` — §61 宪法测试要求。
 - `AGENTS.md:3051-3064, 3087` — 历史段（约束统一与 0.9 缺陷）。
-- `dev/theory_incremental_20261009/THEORY.md:243-251` — 约束后验几何与"未识别方向"记录。
+- `archive/research/theory_incremental_20261009/THEORY.md:243-251` — 约束后验几何与"未识别方向"记录。
 - `dev/evidence/final_2_0_0_20261009/README.pre-final.md:213-217` — "theoretical constraints / unlimited compute"声明。
-- `dev/response_deadwork_20261008.md:7-19` — trace 收缩的等价性记录。
+- `archive/notes/response_deadwork_20261008.md:7-19` — trace 收缩的等价性记录。

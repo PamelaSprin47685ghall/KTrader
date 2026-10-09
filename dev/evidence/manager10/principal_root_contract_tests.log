@@ -1,3 +1,0 @@
-Test Summary:                                              | Pass  Total  Time
-principal sqrt root canonical coupling (scenario contract) |   15     15  1.6s
-scoped_run: rc=0 elapsed=4s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=711MiB

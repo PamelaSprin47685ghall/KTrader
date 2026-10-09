@@ -1,5 +1,0 @@
-Precompiling packages...
-  20168.0 ms  ✓ KTrader
-  1 dependency successfully precompiled in 20 seconds. 143 already precompiled.
-MULTIDAY_OK days=20 cagr=0.334071587010985 vol=0.2672088064974628 sharpe=1.2057757239523126 maxdd=0.09184015198566586 final=1.0231395007295552
-MULTIDAY_RC=0 ELAPSED_SECONDS=50 RSS_PEAK_KB=2115116

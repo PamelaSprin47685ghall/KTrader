@@ -1,6 +1,0 @@
-kill: sending signal to -665701 failed: No such process
-[phase=owner-hup] begin — scope: SIGHUP to wrapper PID only; asserts wrapper natural rc=128+1 via direct wait, CANCELLED-BY-SIGNAL sig=HUP, owned PGID (leader-recorded) has no live member, sentinel PID untouched, no TIMEOUT (cancel at ~1.5s << hard)
-Test Summary:                                          | Pass  Total  Time
-[phase=owner-hup] owner cancel: SIGHUP to wrapper only |    6      6  0.7s
-[phase=owner-hup] end
-scoped_run: rc=0 elapsed=1s deadline=20 killed=0 cancelled=none rss_guard=2048 rss_peak=350MiB

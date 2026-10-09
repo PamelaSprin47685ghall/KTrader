@@ -1,3 +1,0 @@
-Test Summary:                  | Pass  Total  Time
-PreparedProblem typed boundary |   61     61  7.1s
-scoped_run: rc=0 elapsed=10s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=860MiB

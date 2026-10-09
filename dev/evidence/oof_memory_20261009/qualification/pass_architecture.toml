@@ -1,6 +1,0 @@
-counts = "standard architecture entry in log"
-entries = ["architecture_contract_tests.jl"]
-julia = "1.12.7"
-opt_level = 2
-passed = true
-snapshot = "b0641d7a7ab1cf80ee3c85765a5daae6d1ef9697a134ab81ce4fb5af586d2426"

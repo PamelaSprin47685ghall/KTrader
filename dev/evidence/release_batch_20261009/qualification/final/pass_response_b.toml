@@ -1,6 +1,0 @@
-counts = "Test.TestCounts(true, 0, 0, 0, 0, 6091, 0, 0, 0, \"15.2s\")"
-entries = ["conditioned_lazy_gradient_tests.jl", "scalar_tensor_tests.jl", "conditioned_certificate_reuse_tests.jl", "conditioned_certificate_cache_tests.jl", "conditioned_contraction_kernel_tests.jl"]
-julia = "1.12.7"
-opt_level = 2
-passed = true
-snapshot = "b130327b5147a16ff1f1b325bd03f19f1a16ad9f05f904223fc0ef5bcf1301b0"

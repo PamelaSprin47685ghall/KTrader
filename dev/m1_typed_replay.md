@@ -314,7 +314,7 @@ the package UUID.
   mechanically corrected by DevOps with zero control-flow change; no
   awaiting-correction note remains.
 
-## Replay run status — gated behavior (2026-10-08, DevOps evidence; logs in dev/evidence/manager3/)
+## Replay run status — gated behavior (2026-10-08, DevOps evidence; logs in archive/evidence/manager3/)
 
 The hard-gate (REVISE) behavior is now RUN-VERIFIED narrow green on
 this machine — distinct from the OLD println-only RC0 records above
@@ -351,7 +351,7 @@ this machine — distinct from the OLD println-only RC0 records above
   no new fit, no new output path, no manifest change; the recorded
   output artifact's disk sha256 is unchanged.
 - Real bad-field red (producer→parser→consumer):
-  dev/evidence/manager3/model_only_gate_probe.jl deserializes the
+  archive/evidence/manager3/model_only_gate_probe.jl deserializes the
   REAL model artifacts, runs compare_model_fields as the positive
   (PASS), then mutates ONE finite mu_pred cell in memory (+1.0) — the
   SAME consumer throws — and restores the in-memory value; the disk
@@ -405,7 +405,7 @@ harness transcription error, never a production Gate red. "21
 REQUIRED registered + file-presence admission verified" is NOT "21
 numeric suites all ran": this revision's actually-run numeric suites
 are exactly the six files above. The named final snapshot
-dev/evidence/manager3/final_snapshot.txt carries full SHA256 for the
+archive/evidence/manager3/final_snapshot.txt carries full SHA256 for the
 16 key runtime objects (no commit/reset/clean); this note and the
 other documentation files are not part of the runtime snapshot; no
 existing snapshot or manifest entry changed.
@@ -429,7 +429,7 @@ timeout record is not erased.
 
 Guard-configuration transcription correction (2026-10-08 fifth
 documentation pass; named record:
-dev/evidence/manager5/evidence_corrections.md; summary and logs
+archive/evidence/manager5/evidence_corrections.md; summary and logs
 preserved unchanged): the summary header's "(scoped_run 25s, RSS2048)"
 does NOT match the four logs' scoped_run lines — minimal/nested
 actually ran deadline=12 with elapsed=1s (the summary's "3s" for them
@@ -446,13 +446,13 @@ specialization latency" — that causal attribution is NOT measurement
 evidence. The observed facts are RC124 (timeout/stop) with an LLVM
 stack and the 25 s rerun's natural 3 s RC1; the cause is unknown and no
 compile-share figure may be derived from it. Named correction of
-record: dev/evidence/manager4/evidence_corrections.md; the original
+record: archive/evidence/manager4/evidence_corrections.md; the original
 summary/logs/snapshot are preserved unchanged.
 
 Entrusted fix — FINAL RUN SYNC (2026-10-08: owner source formally
 reported, statically cross-checked by this documentation pass, and now
 RUN-VERIFIED narrow green by this assignment's DevOps — logs in
-dev/evidence/manager4/; the earlier 'source NOT yet reported' and
+archive/evidence/manager4/; the earlier 'source NOT yet reported' and
 'source-written, run pending' wordings stand as the delivery-time
 timeline): the replay's verification and consumption share ONE
 manifest-certified .jls path. Landed mechanism, as
@@ -478,7 +478,7 @@ not prove it is text) — which is distinct from the manifest-certified
 RC0's consumed object was that unregistered .jl (no time-bound record
 exists to support such a retroactive binding). The certified inventory
 is the ONE manifest and path claims route through it. RUN EVIDENCE
-(2026-10-08 final DevOps sync, dev/evidence/manager4/, each its own
+(2026-10-08 final DevOps sync, archive/evidence/manager4/, each its own
 scoped run; elapsed times are observations only, never performance
 comparisons): artifact_replay_contract_guarded.log 82/82 RC0 (4 s,
 peak 367 MiB); after the final comment-only temporalization of the
@@ -494,7 +494,7 @@ no-commit-reset-clean figures — neither does final_snapshot.txt (both
 files were read in full by the 2026-10-08 fifth pass; those figures
 were carried in the PRIOR REPORT about the file, not in the file
 itself — named correction:
-dev/evidence/manager5/evidence_corrections.md);
+archive/evidence/manager5/evidence_corrections.md);
 replay_check_guarded.log check RC0 (3 s, peak 501 MiB) —
 still exactly FOUR of the 13 manifest artifacts; rewrap_guarded.log
 RC0 (16 s, peak 1265 MiB) — the REAL /tmp/prep_inc_t14309.jls through
@@ -509,7 +509,7 @@ The failure timeline (RC124 attempts, the cache-before-admission
 ordering violation, the guard-0 early runs as behavior evidence only,
 the RC127 arg misuse with 'zero side effect' withdrawn, the 25 s
 solve-once interruption, the SHA-set construction error corrected) is
-preserved in AGENTS.md and dev/evidence/manager4/evidence_corrections.md.
+preserved in AGENTS.md and archive/evidence/manager4/evidence_corrections.md.
 The ruler_stats same-source public-entry guard is likewise RUN-VERIFIED
 narrow green (history_cache_existing_final.log: five testsets
 24+9+15+45+32 = 125/125 RC0, existing configuration, single thread,
@@ -587,7 +587,7 @@ is a claim that the whole suite has run.
 ## 第6任评审注记引用（2026-10-08，文档 pass）
 
 本 note 的 replay/guard 相关源码事实经第6任只读评审复核，具名记录于
-dev/evidence/manager6/guard_scope_notes.md（本段仅引用，不重复数值、
+archive/evidence/manager6/guard_scope_notes.md（本段仅引用，不重复数值、
 不改上方任何历史记录）：guard 拒绝时序的精确口径——只有未知 keyword
 的 Julia dispatch 拒绝先于 _prepare_v1 的 generation bump；合法
 keyword 携带异源 cache/ruler_stats 的守卫拒绝在 bump 之后、首次数学
@@ -602,7 +602,7 @@ pending-acquire、/proc/uptime %.0f 单调钟与坏钟 125、有界 leader
 wait/32 位 %d 饱和/预算叠加缺陷静态核对已修——时间线、不声称逐项
 已运行）；不可捕捉界限（SIGKILL/SIGSTOP/宿主崩溃、继承忽略的
 INT）保留，不写「任何外部终止原子自愈」；运行动态事实与 harness
-错误时间线见 dev/evidence/manager6/；最终运行已成立（final3，
+错误时间线见 archive/evidence/manager6/；最终运行已成立（final3，
 2026-10-08 05:09：九相 53 项全 RC0、unknown/duplicate 为预期 RC1
 语义拒绝、same-consumer 真注入负控红 + 生产对照绿、最终 std
 arch RC0 7s/RSS2048/peak841——runtime 证明范围是一个 required 文
@@ -623,6 +623,6 @@ clock-fail 相只测 monitor。三条为本任静态发现、未动态复现、
 std arch RC0 保留其已测范围有效（从未覆盖上述边界）。另：
 guard_scope_notes.md:164 的 test/scoped_run_tests.jl full SHA
 一字符转写（87339，source-of-record 为 87239）由
-dev/evidence/manager7/evidence_corrections.md 具名纠正——本
+archive/evidence/manager7/evidence_corrections.md 具名纠正——本
 note 只用短前缀、不含 full hash、无转写错误，上方历史记录一
 字不改。

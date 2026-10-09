@@ -1,3 +1,0 @@
-Test Summary:                     | Pass  Total  Time
-gate0 Step 9: OOF full-mode folds |   25     25  6.5s
-scoped_run: rc=0 elapsed=7s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=546MiB

@@ -1,3 +1,0 @@
-held0 = [0.29251320822886906, 0.19259029618233448, 1.3580334758095062e-10, 0.4045044687150895]
-t=327  RED: Clarabel cash log-Kelly failed: SLOW_PROGRESS
-scoped_run: rc=0 elapsed=25s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=1273MiB

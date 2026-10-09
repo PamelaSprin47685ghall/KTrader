@@ -1,9 +1,0 @@
-[60seg1] initial held0 = zeros(4)
-[60seg1] segment OK: days = 10  t = 277..286
-[60seg1] per-segment (d)(f) OK: equity finite, conservation holds
-[60seg1] (a) OK: terminal held = [0.262122, 0.0, 0.096485, 0.350181]  sum = 0.708788
-[60seg1] terminal held saved -> dev/evidence/gate0_step16/held60_1.txt
-[60seg1] (c) OK: segment equity == cumprod(wealth_factors)（拼接=乘法链）
-[60seg1] (e) OK: benchmarks aligned (len = days+1), cash == 1
-[60seg1] ALL SEGMENT ASSERTIONS PASSED
-scoped_run: rc=0 elapsed=32s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=1470MiB

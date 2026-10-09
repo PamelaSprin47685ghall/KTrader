@@ -1,6 +1,0 @@
-ERROR: LoadError: unknown phase 'garbage' (valid: ALL, selftest, baseline, owner-term, owner-int, owner-hup, clock-mutant, clock-mono, clock-fail, clock-saturate); refusing before any process spawn
-Stacktrace:
- [1] top-level scope
-   @ ~/Desktop/vibe/KTrader/test/scoped_run_tests.jl:88
-in expression starting at /home/kunweiz/Desktop/vibe/KTrader/test/scoped_run_tests.jl:88
-scoped_run: rc=1 elapsed=1s deadline=15 killed=0 cancelled=none rss_guard=2048 rss_peak=332MiB

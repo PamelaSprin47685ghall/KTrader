@@ -1,3 +1,0 @@
-Test Summary:                 | Pass  Total   Time
-Bounded continuous timeblocks |  604    604  16.3s
-scoped_run: rc=0 elapsed=19s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=924MiB

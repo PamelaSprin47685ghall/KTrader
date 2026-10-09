@@ -1,8 +1,0 @@
-[ Info: M1 fixture-root mode: tree scan consumes test/fixtures/arch_nested_root; KTrader is NOT loaded; runtime namespace checks (M1-D/E) apply only to the real module and are out of scope here
-Test Summary:                                                                             | Pass  Total  Time
-M1-A/B/C: production include tree AST scan — fixture root: test/fixtures/arch_nested_root |    3      3  0.3s
-Test Summary:                                                        | Pass  Total  Time
-M1 gate self-check: known-bad fixtures go red via the same primitive |   15     15  0.1s
-Test Summary:                                           | Pass  Total  Time
-M1 gate self-check: legal minimal structure stays green |    3      3  0.0s
-scoped_run: rc=0 elapsed=1s deadline=12 killed=0 rss_guard=0 rss_peak=0MiB

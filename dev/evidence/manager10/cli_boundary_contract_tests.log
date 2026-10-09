@@ -1,3 +1,0 @@
-Test Summary:                                          | Pass  Total  Time
-CLI boundary contract (bin/ceiling_probes.jl entrance) |   50     50  0.6s
-scoped_run: rc=0 elapsed=4s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=793MiB

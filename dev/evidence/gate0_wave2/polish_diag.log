@@ -1,5 +1,0 @@
-input  w = [0.8333334433333334, 0.16666655666666666]
-input  cert: kkt=2.693878069084394e-9  gap=2.6938780095520087e-9  certified=true
-polished w = [0.8333333333342677, 0.16666666666573235]
-polished cert: kkt=2.2852090590226762e-14  gap=2.275957200481571e-14  certified=true
-scoped_run: rc=0 elapsed=3s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=595MiB

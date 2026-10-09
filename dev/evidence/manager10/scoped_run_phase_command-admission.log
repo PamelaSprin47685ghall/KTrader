@@ -1,5 +1,0 @@
-[phase=command-admission] begin — scope: --rss-guard shifted away leaves no command → RC2 refused before spawn AND before logfile creation
-Test Summary:                                                      | Pass  Total  Time
-[phase=command-admission] no command after options → pre-spawn RC2 |    4      4  0.2s
-[phase=command-admission] end
-scoped_run: rc=0 elapsed=0s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=329MiB

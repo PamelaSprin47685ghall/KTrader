@@ -11378,3 +11378,48 @@ m_c-m=-\Omega C^\top(C\Omega C^\top)^{-1}Cm.
 - `dev/theory_incremental_20261009/THEORY.md:243-251` — 约束后验几何与"未识别方向"记录。
 - `dev/evidence/final_2_0_0_20261009/README.pre-final.md:213-217` — "theoretical constraints / unlimited compute"声明。
 - `dev/response_deadwork_20261008.md:7-19` — trace 收缩的等价性记录。
+
+---
+
+# 第12任：树结构调整（2026-10-10，用户指令；覆盖既有目录规范冲突）
+
+**性质：结构变更记录。本文以上全部规范文本一字未改；本节的效力仅限「文件放在哪个目录 / 哪些路径进入 git」，不改任何裁决、证据或数学对象。**
+
+用户于 2026-10-10 明确指示：所有开发用脚手架必须正规化或归入 `archive/`，并提供合适 gitignore、把被忽略文件从 git 中剥离（历史不动）；目录结构可不因循守旧。按此执行：
+
+## A. 移动清单（内容字节未改，原路径仍可在 git 历史与 commit 8d54f0d 中取回）
+
+| 原路径 | 新路径 |
+|---|---|
+| `dev/evidence/{manager3..13, gate0_step16, gate0_wave2..4, batch_memory_20261009, conditioned_cpu_20261008, local_panel_20261008, oof_memory_20261009, release_batch_20261009, release_followthrough_20261008, release_qualification_20261009, release_work_20261008, response_deadwork_20261008, scalar_tensor_20261008, support201, theory_incremental_20261009}`、`dev/evidence/fit_local_reuse_*.log` | `archive/evidence/<同名>`（31 项） |
+| `dev/{backtest_cache_micro, batch_cache_window, batch_window, certificate_cache_micro, conditioned_cpu_micro, conditioned_storage_micro, core_layout_micro, earlier_fit_days, earlier_window_replay, eb_convergence_probe, fit_local_reuse_micro, incremental_pending_micro, kelly_packing_micro, lazy_gradient_micro, local_panel_certificate, local_panel_profile, local_panel_routes, local_panel_short_window, local_panel_stages, oof_memory_window, release_batch, release_failure_probe, release_freeze, release_small_pipeline, scalar_tensor_micro}.jl` | `archive/scripts/<同名>`（25 项） |
+| `dev/support201/`、`dev/theory_incremental_20261009/` | `archive/research/<同名>` |
+| `dev/fit_local_reuse_20261008.md`、`dev/response_deadwork_20261008.md` | `archive/notes/<同名>` |
+
+## B. 保留在活动树（全部仍被发布/测试/工具链消费，因此不在归档范围）
+
+- `dev/probes.jl`（`bin/ceiling_probes.jl`、`test/{ceiling_probes,ceiling_admission_tests,model_api_micro_tests,cli_boundary_contract_tests}.jl` 直接 include）；
+- `dev/m1_artifact_replay.jl` + `dev/m1_replay_manifest.toml` + `dev/m1_typed_replay.md`（`test/artifact_replay_contract_tests.jl`、`bin/verify_release.jl`、`release/package_source.py` 直接引用）；
+- `dev/cpu20_acceptance.jl`、`dev/hip_core_micro.cpp`、`dev/hip_core_input.jl`（RELEASE_CPU_2_0.md / ROADMAP_2_1.md 引用的开发资产与验收驱动）；
+- `dev/evidence/{cpu20_acceptance_20261009, earlier_closure_20261009, final_2_0_0_20261009, release_freeze_20261009}/`：2.0.0 发布凭据链本体，被 `RELEASE.toml`（`[acceptance].path`、`qualification_path`）与 `bin/verify_release.jl` 钉死。
+
+## C. 与 D-002 的一致性（必须明说）
+
+D-002 保护的是**已发布文件的字节与 hash**，不是路径字符串。本次移动只改路径、未改一个字节；`bin/verify_release.jl` 与 `bin/scoped_run.sh` 的全部被钉路径均在保留集合内，发布凭据链未受损（本日实测：`bin/verify_release.jl` rc=1 走至既有 Project 版本行拦截点；`dev/cpu20_acceptance.jl status` rc=1 首先在 `c20_sources` 报 `qualified file changed/missing: dev/<已归档脚本>.jl`（具体文件名随 Dict 遍历序不定，本日两次实测分别命中 `backtest_cache_micro.jl` 与 `local_panel_certificate.jl`）——与下文「已知偏差 1」一致）。
+
+**已知且接受的偏差（如实记录，不回改旧证据）**：
+1. `dev/evidence/earlier_closure_20261009/qualification/qualification_snapshot.toml` 的 `[sources]` 记录了 25 个 `dev/*.jl` 路径（`archive/scripts/` 前身），移动后这些路径在活动树不再存在；该文件是历史记录、不随之改写。**因此 `dev/cpu20_acceptance.jl` 的 audit/status 复核在移动后无法通过其来源检查，`bin/verify_release.jl` 亦在其 `haskey` 新增检查处拦截** —— 二者均为「验证 2.0.0 历史快照语义」的工具与现状工作树的预期张力，非新缺陷（该张力在第 10 任交接登记 f 中已被登记为「新凭据链生成归重新发布流程」）。如需恢复可运行，只需把 `archive/scripts/*.jl` 移回 `dev/`（字节未变）。
+2. `Project.toml` 相对 `baseline_project_sha256` 的偏差早于本次结构调整（Gate-0 工作线登记的依赖），同样为预期张力。
+
+## D. git 策略（本次结构化的另一半）
+
+- 根 `.gitignore` 统一了全部忽略规则并新增 `archive/`；`dev/evidence/*/` 的嵌套 `.gitignore`（9 个中的 8 个在保留区内）已删除，规则收敛到根。
+- 本提交把 `archive/` 下全部路径、以及此前在活动树中跟踪的归档文件从 **git 索引**剥离（`git rm --cached`，共 728 项）：工作树文件仍在、git 历史与 tag `v2.0.0` 原样保留，只是不再跟踪。
+- 唯一保留跟踪的二进制仍是 `test/fixtures/t14294_conditioned_fold3.jls`（被冻结验收链钉死，`.gitignore` 中以 `!` 显式豁免）。
+- 被剥离文件的历史取回方式：`git show 8d54f0d:<原路径>`。
+
+## E. 入口指引
+
+- 活动树自述与验证命令：`README.md`（含「仓库结构」一节）。
+- 归档区说明与检索示例：`archive/README.md`。
+- 规范本体：本文件（`AGENTS.md`）。

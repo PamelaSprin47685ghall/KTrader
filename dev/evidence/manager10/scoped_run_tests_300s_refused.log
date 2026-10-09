@@ -1,5 +1,0 @@
-=== scoped_run_tests 300s retry attempt 2026-10-08 10:26:33 CST ===
-command: bin/scoped_run.sh 300 dev/evidence/manager10/scoped_run_tests_300s.log --rss-guard=2048 julia --startup-file=no --project=. test/scoped_run_tests.jl
-result: REFUSED TO START (wrapper 60s hard cap)
-stderr: deadline 300 exceeds the 60s hard cap; refusing to start
-outer rc=2; no log file created by wrapper; no test content executed

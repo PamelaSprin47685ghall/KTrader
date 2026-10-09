@@ -930,7 +930,7 @@ end
 # 的工程调整）：实测 N=3 relative-support fixture 在途慢收敛、264 次迭代收敛
 # （确定性复现，约 4 倍余量）；fail-loudly 契约完整保留——真停滞类（如
 # docstring 记载的 t=14294 发散迭代）在预算耗尽时照样抛错。证据：
-# dev/evidence/manager11/eb_convergence_probe.log
+# archive/evidence/manager11/eb_convergence_probe.log
 function optimize_conditioned_eb(spectrum,YtY,n;initial=1.0,tol=1e-6,gauge=nothing,
                                  iters=1000,max_backtracks=30,alpha_iters=80,return_certificate=false,
                                  fp_iters=40,fp_tol=1e-10,degenerate_witness=nothing)

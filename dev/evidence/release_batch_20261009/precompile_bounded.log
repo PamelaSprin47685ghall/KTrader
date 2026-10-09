@@ -1,5 +1,0 @@
-Precompiling packages...
-  32553.9 ms  ✓ KTrader
-  1 dependency successfully precompiled in 33 seconds. 143 already precompiled.
-KTrader loaded; image_threads=1 heap_hint=768M
-scoped_run: rc=0 elapsed=35s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=1657MiB

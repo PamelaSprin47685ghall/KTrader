@@ -1,9 +1,0 @@
-BEGIN group=numerics snapshot=680f1494d2d435847af2b4972d8be440e9f4f519fb2af0889789e302dbabeeba entries=["numerical_tests.jl", "data_tests.jl", "execution_tests.jl", "kelly_packing_tests.jl"]
-FILE numerical_tests.jl
-FILE data_tests.jl
-FILE execution_tests.jl
-FILE kelly_packing_tests.jl
-Test Summary:          | Pass  Total   Time
-Release group numerics |  446    446  27.7s
-END group=numerics passed=true counts=Test.TestCounts(true, 0, 0, 0, 0, 446, 0, 0, 0, "27.7s")
-scoped_run: rc=0 elapsed=32s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=1249MiB

@@ -1,3 +1,0 @@
-KTrader 2.0.0 Final CPU: SOURCE_VERIFIED accepted_groups=22/22 standard_files=41 manifest_unchanged=true archive_payload_files=0 GPU=2.1
-Source/evidence identity check only; no numerical tests, network or trading actions executed.
-scoped_run: rc=0 elapsed=1s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=349MiB

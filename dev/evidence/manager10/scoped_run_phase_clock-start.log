@@ -1,6 +1,0 @@
-kill: sending signal to -228184 failed: No such process
-[phase=clock-start] begin — scope: stub-copy start-boundary clock failure → fail-closed 125 with bounded leader confirmation and full group reap (old defect: KILL delivered then Cleaned=1 with no confirmation); pidfile PGID real and observable
-Test Summary:                                                     | Pass  Total  Time
-[phase=clock-start] start clock failure → 125 + confirmed cleanup |    9      9  5.3s
-[phase=clock-start] end
-scoped_run: rc=0 elapsed=6s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=337MiB

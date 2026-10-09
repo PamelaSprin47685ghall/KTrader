@@ -1,6 +1,0 @@
-kill: sending signal to -684800 failed: No such process
-[phase=clock-fail] begin — scope: counting fake awk (forwards first FAKE_AWK_OK_CALLS then fails) → rc=125 + MONO-CLOCK-FAILED phase=monitor, elapsed < deadline (fail-closed, not clock-dead hang); owned group cleaned
-Test Summary:                                                 | Pass  Total  Time
-[phase=clock-fail] controlled clock failure → fail-closed 125 |    7      7  0.3s
-[phase=clock-fail] end
-scoped_run: rc=0 elapsed=1s deadline=25 killed=0 cancelled=none rss_guard=2048 rss_peak=350MiB

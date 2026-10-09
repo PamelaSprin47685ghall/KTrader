@@ -1,4 +1,0 @@
-# manager6 guard closure 2026-10-08T04:57:22+08:00
-# bin fix: normal leader-exit path never opened cleanup window (CleanupDeadlineMs=-1 -> cleanup_window_exceeded immediate-overrun -> reap false-red GROUP-ALIVE-UNREAPED); fix = begin_cleanup_window (idempotent) before reap in run_scoped normal path. test fix: let-block phase_arg soft-scope + process_status->process_running (4 sites).
-# Phase results (each standalone scoped, guard2048, existing/1-thread): unknown/duplicate reject RC1 semantic; baseline 6/6 RC0; owner-term/int/hup 6/6 RC0 each (natural parent RC 128+sig, owned no-live, sentinel post-cancel alive); clock-mutant 5/5, clock-mono 5/5, clock-fail 7/7, clock-saturate 6/6 all RC0; selftest (post bin fix): see above line.
-# NOT done: ALL whole-file run, true-red temp-mutant negative control, arch re-admission after bin byte change (bin changed post arch_after_commentfix - required before any Julia contract per policy), full suite/multiday/GPU.
