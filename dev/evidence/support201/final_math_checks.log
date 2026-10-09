@@ -1,0 +1,27 @@
+ERROR: LoadError: Some tests did not pass: 31 passed, 1 failed, 0 errored, 0 broken.
+in expression starting at /home/kunweiz/Desktop/vibe/KTrader/dev/support201/checks.jl:13
+EVIDENCE_PART_DIFFERENCES N=5 ambient-minus-reduced=[5.115907697472721e-13, -4.297817213227972e-9, -2.1272438743835664e-7, 0.0, 1.2434497875801753e-14, -1.7763568394002505e-15]
+2.0.1 candidate: original law and analytic joint derivatives: Test Failed at /home/kunweiz/Desktop/vibe/KTrader/dev/support201/checks.jl:27
+  Expression: isapprox(-(s.value), old.value; atol = 1.0e-7, rtol = 1.0e-11)
+   Evaluated: isapprox(1521.2437887548654, 1521.243788971887; atol = 1.0e-7, rtol = 1.0e-11)
+
+Stacktrace:
+ [1] macro expansion
+   @ /usr/share/julia/stdlib/v1.12/Test/src/Test.jl:680 [inlined]
+ [2] macro expansion
+   @ ~/Desktop/vibe/KTrader/dev/support201/checks.jl:27 [inlined]
+ [3] macro expansion
+   @ /usr/share/julia/stdlib/v1.12/Test/src/Test.jl:1777 [inlined]
+ [4] macro expansion
+   @ ~/Desktop/vibe/KTrader/dev/support201/checks.jl:15 [inlined]
+ [5] macro expansion
+   @ /usr/share/julia/stdlib/v1.12/Test/src/Test.jl:1777 [inlined]
+ [6] top-level scope
+   @ ~/Desktop/vibe/KTrader/dev/support201/checks.jl:14
+EVIDENCE_PART_DIFFERENCES N=7 ambient-minus-reduced=[5.684341886080801e-13, 2.404817678325344e-8, 3.3630541906859435e-8, 0.0, 5.062616992290714e-14, -1.7763568394002505e-15]
+Test Summary:                                                  | Pass  Fail  Total  Time
+2.0.1 candidate complete mathematical and boundary checks      |   31     1     32  3.4s
+  2.0.1 candidate: original law and analytic joint derivatives |   21     1     22  1.5s
+  Candidate ownership and rejection boundaries                 |   10           10  1.9s
+RNG of the outermost testset: Xoshiro(0x7044fcc99e48eabd, 0x095db095ef5879bf, 0xdd657a74d0277cf4, 0xed8452f3b9e86cd1, 0x5df7b77d9272c275)
+scoped_run: rc=1 elapsed=12s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=841MiB

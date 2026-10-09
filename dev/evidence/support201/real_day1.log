@@ -1,0 +1,69 @@
+PREPARE date=2026-09-10 r=45 d=64 P=630 seconds=2.709111972 bytes=160949192 compile=1.980981409 support_leaks=(6.152756932563425e-14, 3.2019812889955495e-13, 4.6580566203591605e-16)
+candidate iter=1 alpha=3511.223628456166 cov_res=0.2784704645356218 alpha_res=1.0319461846943231e-16 null_gradient=-4.6789999895161383e11 objective=-1.812980465058053e6
+candidate iter=2 alpha=8010.403400236279 cov_res=0.12301757539911759 alpha_res=7.27947997978041e-17 null_gradient=-4.6789999972773926e11 objective=-1.8181385746053876e6
+candidate iter=3 alpha=11959.963216953834 cov_res=0.04894980565932019 alpha_res=2.8810109739115656e-16 null_gradient=-4.6789999985627203e11 objective=-1.8192235046606753e6
+candidate iter=4 alpha=13651.005210644444 cov_res=0.015483427199322794 alpha_res=9.502070065415052e-17 null_gradient=-4.678999998824359e11 objective=-1.81941860945416e6
+candidate iter=5 alpha=14196.554722768495 cov_res=0.002464755521511892 alpha_res=0.0 null_gradient=-4.6789999988904047e11 objective=-1.8194420565558616e6
+candidate iter=6 alpha=14293.545497615893 cov_res=7.829366433195435e-5 alpha_res=1.4609152171529284e-16 null_gradient=-4.678999998901455e11 objective=-1.819442699147551e6
+candidate iter=7 alpha=14296.72209583485 cov_res=8.279009640309589e-8 alpha_res=7.305451686818806e-17 null_gradient=-4.6789999989018134e11 objective=-1.8194426998033053e6
+candidate iter=8 alpha=14296.725456778995 cov_res=9.24868970754409e-14 alpha_res=2.4351508710700777e-17 null_gradient=-4.678999998901814e11 objective=-1.8194426998033063e6
+CANDIDATE seconds=13.554393523 bytes=2246747096 compile=6.289465878
+COMPARED alpha before=14296.715161011329 after=14296.725456778995 relative_delta=7.2014917765156e-7 Sigma relative=6.951594057986429e-9 mean_relative=4.945218228681969e-7 original_cert=(valid = true, alpha = (valid = true, location = :interior, slope = -2.6147972675971687e-12, rel_res = 5.60084700346118e-16), covariance = (valid = true, symmetry = 0.0, support = 4.558709328484943e-16, min_eigenvalue = 9.999999907022026e-9, projected_residual = 4.753558213511914e-10, active_directions = 19, free_rms = 9.340392701608474e-14, cross_max = 1.4121089382376027e-12, active_block_max = -0.9999999883863079), evidence = 1.8194426997569655e6)
+
+[1593085] signal 15: Terminated
+in expression starting at /home/kunweiz/Desktop/vibe/KTrader/dev/support201/real_probe.jl:57
+unknown function (ip: 0x7f3fc7951952) at /usr/bin/../lib/libc.so.6
+epoll_wait at /usr/bin/../lib/libc.so.6 (unknown line)
+_backend_poll_once! at /home/kunweiz/.julia/packages/Reseau/tHzjm/src/iopoll/epoll.jl:268
+_poller_thread_main! at /home/kunweiz/.julia/packages/Reseau/tHzjm/src/iopoll/runtime.jl:460
+_poller_thread_entry at /home/kunweiz/.julia/packages/Reseau/tHzjm/src/iopoll/runtime.jl:482
+jlcapi__poller_thread_entry_20137 at /home/kunweiz/.julia/compiled/v1.12/Reseau/vKBJ8_6N9Xv.so (unknown line)
+unknown function (ip: 0x7f3fc79490a1) at /usr/bin/../lib/libc.so.6
+unknown function (ip: 0x7f3fc79d180b) at /usr/bin/../lib/libc.so.6
+unknown function (ip: (nil)) at (unknown file)
+_ZN4llvm22ProfileSummaryAnalysis3runERNS_6ModuleERNS_15AnalysisManagerIS1_JEEE at /usr/bin/../lib/julia/../libLLVM.so.18.1jl (unknown line)
+unknown function (ip: 0x7f3fc3cdbd22) at /usr/bin/../lib/julia/../libLLVM.so.18.1jl
+_ZN4llvm15AnalysisManagerINS_6ModuleEJEE13getResultImplEPNS_11AnalysisKeyERS1_ at /usr/bin/../lib/julia/../libLLVM.so.18.1jl (unknown line)
+_ZN4llvm17AlwaysInlinerPass3runERNS_6ModuleERNS_15AnalysisManagerIS1_JEEE at /usr/bin/../lib/julia/../libLLVM.so.18.1jl (unknown line)
+unknown function (ip: 0x7f3fbc40ce26) at /usr/bin/../lib/julia/libjulia-codegen.so.1.12
+_ZN4llvm11PassManagerINS_6ModuleENS_15AnalysisManagerIS1_JEEEJEE3runERS1_RS3_ at /usr/bin/../lib/julia/../libLLVM.so.18.1jl (unknown line)
+unknown function (ip: 0x7f3fbc40ad26) at /usr/bin/../lib/julia/libjulia-codegen.so.1.12
+unknown function (ip: 0x7f3fbc363cab) at /usr/bin/../lib/julia/libjulia-codegen.so.1.12
+unknown function (ip: 0x7f3fbc364bec) at /usr/bin/../lib/julia/libjulia-codegen.so.1.12
+unknown function (ip: 0x7f3fbc366b7f) at /usr/bin/../lib/julia/libjulia-codegen.so.1.12
+jl_compile_codeinst_impl at /usr/bin/../lib/julia/libjulia-codegen.so.1.12 (unknown line)
+jl_compile_method_internal at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+ijl_apply_generic at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+#record#31 at /build/julia/src/julia-1.12.7/usr/share/julia/stdlib/v1.12/Test/src/Test.jl:1116
+record at /build/julia/src/julia-1.12.7/usr/share/julia/stdlib/v1.12/Test/src/Test.jl:1109 [inlined]
+do_test at /build/julia/src/julia-1.12.7/usr/share/julia/stdlib/v1.12/Test/src/Test.jl:713
+macro expansion at /build/julia/src/julia-1.12.7/usr/share/julia/stdlib/v1.12/Test/src/Test.jl:680 [inlined]
+macro expansion at /home/kunweiz/Desktop/vibe/KTrader/dev/support201/real_probe.jl:51 [inlined]
+macro expansion at /build/julia/src/julia-1.12.7/usr/share/julia/stdlib/v1.12/Test/src/Test.jl:1777 [inlined]
+main at /home/kunweiz/Desktop/vibe/KTrader/dev/support201/real_probe.jl:50
+unknown function (ip: 0x7f3fa624fcf3) at (unknown file)
+unknown function (ip: 0x7f3fc6fb95ec) at /usr/bin/../lib/julia/libjulia-internal.so.1.12
+unknown function (ip: 0x7f3fc6fb8ce7) at /usr/bin/../lib/julia/libjulia-internal.so.1.12
+unknown function (ip: 0x7f3fc6fb9e43) at /usr/bin/../lib/julia/libjulia-internal.so.1.12
+unknown function (ip: 0x7f3fc6fbb218) at /usr/bin/../lib/julia/libjulia-internal.so.1.12
+jl_toplevel_eval_flex at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+jl_toplevel_eval_flex at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+ijl_toplevel_eval at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+ijl_toplevel_eval_in at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+unknown function (ip: 0x7f3fb010e5c2) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f3fb04c60bf) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f3faf8f5e9a) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f3fb002d1ab) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f3fb00320f3) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f3faff33b4b) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f3fb0843dc3) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f3fc7006e27) at /usr/bin/../lib/julia/libjulia-internal.so.1.12
+jl_repl_entrypoint at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+main at julia (unknown line)
+unknown function (ip: 0x7f3fc78d8780) at /usr/bin/../lib/libc.so.6
+__libc_start_main at /usr/bin/../lib/libc.so.6 (unknown line)
+_start at julia (unknown line)
+unknown function (ip: (nil)) at (unknown file)
+Allocations: 43007332 (Pool: 43006620; Big: 712); GC: 60
+TIMEOUT-EXCEEDED pgid=1593085 deadline=45s child_rc=137 (timeout is never success)
+scoped_run: rc=124 elapsed=40s deadline=45 killed=1 cancelled=none rss_guard=2048 rss_peak=1342MiB

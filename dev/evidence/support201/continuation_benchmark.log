@@ -1,0 +1,14 @@
+date=2026-09-10 COLD seconds=4.145069841 bytes=772163336 compile=3.723819218 accepted=true iterations=8
+vs2.0_original alpha_relative=7.201491758703221e-7 covariance_relative=6.951593686336541e-9 original_alpha_gate=false original_cov_gate=false
+date=2026-09-11 COLD seconds=0.605298072 bytes=329510728 compile=0.0 accepted=true iterations=8
+REPEAT_COLD seconds=0.194452426 bytes=329510728 compile=0.0 iterations=8
+WARM_CANDIDATE seconds=0.161924197 bytes=153580336 compile=0.072292233 accepted=true iterations=3
+REPEAT_WARM seconds=0.322001222 bytes=148893528 compile=0.0 accepted=true iterations=3
+Test Summary:                                               | Pass  Total  Time
+Research warm/cold candidate agrees on this transition only |    3      3  0.0s
+warm_cold_alpha_relative=1.29193856274589e-11 sigma_relative=3.1881452999055257e-12
+ORIGINAL_OPTIMIZER first_seconds=0.959597222 first_compile=0.005428973 repeat_seconds=1.216495874 repeat_compile=0.0 repeat_bytes=1028898616 iterations=7 certificate=(valid = true, alpha = (valid = true, location = :interior, slope = -1.1368683772161603e-13, rel_res = 2.435136333385832e-17), covariance = (valid = true, symmetry = 2.150070506693651e-16, support = 3.396898159221377e-16, min_eigenvalue = 9.999999740939134e-9, projected_residual = 8.915768547808807e-8, active_directions = 19, free_rms = 1.0621574419114573e-7, cross_max = 7.2688793139501026e-12, active_block_max = -0.9999999640625025), evidence = 1.81943920067803e6)
+candidate_vs_current_BLAS1_reference alpha_relative=7.292543292750533e-7 covariance_relative=8.204379079053218e-8 alpha_gate=false covariance_gate=false
+vs2.0_original alpha_relative=7.292543292750533e-7 covariance_relative=8.204379080698184e-8 original_alpha_gate=false original_cov_gate=false
+No general basin/OOF-isolation proof from one transition; production unchanged
+scoped_run: rc=0 elapsed=19s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=1467MiB

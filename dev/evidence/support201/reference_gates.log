@@ -1,0 +1,57 @@
+PREPARE date=2026-09-10 r=45 d=64 P=630 seconds=1.402673155 bytes=160946472 compile=1.166804469 support_leaks=(6.152756932563425e-14, 3.2019812889955495e-13, 4.6580566203591605e-16)
+candidate iter=1 alpha=3511.223628456166 cov_res=0.2784704645356218 alpha_res=1.5479192770414847e-16 null_gradient=-4.6789999895161383e11 objective=-1.812980465058053e6
+candidate iter=2 alpha=8010.403400236193 cov_res=0.12301757539911926 alpha_res=3.6397399898901876e-17 null_gradient=-4.6789999972773926e11 objective=-1.8181385746053872e6
+candidate iter=3 alpha=11959.96321695379 cov_res=0.048949805659321347 alpha_res=3.7674758889612716e-16 null_gradient=-4.6789999985627203e11 objective=-1.8192235046606753e6
+candidate iter=4 alpha=13651.005210644493 cov_res=0.015483427199322806 alpha_res=1.4253105098122605e-16 null_gradient=-4.678999998824359e11 objective=-1.81941860945416e6
+candidate iter=5 alpha=14196.55472276847 cov_res=0.0024647555215124846 alpha_res=2.4259401683530696e-17 null_gradient=-4.6789999988904047e11 objective=-1.8194420565558616e6
+candidate iter=6 alpha=14293.545497615867 cov_res=7.829366433167729e-5 alpha_res=9.739434781019513e-17 null_gradient=-4.678999998901455e11 objective=-1.8194426991475509e6
+candidate iter=7 alpha=14296.722095834824 cov_res=8.279009584146887e-8 alpha_res=2.4351505622729335e-17 null_gradient=-4.6789999989018134e11 objective=-1.819442699803305e6
+candidate iter=8 alpha=14296.725456778995 cov_res=9.225905463589054e-14 alpha_res=1.4610905226420466e-16 null_gradient=-4.678999998901814e11 objective=-1.819442699803306e6
+CANDIDATE seconds=4.289555344 bytes=772609192 compile=3.768254774
+REFERENCE_CERTIFICATE (valid = true, alpha = (valid = true, location = :interior, slope = 0.0003017151046833533, rel_res = 6.462678787624414e-8), covariance = (valid = true, symmetry = 2.063219197695912e-16, support = 5.095132971077632e-16, min_eigenvalue = 9.999999740020798e-9, projected_residual = 4.2257131205422385e-9, active_directions = 19, free_rms = 8.435363011540402e-15, cross_max = 3.913898121474048e-12, active_block_max = -0.9999999684659833), evidence = 1.8194426999725723e6)
+SAME_REFERENCE_POINT compression_only covariance_relative=6.277170911892432e-16 mean_relative=7.013764142500486e-13 covariance_gate=true mean_gate=true
+COMPARED alpha before=14296.715161011329 after=14296.725456778995 relative_delta=7.2014917765156e-7 Sigma relative=6.9515936662309995e-9 mean_relative=4.945218228784497e-7 original_cert=(valid = true, alpha = (valid = true, location = :interior, slope = -1.4779288903810084e-12, rel_res = 3.1656961323911017e-16), covariance = (valid = true, symmetry = 0.0, support = 4.2872205385599137e-16, min_eigenvalue = 9.999999870389487e-9, projected_residual = 6.292355988893456e-10, active_directions = 19, free_rms = 9.294241743702753e-14, cross_max = 1.543605001022705e-12, active_block_max = -0.9999999891526468), evidence = 1.8194426997697924e6)
+ORIGINAL_GATES (alpha = false, covariance = false, mean = false)
+SAVED day1_6bcddbda2411.jls sha256=c742f764d20c4262a4a1d760ec8ca84ca48edd8c31c3deb79df0b9dd48ba3cb5
+ERROR: LoadError: Some tests did not pass: 1 passed, 3 failed, 0 errored, 0 broken.
+in expression starting at /home/kunweiz/Desktop/vibe/KTrader/dev/support201/real_probe.jl:82
+Actual third-fold original certificate and reference posterior: Test Failed at /home/kunweiz/Desktop/vibe/KTrader/dev/support201/real_probe.jl:76
+  Expression: checks.alpha
+
+Stacktrace:
+ [1] macro expansion
+   @ /usr/share/julia/stdlib/v1.12/Test/src/Test.jl:680 [inlined]
+ [2] macro expansion
+   @ ~/Desktop/vibe/KTrader/dev/support201/real_probe.jl:76 [inlined]
+ [3] macro expansion
+   @ /usr/share/julia/stdlib/v1.12/Test/src/Test.jl:1777 [inlined]
+ [4] main()
+   @ Main ~/Desktop/vibe/KTrader/dev/support201/real_probe.jl:75
+Actual third-fold original certificate and reference posterior: Test Failed at /home/kunweiz/Desktop/vibe/KTrader/dev/support201/real_probe.jl:77
+  Expression: checks.covariance
+
+Stacktrace:
+ [1] macro expansion
+   @ /usr/share/julia/stdlib/v1.12/Test/src/Test.jl:680 [inlined]
+ [2] macro expansion
+   @ ~/Desktop/vibe/KTrader/dev/support201/real_probe.jl:77 [inlined]
+ [3] macro expansion
+   @ /usr/share/julia/stdlib/v1.12/Test/src/Test.jl:1777 [inlined]
+ [4] main()
+   @ Main ~/Desktop/vibe/KTrader/dev/support201/real_probe.jl:75
+Actual third-fold original certificate and reference posterior: Test Failed at /home/kunweiz/Desktop/vibe/KTrader/dev/support201/real_probe.jl:78
+  Expression: checks.mean
+
+Stacktrace:
+ [1] macro expansion
+   @ /usr/share/julia/stdlib/v1.12/Test/src/Test.jl:680 [inlined]
+ [2] macro expansion
+   @ ~/Desktop/vibe/KTrader/dev/support201/real_probe.jl:78 [inlined]
+ [3] macro expansion
+   @ /usr/share/julia/stdlib/v1.12/Test/src/Test.jl:1777 [inlined]
+ [4] main()
+   @ Main ~/Desktop/vibe/KTrader/dev/support201/real_probe.jl:75
+Test Summary:                                                  | Pass  Fail  Total  Time
+Actual third-fold original certificate and reference posterior |    1     3      4  0.8s
+RNG of the outermost testset: Random.Xoshiro(0x3eab4786d0a6c2fd, 0xa5276f3853cab13d, 0x4cd6ab203ab2ba04, 0x63d55829af0b8a28, 0x692855f4bad53fe0)
+scoped_run: rc=1 elapsed=17s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=1297MiB

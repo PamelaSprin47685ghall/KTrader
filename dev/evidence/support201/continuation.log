@@ -1,0 +1,10 @@
+ERROR: LoadError: UndefVarError: `first` not defined in local scope
+Suggestion: check for an assignment to a local variable that shadows a global of the same name.
+Hint: a global variable of this name also exists in Base.
+Stacktrace:
+ [1] main()
+   @ Main ~/Desktop/vibe/KTrader/dev/support201/continuation_probe.jl:24
+ [2] top-level scope
+   @ ~/Desktop/vibe/KTrader/dev/support201/continuation_probe.jl:62
+in expression starting at /home/kunweiz/Desktop/vibe/KTrader/dev/support201/continuation_probe.jl:62
+scoped_run: rc=1 elapsed=8s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=997MiB

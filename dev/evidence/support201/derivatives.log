@@ -1,0 +1,13 @@
+ERROR: LoadError: ParseError:
+# Error @ /home/kunweiz/Desktop/vibe/KTrader/dev/support201/solver.jl:96:63
+    ALO<=alpha<=AHI || throw(ArgumentError("alpha outside original bounds"))
+    v=1.0./(g.values.+alpha); va=-alpha.*v.^2; vaa=va.+2alpha^2.*v.^3
+#                                                             └┘ ── ambiguous `.` syntax; add whitespace to clarify (eg `1.+2` might be `1.0+2` or `1 .+ 2`)
+Stacktrace:
+ [1] top-level scope
+   @ ~/Desktop/vibe/KTrader/dev/support201/solver.jl:96
+ [2] top-level scope
+   @ ~/Desktop/vibe/KTrader/dev/support201/checks.jl:2
+in expression starting at /home/kunweiz/Desktop/vibe/KTrader/dev/support201/solver.jl:96
+in expression starting at /home/kunweiz/Desktop/vibe/KTrader/dev/support201/checks.jl:2
+scoped_run: rc=1 elapsed=5s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=676MiB

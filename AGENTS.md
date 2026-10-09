@@ -6699,3 +6699,1439 @@ KTrader 的目标不是：
 > **先把代码和数学读透；能静态解决绝不跑，能微基准绝不大跑；每个 Gate 必须完全站稳再进下一层，一旦后层破坏前层立即回退；任何时候都宁可优雅重构，也不准拿临时破烂顶上。**
 
 这就是 KTrader 的开发纪律。
+==> docs/INNOVATION_LAW.md <==
+# KTrader Innovation Law — SPEC 级定义草案
+
+**文档状态：草案（Gate 0 重开后 Deliverable 5），交 SPEC 审查。**
+**性质：定义与现状盘点，不是实现；本文件的任何目标条款都不改变当前运行时行为，落地须另立受控施工。**
+**证据基准：当前工作树源码只读核对（HEAD 602b897 + dirty 47 时点）；全部引用为 `file:line`。**
+**纪律：本文中所有「具体选择」均标注「留待 SPEC 审查决定，禁止由回测选择」——任何先验、kernel 形式、正则化与收敛判据都不得以回测收益/Sharpe 作为裁决依据（SPEC §95、开发守则 §24）。**
+
+---
+
+## 0. 阅读约定
+
+- $\mathcal H_t$ 为价格历史信息集；$\varepsilon$ 为 OOF 残差，$\varepsilon_t = r_{t+1}-\hat\mu_t^{(-fold)}$（`src/predict.jl:5` 的模块定义）。
+- $V_t(d)$ 为本文目标对象：vector innovation memory；$z$ 为标准化形状（standardized shape）。
+- 「带先验的未知对象」「点估计 plug-in」「条件后验」等阅读约定沿用 `docs/POSTERIOR_DEFINITION.md`（下称 D4，Deliverable 4）第 0 节；本文不复制 D4 的未知对象清单，只处理 innovation 这一层。
+- 凡本文件与源码冲突，以源码事实为准；凡本文件与 SPEC 冲突，以 SPEC 为规范，本文件如实记录张力供审查。
+- 本文的「目标」一词指**定义草案中的规范对象**，不声称已实现，也不构成施工授权。
+
+---
+
+## 1. 当前实现的精确映射
+
+### 1.1 链条：从 macro OOF 残差到场景缩放（四步）
+
+**第一步：macro OOF 标量残差序列。**
+`solve(prep)` 在决策时刻调用 `macro_residual_series(res_history)`（`src/predict.jl:493-495`），得到 $e \in \mathbb R^{n_{res}}$。该序列由 `ResidualOracle` 每次调用重算（`src/residual_oracle.jl:216-260`），公式为
+
+```text
+e[idx] = sum(r[O])/sqrt(c) - mu_macro*sw/c - dot(h, x_t)/sqrt(c)
+```
+
+（`src/residual_oracle.jl:257`；契约注释 `src/residual_oracle.jl:39-49`）；空观察行记 $e_{idx}=0.0$（`src/residual_oracle.jl:239`）。关键事实：**这是 macro 通道的一个标量投影，不是 $N$ 维残差向量**——全 $N$ 维残差只在被显式请求的行上计算（`src/residual_oracle.jl:50-53`、`150-211`）。
+
+**第二步：fractional posterior。**
+`causal_fractional_posterior(e_res_m)`（`src/predict.jl:496-498`）在网格 `DGRID_V1`（`src/predict.jl:10`）上经 FFT 求 quasi-log-likelihood 与 per-$d$ 预测方差。实现为 `fractional_likelihood!`（`src/predict.jl:101-119`）：
+
+- `variance = max(work.output[t-1]/cs[t-1], 1e-10)`（`src/predict.jl:112`）——这是 causal conditional variance $v_t(d)$ 的有限卷积实现；
+- `counts[g] = cumsum(frac_weights(d, L÷2))`（`src/numerics.jl:425`），`kernels[g]` 取 `frac_weights` 的正变换（`src/numerics.jl:419-426`）；
+- fractional kernel 由 `frac_weights(d,n)` 递推给出（`src/predict.jl:12`；SPEC §31 的 $\pi_k$）。
+
+后验权重 $p_d \propto \exp(\ell(d))\cdot \Delta d$，其中 $\Delta d$ = `DELTA_D_V1`：`log_weights = ll .+ log.(DELTA_D_V1)`（`src/predict.jl:14`、`94-96`）。
+
+**第三步：per-$d$ 预测方差与 bootstrap 锚点。**
+
+- `forecasts[g] = max(work.output[T]/cs[T], 1e-10)`（`src/predict.jl:116`）——即 $v_{T+1}(d)$ 的当前实现（SPEC §32）；
+- `v_bootstrap = max(var(e_res_m), 1e-8)`（`src/predict.jl:499`）。
+
+**第四步：场景缩放（`generate_scenarios_v1`，`src/predict.jl:546-625`）。**
+
+- 均匀行抽样：`row = min(floor(Int, ur_of(s)*T)+1, T)`（`src/predict.jl:591`），其中 `ur_of(s) = uniforms[s,2]`（`src/predict.jl:578`）、`uniforms = rand(rng, S, N+2)`（`src/predict.jl:552`）。**同一场景的全部资产共享同一个历史行**（`src/predict.jl:616` 的 `k0 = position[row_of[s]]`，`src/predict.jl:618-619`），即「横截面 shape = 该历史行的经验 shape」。
+- 缺失 cell 的 own-row 回退：`back_of[s,j]` 指向该资产自身的有效残差行（`src/predict.jl:596-602`），有效行定义 `own[j] = {idx : isfinite(r[ts_total[idx]+1, j])}`（`src/residual_oracle.jl:54-56`、`264-274`）。
+- $d$ 抽样：`d = min(searchsortedfirst(cumsum(d_posterior), ud), length(cumulative))`（`src/predict.jl:613-614`）。
+- 缩放与合成：`scale = sqrt(model.v_forecasts[d]/model.v_bootstrap)`（`src/predict.jl:615`）；`loggross = (mu_m*e0[j] + relative[j,s] - shift)*s1[j] + residual*scale`（`src/predict.jl:620`）；`gross = exp(loggross)`（`src/predict.jl:621`）。
+
+数学形式即 SPEC §35 的公式：
+
+$$
+\log R_i^{(s)}
+=
+\left(\mu_m^{(s)} e_{0,i}+\mu_{rel,i}^{(s)}-\overline{\mu_{rel}^{(s)}}\right)s_{1,i}
++
+\underbrace{\sqrt{\tfrac{v_{T+1}(d_s)}{v_{bootstrap}}}\,\varepsilon_{i,row_s}^{OOF}}_{\text{当前 innovation 通道（标量缩放 × 经验行）}}.
+$$
+
+### 1.2 该结构所编码的强假设（逐条）
+
+**A1 — common scalar scaling。** innovation 的记忆结构只有一个标量自由度 `scale`（`src/predict.jl:615`），所有资产、所有方向共用同一个缩放。等价于假设：风险的时间变化是横截面均匀的；不允许「今天某类资产的波动比另一类更可预测」。
+
+**A2 — 横截面 shape = 历史无条件分布。** 行 bootstrap 直接复用历史行的完整横截面向量（`src/predict.jl:591`、`608`、`619`），不做逐行标准化。任意时间点的 innovation 形状都是历史无条件行分布的一个样本；条件信息（当前 $V_t$ 的形状）不改变 shape。
+
+**A3 — 无 mode/asset-specific conditional risk。** $d$ 只进入标量 `scale`（`src/predict.jl:615`）；relative 方向的协方差与 $d$ 无关；唯一的记忆序列是 macro 标量投影（`src/predict.jl:493-495`）。资产 $j$ 的条件方差隐含地只有 $s_{1,j}^2 \cdot scale^2 \cdot$（该资产残差的历史经验二阶矩），没有资产特定的记忆结构。
+
+**A4 — tail shape 不变。** bootstrap 原样取历史行（`src/predict.jl:608` 的 `residual_rows`），不改变任何高阶矩——尾部、偏度、峰度全部由经验测度的无条件分布决定。
+
+**A5 — 行间 i.i.d.。** 场景之间行抽样独立均匀（`src/predict.jl:590-604` 的 pass 1 完全由 uniforms 与 mask 决定），无跨时间的条件依赖；时间记忆只通过标量 $v(d)$ 一条通道体现。
+
+**A6 — $d$ 与 shape 独立。** $d$ 抽样（`src/predict.jl:613-614`）与行抽样（`src/predict.jl:591`）、relative draw（`src/predict.jl:570-572`）相互独立；$d$ 不重塑横截面。
+
+**A7 — 空观察行零填充。** 历史中 $c=0$ 的行以 $e=0$ 进入 fractional likelihood 与 $v_{bootstrap}$（`src/residual_oracle.jl:239`）；这是一个被显式接受的经验处理，不是缺失残差的概率模型。
+
+### 1.3 目标 vs 当前：逐项差距表
+
+| # | 目标条款（本文第 2/3 节） | 当前事实 | 差距性质 | 证据 |
+|---|--------------------------|----------|----------|------|
+| 1 | 记忆为矩阵 $V_t(d)$（asset 坐标 $N\times N$） | 只有标量 $v_t(d)$，且仅作用于 macro 投影 | 结构缺失 | `src/predict.jl:116`、`493-495` |
+| 2 | 逐行标准化 $z_s=V_{s-1}^{-1/2}\varepsilon_s$ | 无标准化；直接使用未标准化的历史行 | 结构缺失 | `src/predict.jl:608`、`619` |
+| 3 | 反标准化因子 $V_t^{1/2}$ | 全局标量 $\sqrt{v_{T+1}(d)/v_{bootstrap}}$ | 结构缺失 | `src/predict.jl:615` |
+| 4 | 方向性条件风险（relative/asset 记忆） | relative 方向与历史无条件分布绑定 | 结构缺失 | `src/predict.jl:619-620` |
+| 5 | $d$ 可重塑 innovation 形状 | $d$ 只进入标量缩放 | 结构缺失 | `src/predict.jl:613-615` |
+| 6 | ragged 缺失 cell 的 own-row fallback | 已有结构性回退（只依赖 mask 与 uniform） | 语义兼容，标准化语义待钉死 | `src/predict.jl:596-602`、`src/residual_oracle.jl:264-274` |
+| 7 | 因果性：$V_t$ 只用 $\le t$ 信息 | 已满足（行抽样只在历史行内） | 无差距，目标须继承 | `src/predict.jl:590-604` |
+| 8 | 唯一对称 PSD 因子约定 | relative draw 已用 `principal_sqrt_root` | 可沿用同一规范 | `src/predict.jl:564-570`、`src/numerics.jl:452-460` |
+
+### 1.4 与 SPEC 的关系
+
+SPEC §30 已明确：当前 innovation 是「OOF residual cross-sectional row bootstrap + macro residual 上 fractional-memory volatility scaling + missing cell 用该资产 own observed residual row 回退」，是 KISS 版 non-Markov risk，**不声称是最终完整无限维 innovation law**。本文的目标对象就是这个 KISS 版之后的规范对象：把 scalar 记忆升级为 vector memory。本文件不改变任何运行时行为。
+
+---
+
+## 2. 目标对象：vector innovation memory
+
+### 2.1 定义
+
+对 `DGRID_V1` 的每个 grid point $d$，定义 causal vector innovation memory：
+
+$$
+\boxed{
+V_t(d)
+=
+\frac{\sum_{\tau\ge 1} k_d(\tau)\,\varepsilon_{t+1-\tau}\,\varepsilon_{t+1-\tau}^{\top}}
+{\sum_{\tau\ge 1} k_d(\tau)}
+}
+,\qquad \varepsilon_s \in \mathbb R^{N_{active}}
+$$
+
+其中：
+
+- $k_d$ 是与当前 `frac_weights` **同一个** fractional kernel（`src/predict.jl:12`；SPEC §31 的 $\pi_k$）；不得在 vector 版另立第二套 kernel（domain-language 纪律：一个概念一个词）。
+- $\varepsilon_s$ 为 OOF 残差行，行身份语义沿用 `ResidualOracle` 契约：行 $idx$ 对应全局日 $t=ts\_total[idx]$，目标为 $r[t+1,:]$（`src/residual_oracle.jl:17-22`）。
+- 下标 $t+1-\tau \le t$ 对 $\tau \ge 1$ 恒成立，保证 $V_t$ 只用决策时已知信息（见 3.2）。
+
+**性质：**
+
+- **PSD**：$k_d(\tau)\ge 0$（`frac_weights` 递推 $(k-1+d)/k$，$d \in (0,1]$，`src/predict.jl:12`），故 $V_t(d)$ 是半正定矩阵的加权和，构造性 PSD。
+- **极限一致性**：$d=1$ 时 $k_1 \equiv 1$，$V_t(1)$ 退化为历史等权二阶矩；$d\to 0$ 时 kernel 快速衰减，$V_t$ 趋于最近少数行的二阶矩——与当前 scalar $v_t(d)$ 的极限一致（同一 kernel，`src/predict.jl:116`）。
+- **归一化**：分母 $\sum_\tau k_d(\tau)$ 与当前实现 `counts=cumsum(frac_weights)`（`src/numerics.jl:425`）同源；其精确形式（截断长度、是否含 burn）列未决（6.1、6.3）。
+
+### 2.2 common/relative gauge 分解
+
+沿用项目既有分解（SPEC §12-15）：
+
+$$
+\varepsilon = e_0\,\varepsilon_m + Q\,\varepsilon_\perp,
+\qquad
+\varepsilon_m = e_0^{\top}\varepsilon,\quad
+\varepsilon_\perp = Q^{\top}\varepsilon,
+$$
+
+其中 $e_0$ 为 center-of-mass 单位向量（alive 坐标上等权，`src/predict.jl:473-478`），$Q$ 为 Helmert fixed gauge（零和支撑；`relative_gauge(N)`，`src/predict.jl:371` 的构造性 witness 注释引用之，定义见 `src/numerics.jl`，D4 §1 #9 引用其在 `src/numerics.jl:368-380` 的使用）。
+
+在 asset 坐标下 $V_t$ 相应分解为
+
+$$
+V_t
+=
+e_0 V_m e_0^{\top}
++
+e_0 c_t^{\top}
++
+c_t e_0^{\top}
++
+Q\,V_\perp\,Q^{\top},
+\qquad
+V_m = e_0^{\top} V_t e_0,\quad
+V_\perp = Q^{\top} V_t Q,\quad
+c_t = Q^{\top} V_t e_0 .
+$$
+
+**要求：**
+
+- **PSD**：$V_t(d) \succeq 0$（构造保证）。若标准化需要可逆，必须显式加正则化（6.2），不得静默丢弃零特征方向。
+- **support**：relative 分量必须落在 $Q$ 的零和支撑内；ragged 语义沿用 zero-embedded 场的定义（`src/predict.jl:38-70`）：缺失坐标在 field 代数里嵌入为 0，但**观察 mask 必须单独保留**（`src/predict.jl:68`），$V_t$ 的统计只由实际观测的行定义。不得把 zero-embedding 当成「缺失收益 = 0」的概率模型（SPEC §12.1）。
+- **permutation covariance**：资产列置换 $\Pi$ 下 $V_t \to \Pi V_t \Pi^{\top}$、目标权重 $\to \Pi^{\top} w$（SPEC §58）。任何依赖列编号的构造（例如固定的第一个资产角色）都是 bug。
+- **gauge covariance**：$Q \to QR$（$R$ 正交）下 asset-space 对象不得改变（SPEC §59）。relative 归一必须用 per-band gauge-invariant scalar（`s_perp` 的既有教训，`src/predict.jl:22`、`279`；SPEC §15），**不得逐 coordinate 归一**。
+- **alive 集合与扩维**：$V_t$ 只在当前 active/alive 坐标上定义；新资产上市（IPO、active-space 扩维）不得改变已有资产的 $V_t$ 子块（SPEC §11、§60 的 dummy/inactive invariance 在 innovation 层的推广；SPEC §50 的 exact coordinate embedding）。
+
+### 2.3 与当前 scalar 对象的关系（诚实映射）
+
+当前 `v_t(d)` 的标量序列是 $V_t(d)$ 在 macro 方向的一个**投影**：`src/predict.jl:116` 的 `output[T]/cs[T]` 实现的是 $\big(\sum_\tau k_d(\tau)\, e_{t+1-\tau}^2\big)/\big(\sum_\tau k_d(\tau)\big)$，其中 $e$ 是 macro 标量残差（`src/predict.jl:493-495`）。目标对象把同一 kernel 作用到完整向量残差上。
+
+措辞纪律：scalar 版是**当前实现的合法 KISS 版**（SPEC §30 原话），vector 版是本文提交审查的**目标定义**。二者之间不是「近似 → 精确」的自动升级，而是规范选择（见第 4 节禁止项 1）。
+
+---
+
+## 3. 采样定律
+
+### 3.1 standardized-shape 协议
+
+目标场景的 innovation 部分定义为：
+
+1. **标准化（历史形状）**：对历史每一行 $s \le t$，
+   $$
+   z_s = V_{s-1}^{-1/2}\,\varepsilon_s
+   \quad\text{（含正则化，见 6.2）}.
+   $$
+2. **反标准化（未来抽样）**：在决策时刻 $t$，
+   $$
+   \varepsilon_{t+1} = V_t^{1/2}\, z_{s'},
+   $$
+   其中 $z_{s'}$ 是从历史标准化形状 $\{z_s\}$ 的经验测度中抽样的一个样本（或参数化分布的一个 draw，见 6.9）。
+
+**要求：**
+
+- 因子 $V^{1/2}$ 必须用唯一对称 PSD 主根（canonical convention）：`principal_sqrt_root` 的既有裁决——同 $\Sigma$ 在同 seed 有限场景下逐点到 roundoff 一致，不截秩、不掉小正特征值（`src/numerics.jl:438-460`）。这是 `src/predict.jl:564-570` 已为 relative draw 采纳的规范耦合；innovation 通道沿用同一约定，消除特征向量符号/简并基旋转自由度。
+- 标准化与反标准化必须共用**同一次、同一个** $V$ 分解（同一个正则化 $\delta$、同一个因子约定）；禁止用两次独立分解的两个因子相乘。
+- 形状抽样必须与 response 通道的 draw 使用独立随机流位置，保持 `rand`/`randn!` 消耗顺序的确定性契约（`src/predict.jl:533-545` 注释；SPEC §36）。
+
+### 3.2 因果性（严格论证）
+
+- $V_t(d)$ 的构造只含 $\varepsilon_{t+1-\tau}$，$\tau \ge 1$，即全局日 $\le t$ 的已实现残差；预测日 $t+1$ 的残差不在项内（2.1 定义）。
+- 行抽样只在历史行 $1..T$ 内（`src/predict.jl:591`）；own-row 回退只从该资产历史有效行集合抽（`src/residual_oracle.jl:264-274`）。两者都满足「$V_t$ 只用 $\le t$ 信息」。
+- $z_s = V_{s-1}^{-1/2}\varepsilon_s$ 中 $V_{s-1}$ 只含 $\le s-1$ 的行，$\varepsilon_s$ 自身属于 $s$ 时刻已实现（$s \le t$），故 $z_s$ 在 $t$ 时刻可算；$\varepsilon_{t+1} = V_t^{1/2} z_{s'}$ 严格因果。
+- 禁止：把 $\varepsilon_{t+1}$ 自己、或任何 $>t$ 的行放进 $V_t$；禁止用未来行参与标准化集合的构造。
+
+### 3.3 support 条件
+
+- 若 $V_t$ 奇异（秩 $<N$ 或数值近奇异），$V_t^{-1/2}$ 沿零特征方向无定义。协议必须声明正则化：$V_t + \delta_t I$ 或特征值 floor；$\delta$ 的选择必须带 refinement 证据（6.2），且与 `EB_COVARIANCE_FLOOR` 的数值保护语义明确区分（SPEC §25；D4 §1 #4 引用 `src/response.jl:209`）。
+- relative 分量的标准化必须在 $N-1$ 维 gauge support 内做；不得在含 $e_0$ 的 $N$ 维空间里做再投影（会产生假的 macro 泄漏）。
+- permutation/gauge 协变性必须在标准化算子层面成立：$V^{-1/2}$ 与 $V^{1/2}$ 必须共享同一 gauge 约定；否则 $Q\to QR$ 会改变抽样分布（SPEC §59）。
+
+### 3.4 ragged 缺失 cell 的 own-row fallback 语义
+
+当前语义（事实）：场景 $s$ 抽中行 `row` 后，对每个资产 $j$，若 $(row,j)$ 缺失，则回退到该资产自己的历史有效残差行（`src/predict.jl:596-602` 的 `back_of`；`src/residual_oracle.jl:264-274`）；回退行的选择只依赖观察 mask 与 uniform，不依赖残差数值（`src/predict.jl:576-604` 的 pass 1 设计，与 `src/predict.jl:544-545` 的契约注释）。
+
+目标协议保留这个结构性回退，但要求其语义在标准化协议下显式化：
+
+- 缺失 cell **不是** 「0 innovation」，也**不是** 「用跨资产 $V_t$ 的相关结构去插补」；它是「该资产自身的边缘 innovation」。
+- 若对缺失 cell 直接使用 $V_t$ 的跨资产标准化（含 $j$ 与其他资产的相关方向），会把未观测资产的相关结构强加给它——禁止。
+- 允许的语义（候选，见 6.4）：对缺失 cell 使用该资产**边缘**的标准化形状——由该资产自身的有效 $z_s$ 行构成的一维经验测度反标准化；等价于 own-row fallback 的标准化版本。
+- 选择判据不依赖 Sharpe：dummy asset invariance（SPEC §60）、ragged 语义保持（SPEC §12.1）、fallback 经验分布与标准化集合的一致性检验。
+
+---
+
+## 4. 禁止项
+
+以下路径被明确定义为**不合规**：
+
+1. **「先用 scalar、之后再升级」。** 不得把当前 scalar 版定位为「过渡路径」并借此为后续工作预留含糊空间；不得用「以后会升级」作为当前结构的辩护词。规范对象要么是 scalar（如实声明为 KISS 版、SPEC §30 的措辞），要么是本文的 vector 目标；两者的取舍必须走 SPEC 审查，不得作为实现顺路的默认。
+2. **不得引入 factor bag。** innovation memory 不得表示为「若干手造因子」的叠加。$V_t(d)$ 是残差二阶矩的 kernel 加权对象；其自然结构（若有）应从 $V_t$ 的谱中导出，而不是预先命名。
+3. **不得为资产手造因子。** 不得给资产或行业添加人工标签、板块表、手造协方差结构；所有结构必须来自价格历史与残差本身（SPEC §4、§5）。
+
+（说明：这三条与 SPEC §4/§5/§95 一致；本文只是把 discipline 钉在 innovation 层，防止「升级路径」成为绕过 SPEC 审查的借口。）
+
+---
+
+## 5. 与 $d$ 后验 quadrature 的一致性
+
+- $V_t(d)$ 必须与 $v_t(d)$ 共用**同一** fractional kernel $k_d$ 与**同一**归一化（第 2.1/2.2 节）。$d$ 后验保持 $p_d \propto \exp(\ell(d))\cdot\Delta d$ 的测度语义（`src/predict.jl:14`、`94-96`；SPEC §31）。
+- 场景采样顺序保持「先抽 $d$、后取 per-$d$ innovation 因子」：与当前 `scale = sqrt(v_forecasts[d]/v_bootstrap)`（`src/predict.jl:615`）在同一位置使用 $d$ 的方向一致——即 $d$ 抽样先于 innovation 形状的反标准化。
+- **网格细化时先验质量不得漂移**（SPEC §64）：$\Delta d$ 的测度语义在 vector 版保持不变。若 vector 版的 $\ell(d)$ 定义需要变化（例如从 scalar quasi-LL 变为 matrix quasi-LL），必须显式声明为规范变更、经 SPEC 审查，不得静默替换。
+- `v_bootstrap` 的角色：当前绝对尺度锚点（`src/predict.jl:499`），SPEC §32 明确禁止用 $\sqrt{v_d/\operatorname{mean}_d v_d}$ 之类消掉总体 volatility level 的形式。vector 版必须保留「绝对尺度锚点」语义——每 $d$ 因子与历史锚点一致标定；锚点的具体形式列未决（6.6）。
+- 收敛判据不得用回测收益选择 $S$ 或网格（SPEC §37、§65）：必须用 $\|w_{2S}-w_S\|_1$ 与 Kelly certificate。
+
+---
+
+## 6. 未决决定清单（每项给不依赖 Sharpe 的判据）
+
+1. **kernel 归一与截断。** $k_d(\tau)$ 是否归一（$\sum k_d = 1$ 的显式口径）、有效截断长度（当前 FFT 用 `L÷2` 长度生成 kernel，`src/numerics.jl:421`）。判据：$d=0$/$d=1$ 极限与最近行/全历史等权二阶矩的一致性；与当前 $v_t(d)$ 在相同输入上的逐点对照（reference equality）；SPEC §64 的 refinement 语义。
+2. **PSD floor/正则化。** $V_t^{-1/2}$ 的 $\delta$ 或特征值 floor。判据：$\delta \to 0$ 时目标权重/预测矩收敛（SPEC §25 已有 floor refinement 先例）；与 `EB_COVARIANCE_FLOOR` 的数值保护语义明确区分；失败时 fail-closed（SPEC §56）。
+3. **标准化窗口与 burn。** $V_t$ 的有效历史长度（当前 `burn = 30`，`src/predict.jl:76-79`、`111`）。判据：窗口增大时标准化残差二阶矩收敛到单位矩阵的诊断检验；因果性不受影响（3.2）。
+4. **ragged 缺失 cell 语义。** 保留原样 fallback（own-row 原值）还是 own-row 的标准化版本（3.4）。判据：dummy asset invariance（SPEC §60）、ragged 语义保持（SPEC §12.1）、fallback 分布与标准化集合的一致性。
+5. **$V_t$ 的 macro/relative 交叉项。** 保留自然交叉协方差 $c_t$ 还是强制 block-diagonal（$e_0$ 与 $Q$ 块对角）。判据：gauge/permutation 协变性（SPEC §59、§58）与分解的语义纯洁性；不得按回测效果选择。
+6. **绝对尺度锚点。** `v_bootstrap` 在 vector 版的对应物（标量锚 / 矩阵锚 / macro 通道锚）。判据：SPEC §32 的「不得消掉总体 volatility level」；锚点定义的 $d$-无关性；与 $\sigma^2$ 点估计的关系按 D4 §2 的 plug-in 分类处理，不得混同。
+7. **$d$ 先验显式化。** 与 D4 第 7 节第 5 项对齐（SPEC §31 预留的 $p(d)$）。判据：均匀网格先验显式声明，或连续先验 + refinement 语义；先验质量不得漂移。
+8. **实现表示与预算。** 每 $d$ 一个 $N\times N$ 矩阵的存储/计算 vs 低秩/谱/递推表示；是否属于 incremental 层（SPEC §48、§70）。判据：reference equality、预算 route 不改输出（SPEC §50）、静态复杂度论证；性能不得成为改数学的理由（SPEC §67）。
+9. **标准化形状的分布。** $z$ 保持经验测度（bootstrap 标准化行）还是参数化。判据：tail shape 假设（A4）的显式声明；经验测度的 plug-in 性质按 D4 §2 分类；若参数化，必须有先验/似然的显式形式与证书（SPEC §56）。
+10. **与 response 不确定性的层级关系。** innovation 层的标准化不得重复或抵消 response 层的 posterior predictive 结构（`src/predict.jl:570-572` 的 `canonical_root * z + mu_rel`）。判据：方差分解可报告性（D4 §5）；两层各自进入 predictive 的方式在 SPEC 中钉死。
+
+---
+
+## 7. 与既有文档和 SPEC 的关系
+
+- 本文不复制 SPEC §30-32、§35-37 的原文；它们仍是规范来源。本文的定位是 innovation 层的 SPEC 级目标定义草案，与 D4 互补：D4 处理 $G/\alpha/\Sigma$ 的超参与 posterior 结构，本文处理 innovation law 的表示维度。
+- 与 D4 保持一致的点：$d$ 的离散后验与 $\Delta d$ 测度（D4 #6）、innovation 的经验测度性质（D4 #7）、尺度的点估计性质（D4 #8）在本文全部保留；本文的目标条款不改变 D4 的清单。
+- 纪律条款：本文所有未决项的选择都不得依据回测 Sharpe/收益（SPEC §95、开发守则 §24）；路线切换必须走 SPEC 审查；当前源码行为不变更——本文件不触发任何施工。
+
+---
+
+*（本文件为 Gate 0 重开后 Deliverable 5 交付物；未运行任何命令，未修改 `src/`、`test/`、`README.md`、`AGENTS.md` 或任何既有文档。）*
+
+==> docs/MODEL_LEDGER.md <==
+# KTrader 理论对象与生产实现对账账本（Model Ledger）
+
+状态：纯静态事实账本。生成方式为逐文件静态阅读，**未运行任何命令、未执行任何测试、未修改任何源码**。所有行号来自本次阅读时的工作树快照；证据标记：[事实] = 代码直接支持；[推断] = 由代码语义纯静态推导；[未知] = 本次阅读无法确定。
+
+对账对象：AGENTS.md 声明的理论对象 与 当前生产代码实际计算的对象。差距分类标签：identical / plug-in approximation / scalar degeneration / finite-sample approximation / unknown。
+
+---
+
+## 0. 证据方法与边界
+
+- [事实] 本次已读：src/data.jl、src/prepare.jl、src/predict.jl、src/response.jl、src/residual_oracle.jl、src/kelly.jl、src/backtest.jl 全文；src/geometry.jl（常量与 ruler 段）、src/numerics.jl（PriceHistoryCache 段）、src/broker.jl（tradable/liquidation/rebalance 段）、universe.txt 全文；若干 dev 脚本与测试的相关段。
+- [事实] 账本唯一新建文件即本文件；未触碰 src/、test/、README.md、AGENTS.md。
+- [事实] 全仓检索 PONY：唯一命中 universe.txt:46；未找到把标的"前 251 日 bar 置 false"的 wrapper 脚本（检索模式含 PONY、251、.bar[...]=false、.bar[1: 等）。详见第 11 节。
+- 理论声明引用 AGENTS.md 的章节号（§编号），不对 AGENTS.md 编造行号。
+
+---
+
+## 1. History H_t：进入模型的信息
+
+理论（AGENTS.md §3/§4/§8）：H_t 是完整价格历史；x_i(t)=log P_i(t)；missing 不得被 carried marking 冒充为 r=0。
+
+[事实] 数据结构：Bars 含 dates/symbols/close/adj/bar（src/data.jl:7-13）。close/adj 是 marking series：上市前 NaN，之后 carry 前值（src/data.jl:15-25；docstring src/data.jl:2-4）。
+
+[事实] 理论输入由 signal_prices(b)=ifelse.(b.bar, b.adj, NaN) 恢复（src/data.jl:37；docstring src/data.jl:33-36）：bar=false 之日严格 NaN，绝不把 carried marking 注入为 0 收益。
+
+[事实] 模型入口消费 signal：_prepare_v1 内 log_adj=log.(adj_act)（src/predict.jl:216）；r=diff(log_adj; dims=1)（src/predict.jl:247）——只有相邻两日均 finite 才有 return。
+
+[事实] backtest 的模型输入是 signal=signal_prices(b)（src/backtest.jl:149）；账户 marking 另用 b.adj[t+1,:]./b.adj[t,:]（src/backtest.jl:296）。两条路径互不冒充。
+
+[事实] zero-embedding 只发生在 relative field 内部（src/predict.jl:43-70；注释 38-42），且 observed mask 单独保留（src/predict.jl:68）。这不是把 missing return 当 0。
+
+[推断] 模型可见的 H_t 即 signal 的 finite 格；carried adj 不进入 r（r 基于 signal 的 log）。
+
+[未知] 本地 panel CSV 的原始 provenance 沿用 AGENTS.md 的 unknown 记录，不在本账本重判。
+
+分类：identical（§8/§8.1/§8.2 语义与 signal_prices、diff 实现一致）。
+
+---
+
+## 2. Observation mask O_{t,i}：真实市场观测在哪里表达
+
+[事实] 市场真实观测的权威字段是 Bars.bar[t,j]（src/data.jl:12；注释 3-4）。4 参数构造：bar=isfinite.(rawclose).&isfinite.(rawadj)（src/data.jl:28）。
+
+[事实] 保存时 bar 决定落盘缺失：ifelse.(b.bar, b.close, NaN) / ifelse.(b.bar, b.adj, NaN)（src/data.jl:80-82）。
+
+[事实] return 级观测 mask：observed=isfinite.(r)（src/predict.jl:68）。
+
+[事实] 决策日 support：alive_now 默认取 adj_act 末行 isfinite（src/prepare.jl:131），构造时强制 owned copy（src/prepare.jl:160-161）；solve 用 findall(prep.alive_now) 计算 e0（src/predict.jl:473-478）。
+
+[事实] ResidualOracle 每行 own mask：O={j: isfinite(r[t+1,j])}，c=|O|（src/residual_oracle.jl:19-20；evaluation 160、198、283、290-291）。
+
+[事实] missing-cell fallback 只使用该资产自身 observed 残差行（src/predict.jl:596-602；src/residual_oracle.jl:262-274）。
+
+[推断] 三处表征同源且互不矛盾：bar → signal NaN → 无 return → 不进 own rows。alive_now 是决策日（末行）快照，observed 是 return 行级。
+
+分类：identical。
+
+---
+
+## 3. Model admission A^model：active universe 链
+
+[事实] active_universe_indices(adj)：资产当且仅当存在 t in 2:T 使 adj[t-1,j] 与 adj[t,j] 均 finite（src/predict.jl:125-135；判定在 130 行）。即"至少一条有效 daily return"。
+
+[事实] cache 路径：active_idx=findall(<(T_raw), history_cache.first_return)（src/predict.jl:207-208）；first_return 定义为第一个 finite returns 行（src/numerics.jl:150）。
+
+[推断] 两路等价：第一个 finite return 行 t0 对应首个相邻 finite 对 (t0, t0+1)；first_return < T_raw 等价于该对落在 prefix 内。
+
+[事实] warmup：WARMUP=2*max(BANDS)=256（src/geometry.jl:14；BANDS=2..128，src/geometry.jl:12）；训练行 ts_total=WARMUP:T-2（src/predict.jl:286）；F_folds 校验 2<=F_folds<=n_res（src/predict.jl:288）。
+
+[事实] 消费者：ruler（src/predict.jl:222-243）、X_rel/s_perp/B_m（src/predict.jl:256-281）、full/fold Gram（src/predict.jl:300-305）、solve 的 e0（src/predict.jl:473-478）、Kelly 的 active 掩码（src/kelly.jl:152-153）、backtest free（src/backtest.jl:241-245）。
+
+[事实] 全 NaN dummy 资产严格排除（src/predict.jl:122-123 注释）；e0 只在 alive_now 上归一 e0_now[alive_now].=1/sqrt(N_alive)（src/predict.jl:475-478）；mu_asset_full 只写 active_idx（src/predict.jl:485-486），inactive 留 0 而不进入坐标空间。
+
+[事实] 退化特例：N==1 时相对空间维为零、响应精确为零（src/response.jl:1156-1163）；N==2 有构造性 witness 解析候选（src/predict.jl:371；src/response.jl:832-851）。
+
+[推断] "进入 active"（坐标空间）与"可训练"是两道门：active 需要 ≥1 条有效 return；训练还需要 ts_total 非空（T_raw>=258 才有 >=1 行，>=259 才有 >=2 行）；ruler 另有 4*tau<=T-f+1 门槛（src/geometry.jl:38）。
+
+分类：identical（§11 的实现一致）。
+
+---
+
+## 4. Trading eligibility E^trade：是否存在独立概念
+
+[事实] 当前代码中没有名为 E^trade 的独立对象（本账本阅读范围内未见）。承担者是 backtest 的 free 掩码：free=falses(N)；for j in active; free[j]=b.bar[t,j]（src/backtest.jl:242-245）——即 free = active ∩ bar(决策日 t)。
+
+[事实] Kelly 层：free=tradable .& active；locked=current .* .!free；budget=1-sum(locked)（src/kelly.jl:152-156）。参数名 tradable 在 backtest 调用处传入 decision.free（src/backtest.jl:80,291-292）。
+
+[事实] path_kelly_v1 的 tr=tradable===nothing ? trues(N) : tradable（src/kelly.jl:177）。
+
+[推断] bar 同时承担两个语义：观测 mask（§2）与"当日可交易"（src/data.jl:3-4 注释明确 bar "was tradable"）。
+
+分类：unknown（理论未见独立 E^trade 声明；实现是调度级掩码，且与观测 mask 共用 bar 字段）。
+
+---
+
+## 5. Physical tradability T：broker/tradable 语义
+
+[事实] broker.tradable(q)=q.bid>0 && q.ask>0 && q.last>0（src/broker.jl:136），语义为"有活跃双边市场"；halted/unquoted → false。
+
+[事实] rebalance! 对 tradable=false 的标的跳过操作、保留仓位（src/broker.jl:192）；target_shares 由权重与 last 价取整（src/broker.jl:143）；liquidation 对外部持仓渐进卖出（rate in (0,1]，src/broker.jl:155-168）。
+
+[事实] 该层属于 execution（AGENTS.md §5/§41）；backtest 的 bar 掩码不经过 broker.tradable。
+
+分类：identical（物理可交易性由 broker 语义承担，理论层不消费）。与第 4 条的区别：T 是报价级、E^trade（free）是 bar 级，二者当前不互相校验。
+
+---
+
+## 6. Response posterior：solve→fit_response_operator→optimize_conditioned_eb 实际链
+
+[事实] 链：solve(prep)（src/predict.jl:349-505）→ fit_response_operator（src/response.jl:1124-1209）。
+
+[事实] macro 分支：optimize_matrix_normal_eb 求 alpha_m 点估计（src/response.jl:1146-1148；实现与证书 351-379）；gm=vec(ev.vectors*(B.*dm))（1151）；sig2=max(sse/max(n-gamma_m,1),1e-8)（1154）；covm=sig2.*((ev.vectors .* dm')*ev.vectors')（1155）。
+
+[事实] relative 分支：ridge_spectrum（src/response.jl:1174-1176）→ optimize_conditioned_eb 求 (alpha_rel, Sigma) 点估计（src/response.jl:1178-1185；实现 934-1121，含 witness 分支 943-953 与逐迭代证书 994-1000）。
+
+[事实] G：B_scaled_G=spectrum.B .* dr（1188）；G=B_scaled_G'*spectrum.basis'（1191）；V=ridge_covariance(spectrum,alpha_rel)（1199）；cond=condition_trace_neutrality(G,V,Sigma,N,len(BANDS))（1200-1202；实现 131-143）。
+
+[事实] OOF folds：need_uncertainty=false（src/predict.jl:443），V_out 变为空 RidgeCovariance（src/response.jl:1205）——fold 只消费条件均值。
+
+[事实] predictive_moments（src/response.jl:1211-1229）：mu_m=dot(G_macro,Bm)（1218）；var_m=max(dot(Bm,post_cov_m*Bm),0)（1219）；mu_rel=G_c_mean*x（1220）；cov=Symmetric(dot(x,v).*Sigma_rel − H*inv_M_constraint*H')（1226）；L_rel=ev.vectors.*sqrt.(max.(ev.values,0))'（1228）。
+
+[事实] 场景采样：relative=principal_sqrt_root(L_rel)*z + mu_rel（src/predict.jl:570-572）；macro_draw=mu_m+sqrt(var_m)*z（src/predict.jl:612）。
+
+[推断] 实际对象是 Pi(dG | alpha_bar, Sigma_hat, H)：G 在 EB 点估计 (alpha_bar, Sigma_hat) 条件下为 Gaussian（均值 G_c，协方差为 V⊗Sigma 经 trace 约束条件化后的预测边缘）；**不是**对 (alpha, Sigma) 的联合后验积分——alpha、Sigma 是 EB 最优点（response.jl:374-379、1178-1185），其自身不确定性不作为 predictive 方差项进入。
+
+[推断] G 是条件采样（scenarios 从 L_rel 与 var_m 抽），不是只用 G_c_mean；macro 的 var_m 与 relative 的 L_rel 都携带条件后的参数不确定性。
+
+分类：plug-in approximation（α、Σ 点估计插件；G 条件 Gaussian 采样）。
+
+---
+
+## 7. Innovation law：fractional posterior、场景缩放、均匀行 bootstrap
+
+[事实] fractional posterior 只作用于 scalar macro OOF 残差：e_res_m=macro_residual_series(res_history)（src/predict.jl:493-495；实现 src/residual_oracle.jl:216-260）。
+
+[事实] 标量公式：e[idx]=sumr/sqrt(c) − mu_macro*sw/c − dot(h,x)/sqrt(c)（src/residual_oracle.jl:257）；c==0 → 0.0（239）。h 只在单次调用内按 (fold, mask) 缓存（246-254）。
+
+[事实] 似然与后验：causal_fractional_posterior（src/predict.jl:76-99）；FFT 路径 fractional_likelihood!（101-119）；log_weights=ll .+ log.(DELTA_D_V1) 后 softmax（94-96）；DGRID_V1 / DELTA_D_V1（10、14）。
+
+[事实] 绝对缩放：v_bootstrap=max(var(e_res_m),1e-8)（src/predict.jl:499）；每场景 scale=sqrt(v_forecasts[d]/v_bootstrap)（615）。
+
+[事实] 均匀行 bootstrap：row=min(floor(ur*T)+1,T)，ur=uniforms[s,2]（src/predict.jl:591、578）；每场景抽一行、全资产共享该行（除 fallback）；缺格 own-row fallback（596-602）。
+
+[事实] 场景公式：loggross=(mu_m*e0[j]+relative[j,s]−shift)*s1[j]+residual*scale（src/predict.jl:620）。
+
+[事实] residual 行来自 OOF oracle（src/residual_oracle.jl:150-211），非 in-sample；dense 参考公式保留为测试用 dense_oof_residuals（301-337）。
+
+[推断] 实际 innovation law =（单一 scalar macro 残差的分数阶缩放）×（OOF 残差行的均匀 bootstrap）；横截面风险没有逐资产 fractional、没有残差协方差重建，跨资产相关性只来自共享行与 L_rel 的结构项。
+
+分类：scalar degeneration（宏观维退化到标量序列）+ finite-sample approximation（经验行 bootstrap）。
+
+---
+
+## 8. Structural constraint：C 的构造与 14 行
+
+[事实] get_constraint_columns(N,n_bands) 生成 14 个列块：for b in 1:n_bands, channel in 1:2，块为 ((b-1)*2+channel-1)*N+1 : ((b-1)*2+channel)*N（src/response.jl:106-107）——7 bands × 2 channels = 14 行（约束数）。
+
+[事实] 列布局：channel1 = Q 块（feature 偏移 (b-1)*2N+j），channel2 = P 块（(b-1)*2N+N+j）（src/predict.jl:1168-1169；src/residual_oracle.jl:141-142）。
+
+[事实] h[c]=tr(G[:,cols[c]])（src/response.jl:128）；M=CΩC' 的 14×14（constraint_moments，109-129）。
+
+[事实] 条件化均值：λ=M^{-1}h；K=Σ λ_r * Σe_cols 外积；G_c=G−K V（src/response.jl:131-143）。这是 exact Gaussian conditioning，不是事后均值减 trace。
+
+[事实] fit 内 conditioning 在 full N 空间（src/response.jl:1199-1202）；EB 内部把约束用 gauge=relative_gauge(N) 压缩到 N−1（420-424、1177）。
+
+[事实] 约束后 trA/trB 统计（src/response.jl:1206-1207）；dense V 版本（测试）144-148。
+
+分类：identical（约束=SPEC §21 的 trA_b=0 与 trB_b=0，对全部 7 个 band；条件化在 posterior support 内精确执行）。
+
+---
+
+## 9. Numerical integral：S 与 adaptive
+
+[事实] generate_scenarios_v1 默认 S=500（src/predict.jl:546）。
+
+[事实] backtest_v1 默认 S=300（src/backtest.jl:117）；path_kelly_v1 默认 S=300（src/kelly.jl:173）。
+
+[事实] 正式回测默认 adaptive=false（src/backtest.jl:119）；固定分支：generate_scenarios_v1(model;S,rng=MersenneTwister(seed+t))（250），S 来自参数（默认 300）。scenario_counts 记录实际 S（293）。
+
+[事实] adaptive 分支存在：adaptive_scenario_weights（src/predict.jl:627-653；min_scenarios=64、max_scenarios=512 默认，628）；doubling（634-635）；收敛双条件 norm(weights-previous,1)<=weight_tol 且 certificate.objective_gap<=tol（646-648，默认 1e-3 / 1e-5）；不收敛 error（652）。backtest 的 adaptive 路径（src/backtest.jl:71-77）。
+
+[事实] 固定 S=300 的显式仓库用法：dev/local_panel_stages.jl:118-119、dev/earlier_window_replay.jl:18 与 61（scenario_counts==fill(300,8)）、dev/release_freeze.jl:54。
+
+[推断] 证书范围：kelly_certificate 只证明"给定这套 S 个场景样本内"的 KKT/可行性/gap（src/kelly.jl:21-36）；adaptive 的双条件是 S 翻倍过程中的经验门限收敛；**固定 S=300 的非 adaptive 路径没有任何 S 收敛证书**（SPEC §65 的 ‖w_2S−w_S‖→0 只在 adaptive 模式里以门限形式体现，而它默认关闭）。
+
+分类：finite-sample approximation（固定 S 的蒙特卡洛/拟蒙特卡洛样本；adaptive 存在但非默认，且证书是门限而非极限证明）。
+
+---
+
+## 10. Decision：kelly_weights_v1 目标（含 base_s）
+
+[事实] kelly_weights_v1(X;budget=1.0,base=nothing)（src/kelly.jl:132-134）→ fast_kelly_solver：max (1/S)Σ_s log(X_s·w + base_s)，s.t. w>=0，Σw=budget（src/kelly.jl:60-130；目标构造在 102、107-108）。
+
+[事实] base_s locked holdings：locked_wealth(X,locked) 对每 held 列乘 gross，held 非 finite 抛错（src/kelly.jl:137-148）。
+
+[事实] scenario_weights：locked=current .* .!free；budget=1−sum(locked)；out=copy(locked)；free 列解 Kelly（src/kelly.jl:150-170）。
+
+[事实] 证书：kelly_certificate 的 feasibility/kkt/objective_gap（src/kelly.jl:21-36）；fast 失败回退 clarabel（129）；clarabel 解同一 log-Kelly 目标（39-58）。
+
+[事实] backtest 持仓结转：h=(w.*gross_clean)./(1+ret)（src/backtest.jl:301）。
+
+分类：identical（exact log-growth 目标；locked 风险以 base_s 计入，非当 cash）。
+
+---
+
+## 11. PONY 静态推演：(a) 置 false 后果、(b) 进入 active 日期
+
+定位事实：
+- [事实] universe.txt:46 为 PONY（universe 共 65 个标的，PONY 是第 45 个 symbol；行 2..66 为代码，行 1 为注释）。
+- [事实] 全仓检索未定位到名为 PONY wrapper 的脚本；PONY 字符串唯一出现在 universe.txt:46。仓库中存在的同类操作是"复制前缀"而非"置 false"：dev/earlier_window_replay.jl:37、50；dev/release_failure_probe.jl:15；dev/release_freeze.jl:103-104（Bars(... b.bar[1:t,:])）。
+- 因此 (a)(b) 为按当前代码语义的纯静态推演（无 wrapper 文件可引）。
+
+(a) 若把 PONY 前 251 行 bar 置 false（假设性）：
+1. signal_prices：前 251 行 PONY 列全部 NaN（src/data.jl:37）。
+2. active_universe_indices(signal)：PONY 需要至少一条相邻 finite return（src/predict.jl:130）；前 251 行全 NaN 时最早合法对是 (252,253)。故决策 prefix T_raw=252 时 PONY 仍非 active；T_raw>=253 时 active（cache 路径同结论：first_return=252，findall(<(T_raw),·) 需 T_raw>=253）。
+3. r 层面：r[252]=logs[253]−logs[252]（diff 语义，src/predict.jl:247）——必须有第 253 行 finite 才产生这条 return。
+4. 若 wrapper 只改 b.bar 而不改 b.adj：账户 marking 不受影响（src/backtest.jl:296 用 adj），但 free（244）与 signal 都受影响；bar 也是保存落盘的判据（src/data.jl:80-82）。
+5. 训练门槛：active 仅是坐标空间准入；ts_total=WARMUP:T-2=256:T-2（src/predict.jl:286）需 n_res>=2 且 F_folds>=2（288）；ruler 另有 4*tau<=T−f+1（src/geometry.jl:38），f=252 时 tau=1 需 T>=255。
+
+(b) 若 2025-12-01 是（前 251 行被清后）首个有效 bar（即行 252）：
+- 主解读（与 (a) 语境一致，[推断]）：首日当天不足以判定 active；PONY 要到**行 253（2025-12-01 之后的下一个有 bar 交易日）**才进入 active。off-by-one 根因：active 需要 return，而 return 属于相邻 finite 对的第二日。
+- 若行 253 无 bar，则顺延到下一个与前一个有效 bar 相邻的有效 bar 日。
+- 精确日历日期：[未知]（未读 panel CSV 的日期列；静态只能给出"下一个有效 bar 日"）。
+- 另一种解读（若 PONY 此前已累积 251 个有效 bar、2025-12-01 是第 252 个）：则当天即 active（第 251、252 个 bar 相邻）。该解读与 (a) 的"前 251 日置 false"矛盾，故不作为主结论。
+
+分类：本节的 (a)(b) 为静态推演，非运行证据；wrapper 文件本身标记为"未定位"。
+
+---
+
+## 12. 映射总表
+
+| # | 理论声明（AGENTS.md/SPEC） | 当前实现 | 证据（file:line） | 差距分类 |
+|---|---|---|---|---|
+| 1 | H_t 全价格历史；missing≠0（§3/§4/§8） | signal_prices；r=diff(log signal) | src/data.jl:37；src/predict.jl:216,247 | identical |
+| 2 | 观测 mask O（§8.1） | bar / observed / alive_now 三表征同源 | src/data.jl:12,28；src/predict.jl:68；src/prepare.jl:131,160-161 | identical |
+| 3 | active universe（§11） | active_universe_indices / first_return | src/predict.jl:125-135,207-208；src/numerics.jl:150 | identical |
+| 4 | （无独立 E^trade 声明） | backtest free=active∩bar_t | src/backtest.jl:242-245；src/kelly.jl:152-153 | unknown |
+| 5 | 物理可交易性（§41） | broker.tradable（bid/ask/last） | src/broker.jl:136 | identical |
+| 6 | Bayesian response posterior（§17/§19/§25/§26） | α、Σ EB 点估计 + 条件 Gaussian G；场景从 L_rel/var_m 采样 | src/response.jl:934-1209；src/predict.jl:570-572,612 | plug-in approximation |
+| 7 | OOF innovation law（§30/§31/§32） | scalar macro fractional × 均匀行 bootstrap | src/predict.jl:493-499,570-620；src/residual_oracle.jl:216-260 | scalar degeneration + finite-sample approximation |
+| 8 | trA_b=0、trB_b=0（§21） | 14 列块 exact conditioning | src/response.jl:106-143,1199-1202 | identical |
+| 9 | 场景/积分收敛（§37/§65） | 默认固定 S=300；adaptive 可选（64→512 门限） | src/backtest.jl:117,119,250；src/predict.jl:627-653 | finite-sample approximation |
+| 10 | exact log-Kelly（§6/§38） | kelly_weights_v1 + base_s locked | src/kelly.jl:60-170 | identical |
+
+---
+
+## 13. 未能确定 / 未决
+
+- [未知] PONY wrapper 脚本不在本仓库可见位置（全仓检索仅 universe.txt:46 命中 PONY）。
+- [未知] (b) 的确切日历日期：需要 panel 的实际交易日历（CSV 日期列未读）。
+- [未知] α、Σ 点估计对 predictive 覆盖与权重分布的数值影响（需受控运行，非静态可判）。
+- [未知] live 层（src/live.jl）未逐行阅读；broker/live 与 backtest 的交易资格同构性未在本次核对（AGENTS.md 的 live 描述仅作背景）。
+- [推断] 本地 panel 的列序与 universe.txt 一致、PONY 列号=45（基于 local_panel_stages.jl:86/97 的 N==65 与 universe 顺序；未读 CSV 头）。
+
+---
+
+## 14. 结论摘要（一句话）
+
+理论链 H_t→Pi(G,Sigma|H)→P(r|H)→w* 在"数据/signal 语义、观测 mask、active 准入、trace 约束、Kelly 目标"五处是 identical；集中差距在统计认识论与数值积分三层：
+1. response 的 (α,Σ) 是 EB 点估计插件（G 仅条件采样）——plug-in approximation；
+2. innovation 是 macro 标量 fractional × 经验行 bootstrap（横截面退化）——scalar degeneration + finite-sample approximation；
+3. 默认回测固定 S=300、无 S 收敛证书（adaptive 存在但默认关闭）——finite-sample approximation。
+
+==> docs/NUMERICAL_INTEGRATION_SPEC.md <==
+# KTrader 数值积分收敛规范（Numerical Integration Spec）
+
+**文档状态：SPEC 级定义草案（Normative Draft）——不是实现描述，不是性能承诺。**
+**适用对象：`generate_scenarios_v1` / `adaptive_scenario_weights` / `kelly_*` 决策链。**
+**权威关系：本文档细化 `AGENTS.md` §37（AGENTS.md:1176-1191）与 §65（AGENTS.md:2133-2141）的执行语义。与 `AGENTS.md` 冲突时以 `AGENTS.md`（Common Law / SPEC）为准。本文档不扩大任何角色职权，不授权任何命令执行，不修改源码、测试与既有文档。**
+
+---
+
+## 0. 目标对象与两类误差
+
+决策目标（AGENTS.md:1201-1203）：
+
+- I(w) = E[log(base + Rᵀw) | H]，连续（无限样本）目标；
+- I_M(w) = (1/M) Σₛ log(base_s + (X_M w)_s)，给定 rule 下 M 个 scenario 的有限采样近似；
+- w_M = argmax_{w∈W_t} I_M(w)，W_t = { w ≥ 0, Σw = budget }（预算与 locked base 语义见 AGENTS.md:1208-1218）。
+
+目标：
+
+- 积分收敛：沿嵌套 rule 细化 M 时 I_M(w) → I(w)（对每个固定 w）；
+- 决策收敛：w_M → w* = argmax I(w)。
+
+必须区分两类独立误差：
+
+1. **求解误差**：给定 X_M，solver 相对 w_M 的误差。由 `kelly_certificate` 界定（src/kelly.jl:21-37），是「凸问题解好了没有」的证书。
+2. **积分误差**：X_M 的采样律相对真实 posterior predictive 的离散化误差。由本规范 §3 的 (a)(b) 界定，是「M 够不够大」的证书。
+
+现有 Kelly 证书只覆盖第 1 类。把它当成积分收敛证明，是把样本内的最优性当成样本外的逼近，属于层级错误。
+
+---
+
+## 1. 当前实现映射
+
+### 1.1 有限采样近似在哪里发生
+
+`generate_scenarios_v1`（src/predict.jl:546-625）按 §35 的六要素（AGENTS.md:1124-1131）生成 X_M ∈ R^{M×N_universe}：
+
+- posterior draws 与 residual bootstrap 在 src/predict.jl:564-572 与 576-624；
+- 目标函数求值发生在 kelly 层：wealth = X*w .+ b（src/kelly.jl:26），g = Xᵀ(1./wealth)/S（src/kelly.jl:30），objective = sum(log, wealth)/S（src/kelly.jl:102、110）；
+- I_M(w) 就是 `sum(log, X*w .+ base)/S`（src/kelly.jl:30、102）。
+
+### 1.2 S（scenario 数）的出现位置与默认
+
+| 位置 | 默认 | 语义 |
+|---|---|---|
+| src/predict.jl:546 | `S=500` | `generate_scenarios_v1` 的 IID 默认 scenario 数 |
+| src/kelly.jl:173 | `S=300` | `path_kelly_v1` 默认；`adaptive=false` 时直接使用 |
+| src/backtest.jl:117 | `S=300` | `backtest_v1` 默认；`adaptive=false` 时逐日使用 |
+| src/backtest.jl:249-251 | `S`（调用方） | 正式回测逐日 `generate_scenarios_v1(model; S, rng=MersenneTwister(seed+t))` |
+| README.md:36、44 | `300` | 文档示例与 `SCENARIOS=300` 环境变量 |
+| dev/m1_artifact_replay.jl:626-627 等 | `300` | M1 历史对照基准，非生产路径 |
+
+### 1.3 adaptive 机制真实存在
+
+不是占位，是已接线的实现：
+
+- `ScenarioQuadrature`（src/predict.jl:507-521）：构造时取一组素数基与**一份共享随机 shift**（`rand(rng,dim)`，src/predict.jl:520）；嵌套性来自 `quadrature_uniform`（src/predict.jl:522-531）按**全局索引 s** 生成点：任意 M' > M 的序列前 M 个点与 M 序列逐位相同，不重新洗牌。
+- quadrature 模式下 `generate_scenarios_v1` **不消耗调用方 rng**（src/predict.jl:552-563：`uniforms=nothing`，用 `quantile(Normal(), quadrature_uniform(...))` 逐点确定性变换；契约由 test/posterior_contract_tests.jl:34-45、241+ 覆盖）。
+- `adaptive_scenario_weights`（src/predict.jl:627-653）：默认 `min_scenarios=64, max_scenarios=512`（src/predict.jl:628），从 S=64 起按 `S=min(2S,max_scenarios)` 倍翻（src/predict.jl:635），每轮用**同一个 rule 对象**重生成样本（src/predict.jl:636），因此样本是嵌套前缀。
+- 收敛判据（src/predict.jl:647）：`‖w_new − w_prev‖₁ ≤ weight_tol(=1e-3)` 且 `kelly_certificate(X_new, w_prev).objective_gap ≤ tol(=1e-5)`。
+- 预算耗尽：`error`（src/predict.jl:652）——fail-loud 已是现状。
+- 测试证据：test/numerical_tests.jl:160-182（`small ≈ large[1:64,:] atol=1e-14` 证前缀嵌套；零响应 world 收敛到 S=128；`max_scenarios=128, tol=0, weight_tol=0` 时确定性抛错）；test/backtest_target_tests.jl:25-37（adaptive 接线、seed 保持、结果计数）；test/posterior_contract_tests.jl（quadrature 下 lazy/dense 一致）。
+
+### 1.4 正式回测实际使用的参数
+
+`backtest_v1` 默认 `adaptive=false`（src/backtest.jl:117-121）。非 adaptive 路径：worker 每日生成 `X = generate_scenarios_v1(model; S=300, rng=MersenneTwister(seed+t))`（src/backtest.jl:249-251），consumer 调 `scenario_weights`（src/backtest.jl:79-82、291-292）。**正式回测的默认不是嵌套 quadrature，而是固定 S=300 的 IID 采样**。`adaptive=true` 时经 `_backtest_target` 调 `adaptive_scenario_weights(...; rng=MersenneTwister(seed+t), tol=quadrature_tol, max_scenarios)`（src/backtest.jl:72-78）。默认参数下 §37 的细化判据根本不执行。
+
+### 1.5 现有 Kelly 证书证明什么、不证明什么
+
+`kelly_certificate`（src/kelly.jl:21-37）在给定矩阵 X_M 上验证：
+
+- feasibility（simplex 越界，src/kelly.jl:25）；
+- kkt_residual（互补性 `w .* (dual .- g)`，src/kelly.jl:32）；
+- objective_gap = budget·max(g) − gᵀw ≥ F_M(w*) − F_M(w)（由 concavity，src/kelly.jl:17-19、33）。
+
+它证明的是：**在固定的这一批 X_M 上，w 离 argmax I_M 有多远**。它不证明 I_M → I，也不证明 w_M → w*。若 X_M 有采样偏差，证书全绿的同时最优决策仍可能有系统误差。`fast_kelly_solver` 以 tol=1e-8 内部自证（src/kelly.jl:125-126），失败则 `clarabel_kelly_solver` 解同一目标并再次自证（src/kelly.jl:129、55-56）——两者都是**同一 X_M 上的求解误差**，样本层面的收敛不在其职责内。
+
+---
+
+## 2. 目标
+
+### 2.1 收敛目标
+
+沿同一嵌套 rule 细化：M → 2M → 4M → …
+
+- I_M(w) → I(w)；
+- 决策收敛：w_M → w*。
+
+### 2.2 嵌套确定性 rule 的硬性要求
+
+1. 一次 refinement 全程同一 rule 身份：primes 与 shifts 固定（src/predict.jl:512-521 的共享 shift）；2M 序列的前 M 个点必须逐位等于 M 序列的点；禁止重新洗牌、重抽 shift、或换 rule 后再比较。
+2. quadrature 模式下不消耗调用方 rng（现状满足；见 §1.3）。
+3. 调度无关：同一决策日、同一 seed 下，worker/线程调度不得改变 rule 或点序（AGENTS.md:1151-1172）。
+4. rule 替换（如 Sobol/Owen，AGENTS.md:1191）是数值 backend 变更，不改变 posterior law；替换后必须重新走 §3 证书。
+
+---
+
+## 3. 收敛证书
+
+对一次 refinement 的相邻两级 M、2M：
+
+- (a) **权重稳定性**：‖w_{2M} − w_M‖₁ ≤ ε_w。
+- (b) **目标间隙**：I_{2M}(w_{2M}) − I_{2M}(w_M) ≤ ε_U，用更细的同一 rule 求值。
+- (c) **可选 KKT**：在 X_{2M} 上复核 kelly_certificate(X_{2M}, w_{2M}) 的全部指标 ≤ solver tol。
+
+### 3.1 各自在哪一层计算、谁是 owner
+
+| 判据 | 计算层 | owner | 理由 |
+|---|---|---|---|
+| (a) | scenario refinement 循环（持有 w_M 与 w_{2M}） | `predict.jl`（`adaptive_scenario_weights`） | kelly 层看不到跨 M 的另一半 |
+| (b) | scenario generator 层求值（样本在 generator 层，目标语义在 kelly 层） | `predict.jl` 计算差；目标求值语义归 `kelly.jl` | 必须在同一更细样本上比较两个权重 |
+| (c) | 给定 X 的 KKT/最优性 | `kelly.jl`（`kelly_certificate`） | 已有唯一实现，禁止复制 |
+
+(a)(b) 是积分收敛证据；(c) 是求解误差证据。二者必须分别成立、分别记录，不得互相顶替。任何实现都不得把「certificate 绿了」说成「积分收敛了」。
+
+### 3.2 通过条件
+
+一次 adaptive 返回必须满足：fine 解 w_{2M} 自身有有效 solver 证书（现状：fast 内部 tol=1e-8 或 Clarabel 自证，src/kelly.jl:61、126、55-56），且 (a) ≤ ε_w、且 (b) ≤ ε_U。若启用 (c)，在 fine 样本上复核。
+
+### 3.3 为什么 (b) 不能由 (a) 替代
+
+仅有 (a)：w_M 与 w_{2M} 可能同步漂移（同一采样偏差下近似相等），‖·‖₁ 小但都远离 w*；仅有 (c)：I_M 可以因 M 不足而整体偏离 I，每步都「解得好」但解的是错的积分。所以需要 (b) 在更细同一 rule 上直接比较目标值。以 Sharpe/回测收益作判据违反 AGENTS.md:1183-1189 与 2133-2141。
+
+### 3.4 现状与证书定义的差距
+
+- 现状（src/predict.jl:646-647）：`certificate = kelly_certificate(X_new, w_prev)` 是 **w_M 在 X_{2M} 上的次优间隙**（(b) 的一种上界变体），不是直接的 I_{2M}(w_{2M}) − I_{2M}(w_M)；返回的是 w_{2M}（`weights`），证书却属于 w_M——语义不对称。
+- `tol=1e-5`（integration 层）与 solver 内部 `tol=1e-8`（src/kelly.jl:61）是两个不同层次的阈值，必须分开命名、分开记录。
+- 非 adaptive 默认路径（src/backtest.jl:117、249-251）完全不做跨 M 检查。
+
+---
+
+## 4. Fail loudly
+
+- 预算内不收敛必须抛错，错误文本必须包含 `"Numerical integration did not converge"`（现状 src/predict.jl:652 为 `"posterior quadrature did not converge by $max_scenarios scenarios"`，语义一致、措辞待统一到规范文本）。
+- 严禁「到 512 就算了」：不得在耗尽 `max_scenarios` 时返回 `converged=false` 的默认权重、静默回退 IID、或把最后一次权重当成结果。
+- 严禁：靠调大 `max_scenarios` 让某次运行通过而不记录证书；靠删除 (b) 让循环提前退出；靠重跑直到碰巧通过。
+- 与 AGENTS.md:2012（§56 fail-loud）一致。
+
+---
+
+## 5. S=300 降级
+
+- `S=300` 只允许作为：数值初始规模、测试/诊断规模、历史对照（如 dev/m1_artifact_replay.jl:626-627 的 M1 基准）、或 adaptive 细化的中间起点。
+- 生产决策（backtest/live 最终权重）不得使用未经 §3 证书的固定 S。当前「`S=300` + `adaptive=false`」仍是默认（src/kelly.jl:173、src/backtest.jl:117），属于与本文档目标的已知差距（§8），其修复必须走独立评审与实现流程，不得在本草案阶段声称已达成。
+- 一旦 adaptive 成为生产默认，生产签名里的 `S=300` 必须被重新审查或删除。
+
+---
+
+## 6. 与 SPEC §37 的关系
+
+- §37（AGENTS.md:1176-1191）：细化判据是 ‖w_{2S}−w_S‖₁ 与 Kelly objective certificate，不是 Sharpe。本文档把该句细化为：(a) 即 L1 判据；(b)(c) 把「Kelly objective certificate」拆成积分目标间隙与求解 KKT 两个层次。
+- §65（AGENTS.md:2133-2141）：‖w_{2S}−w_S‖₁ → 0；不得用回测收益选 S。与本文档一致。
+- 张力（必须标注）：
+  1. §37 表述「Kelly objective certificate」是单数，现实现中它同时被当成 (b) 的代理与 (c) 的阈值，而 solver 内部另有 1e-8——层次混淆。
+  2. §37 同时支持 IID 与 quadrature，但默认回测走 IID 且固定 S（src/backtest.jl:117）；生产若声明依赖 §37 的收敛保证，默认路径必须显式走证书路径。
+  3. §37 允许未来替换 Sobol/Owen（数值 backend，不改变 posterior law）——本文档要求替换后重新走 §3 证书，并保留 rule 身份用于重放。
+
+---
+
+## 7. 未决决定（判据均不依赖 Sharpe）
+
+| # | 未决项 | 决定所需证据 | 判据 |
+|---|---|---|---|
+| 1 | `max_scenarios` 默认（现状 512） | 不同 N 与响应强度下 M→2M→4M 的 (a)(b) 序列；撞顶比例 | 证书通过所需 M 的分布；撞顶即暴露给重新审查，不静默放过 |
+| 2 | ε_w 数值（现状 weight_tol=1e-3） | 同上；量纲（full N_universe 空间 L1） | 缩小 ε_w 时 w 变化符合收敛趋势 |
+| 3 | ε_U 数值与定义（绝对/相对） | (b) 的直接实现与实验 | ε_U 减半时返回 M 单调不减/证书仍可复现 |
+| 4 | 嵌套下 RNG 确定性细节 | rule shift 抽取与返回对象的身份记录 | 同 seed、同 rule 逐位可重放；跨日期 `MersenneTwister(seed+t)` 与调度无关 |
+| 5 | adaptive 返回对象是否携带 rule 身份与证书数值 | 审计、重放与复现要求 | 返回 primes+shifts+M+证书，或明确记录可重放来源 |
+| 6 | adaptive 在 backtest 中的序列化/并行成本 | src/backtest.jl:105-111 记录的现状约束 | 只序列化数学所需的最小对象；不得改变任何数学 |
+
+全部未决项的裁决必须回答：证书在预算内是否通过。禁止以「回测更好/更快」裁决数值参数。
+
+---
+
+## 8. 现状差距清单
+
+| # | 项目 | 现状 | 规范目标 | 引用 |
+|---|---|---|---|---|
+| 1 | 嵌套 rule | 已实现（Halton + 共享 shift） | 保持，受证书约束 | src/predict.jl:507-531、627-653 |
+| 2 | 生产默认路径 | `adaptive=false`, S=300 IID | 生产须走证书路径，或显式声明降级 | src/backtest.jl:117、249-251 |
+| 3 | (a) 权重 L1 | 已实现 | ε_w 经实验确定 | src/predict.jl:647 |
+| 4 | (b) 目标间隙 | 代理：w_prev 在 X_new 上的 KKT gap ≤ 1e-5 | 显式 I_{2M}(w_{2M}) − I_{2M}(w_M) ≤ ε_U | src/predict.jl:646-647 |
+| 5 | (c) KKT | fast/Clarabel 内部 1e-8 | 可选 fine 样本复核 | src/kelly.jl:61、126 |
+| 6 | 错误文本 | `posterior quadrature did not converge by ...` | 含 `"Numerical integration did not converge"` | src/predict.jl:652 |
+| 7 | rule 身份/重放 | 返回对象不含 primes/shifts | 记录或可重放 | src/predict.jl:643-648 |
+| 8 | 高维 rule 有效性 | dim = 2N+3；N 大时未证收敛速率 | 收敛实验覆盖真实 N | src/predict.jl:630 |
+
+---
+
+## 9. 一句话
+
+证书必须回答两个不同的问题——「这批 scenario 上的凸问题解好了吗」(c) 与「这批 scenario 够代表真实积分了吗」(a)(b)；前者已有唯一 owner（kelly.jl），后者必须由 scenario refinement 层在预算内证明，否则 fail loudly，而不是「到 512 就算了」。
+
+==> docs/OLD_TO_CURRENT_SEMANTIC_DIFF.md <==
+# OLD → CURRENT 语义差异报告（Gate 0 重开 · Deliverable 2）
+
+**状态：分析文档（非规范、非发布凭据）**
+**基准：旧侧 = `1d9b7ad`（Path Kelly V0 baseline，2026-10-06 12:57:22 +0800）；新侧 = 当前工作树（release 基线 `fc54ce48`，2026-10-09 12:14:17 +0800）**
+**性质：纯静态语义比对。本文不含任何收益 / PnL / Sharpe 数字；不运行任何命令；不修改源码、测试与任何既有证据文件。**
+**证据来源：`dev/evidence/manager13/` 侦查材料（`defect_markers.txt`、`src_evolution.txt`、`old_src_snapshots.txt`）与三份快照目录；行号引用均指各文件的静态文本。**
+
+---
+
+## 0. 范围声明与基准选择
+
+### 0.1 为什么以 `1d9b7ad` 作为旧侧
+
+【事实】`dev/evidence/manager13/defect_markers.txt`（§A–§F）以 pickaxe 与逐提交存在性矩阵证明：答辩点名的判别性缺陷标志——`shrink_drift`、ARD（MacKay 分组 ARD）、BF 家族（`BF_MIN` / `bayes_ard` 稀疏门控）、selection 自选择缺陷承认注释——的**唯一宿主**是 `1d9b7ad`；从 `21017b9`（V1.0）起全部为零命中（`defect_markers.txt:309-316, 518-527, 562-564`）。`old_src_snapshots.txt:108-121` 的判定 1 与之一致：它同时是时间序上最早的实质提交，也是这些标志的最后（唯一）宿主。
+
+因此，`1d9b7ad` 是"缺陷标志意义上"可被证据锚定的旧侧端点，而不是凭印象挑选的版本。
+
+### 0.2 为什么不是字面的「最后胜出版本」
+
+【事实】`old_src_snapshots.txt:108-131` 明确记录：本仓库 git 历史中**不存在**具名为「早期胜出版本 / winner」的单一 commit；答辩报告原文不在本机可读范围（`old_src_snapshots.txt:124-128` 判定 3）。`defect_markers.txt:552-559`（F4）进一步说明：'BF' 的字面 token 在所有提交的源码中零命中（仅二进制 fixture `t14294_conditioned_fold3.jls` 字节巧合），若答辩所指为 BF 稀疏门控语义，则其最后宿主同为 `1d9b7ad`；两种解释都已记录、不作裁决。
+
+因此本文严格使用"证据最强的旧侧基准"这一口径。中间对照 `21017b9`（V1.0，修复发生点）与 `602b897`（性能线终点/发布父提交）在必要处引用为**对照面**，但它们不是旧侧的替代品。
+
+### 0.3 不确定性（必须随结论携带）
+
+1. 答辩报告原文不可读；关键词清单来自任务转述，未逐字核对。若报告点名了其他标志，需以其证据重做对照（`old_src_snapshots.txt:125-127`）。
+2. `shrink_drift` 在 V0 中是一个具体函数（模型内收缩估计），其是否等同于报告所称"缺陷"需报告原文确认；本文只给"该标志在此提交存在/不存在"的事实（`old_src_snapshots.txt:128-129`）。
+3. 所有行号来自转储快照的静态文本；`old_src_snapshots.txt:65-74` 的 `diff -r` 保真验证与逐文件 SHA-256（`:76-106`）证明转储内容与 git 对象逐内容一致，但 git blob 名是 SHA-1、不可与 SHA-256 直接比较（`:70-72`）。
+4. 本报告是**语义分析**：分类（修 bug / 理论变化 / 数值变化 / 结构重构）为工程判断，凡推断均显式标注【推断】；凡规范裁决均回引 SPEC 章节。本文不宣布任何收益结论。
+
+---
+
+## 1. 十项数学对象的逐项 diff
+
+分类词约定：
+- **修 bug**：旧实现与项目自身声明的数学/契约不一致，且移除/修复在规范或注释中有据；
+- **理论变化**：模型对象、先验、法律或信息集语义改变（需要 SPEC 审查确认归属）；
+- **数值变化**：同一数学对象的离散化/算法/常数改变；
+- **结构重构**：数学对象不变或近不变，但 ownership / 表示 / 调用路径改变；
+- **【需 SPEC 审查】**：无法在上述四类内唯一归类，或分类依赖于尚不可读的规范判断。
+
+### 1.1 Conditional mean
+
+| | 旧版（V0） | 当前 |
+|---|---|---|
+| 实现 | `model.jl:503-507`：`conditional_mean = drift.mean .+ response_mean`；`response_mean` 对 geometry draws 取平均（`model.jl:504`）；`predict` 中每场景抽 drift 层级（`model.jl:535-536`） | `predict.jl:480-486`：`mu_rel_proj = mu_rel .- mean(mu_rel)`；`mu_norm = mu_m .* e0_now .+ mu_rel_proj`；`mu_asset_act = mu_norm .* s1`；嵌入完整 universe（`L485-486`）；`predict.jl:463-466` 由 `predictive_moments` 给出 `mu_m, mu_rel` |
+| 语义 | 条件均值 = 跨资产层级漂移后验均值（`shrink_drift`，`model.jl:317-339`，含 Newey–West 长期方差 SE，`model.jl:288-305`）+ 对 8 个 bootstrap 几何的响应均值 | 条件均值 = macro ridge 均值（`response.jl:1146-1151`）+ trace 条件化后的 relative 均值（`response.jl:1200-1201`）；无 drift 项；relative 分量在活资产上零和 |
+| 分类 | **理论变化**（层级 drift 被移除；`drift` 于 V1.0 即已消失：`old_src_21017b9/src/predict.jl:165-166` 只余 `mu_m e0 + Phi_perp mu_rel`）。**修 bug 成分**（V0 的 in-sample 拟合均值参与 `resid`，见 1.6/3.3） |
+
+【推断】drift 项的存废是 V0→当前对**低信噪比横截面**影响最大的单点：V0 把每资产均值向共同 `μ0` 收缩（`model.jl:329-334`），当前完全不表达该先验；同时当前 relative 投影显式去均值（`predict.jl:480`），而 V0 的 `response_mean` 是 mode 空间平均，其零和性依赖 neutrality 约束。此项改变预测的横截面形状，最可能解释策略行为变化。是否属理论推进需 SPEC 对 SPEC §34 的对照（当前定义与 SPEC §34 一致）。
+
+### 1.2 Response operator
+
+| | 旧版（V0） | 当前 |
+|---|---|---|
+| 实现 | `model.jl:374-470`（`fit_response`）：几何窗口内每 band 的协方差特征向量 `Φ=natural_modes(...)`（`model.jl:164, 192-196`）；每条通道是 `φ_k ⊗ c_k(t)`（`model.jl:374-390`）；系数块 `Cb`（`model.jl:433-438`）；`bayes_ard` 求解 | `response.jl:1124-1209`（`fit_response_operator`）：macro 为 ridge/EB；relative 为 `P=14N` 维 design 上的谱表示（`response.jl:150-174`）+ trace 条件化（`L1200-1208`）；design 由 `fill_design_matrix!`（`response.jl:55-75`）在**固定 Helmert gauge** 相对空间上构造（`numerics.jl:368-380` `relative_gauge`） |
+| 语义 | 数据依赖的每 band 模式（sign / 简并旋转不可控），每个 mode 一对 `(a_k,b_k)`；`θ_posterior` 报告 `ρ,θ,R1,R2`（`model.jl:472-500`） | 固定数值 gauge；"自然结构"由算子谱解释（SPEC §14 的 0.95 决策）；`ResponseOperator` 持有 `G_c_mean, covariance, Sigma_rel, inv_M_constraint`（`response.jl:92-104`） |
+| 分类 | **结构重构**（表示从 eigenmode 坐标到固定 gauge 坐标）+ **理论变化**（mode identity / sign / 简并问题被消除；V0 的 `MODE_STABILITY` 过滤 `model.jl:207-218` 与 `GEOM_DRAWS` 在 HEAD 已不存在）。V1.0 是过渡：`old_src_21017b9/src/predict.jl:100-105` 仍用 `relative_modes` + `Phi_draws` |
+
+### 1.3 Structural neutrality
+
+| | 旧版（V0） | 当前 |
+|---|---|---|
+| 实现 | `model.jl:408-412`：`Cn` 只在非 macro mode 上置 1，`Z=nullspace(Cn)`；`bayes_ard` 以 `Z` 参数化 `β=Zγ`，neutrality **在先验子空间上**（`model.jl:16-17, 222-232`） | `response.jl:131-148`（`condition_trace_neutrality`）：由 `constraint_moments`（`L109-130`）在 `CΩCᵀ`（14×14）上求解，`G_c = G - Ω Cᵀ (CΩCᵀ)⁻¹ C G`；均值与协方差同时条件化（`response.jl:1192-1208`） |
+| 中间对照 V1.0 | `old_src_21017b9/src/response.jl:172-196`：对 `G_raw` 的每个 band **减去对角均值**（mean-only）；`predict.jl:250-265` 对每个样本再减均值。静态代码中**没有**对 covariance 的约束条件化 | — |
+| 分类 | **【需 SPEC 审查】**：V0 的"先验支持上约束"在数学上合法（SPEC §22 允许的路径之一的前身），V1.0 的 mean-only 投影与 SPEC §22 明确禁止列表中的"只把 mean 的 trace 减掉"字面相符【推断，静态行号支撑】；当前实现即 SPEC §22/§25 描述的 constrained mean/covariance。V0→当前是**理论深化**（先验约束 → 精确条件化），但 V1.0 中间态相对 V0 是一次**局部退步**，值得在 SPEC 历史审计中单列 |
+
+### 1.4 Parameter prior
+
+| | 旧版（V0） | 当前 |
+|---|---|---|
+| 实现 | `model.jl:222-232`：每 mode 一个 ARD 精度 `α_k`，`(a_k,b_k)~N(0, α_k⁻¹ I₂)`；`ALPHA_MIN/ALPHA_MAX = 1e-6/1e7`（`model.jl:233`） | `response.jl:1160-1185` + SPEC §19：`G|Σ,α ~ MN(0, Σ, α⁻¹I)`；`EB_ALPHA_MIN/MAX = 1e-4/1e6`（`response.jl:207-208`） |
+| 语义 | 每通道独立精度（分层稀疏先验）；`α_k→∞` 表示模式关闭 | 全局标量 `α_rel`（macro 另有 `α_m`）；不确定性由 `Σ`（relative innovation covariance）与 `V=(XᵀX+αI)⁻¹` 表达 |
+| 分类 | **理论变化**（每模 ARD 分层 → 全局标量 Matrix-Normal 先验；稀疏性从"BF 门控开关"变为连续证据） + **数值变化**（域界常数 1e-6/1e7 → 1e-4/1e6，SPEC §24 限定为数值域界） |
+
+### 1.5 Hyperparameter treatment
+
+| | 旧版（V0） | 当前 |
+|---|---|---|
+| 实现 | `bayes_ard` 内循环（`model.jl:248-286`，500 iters / tol 1e-4）→ 对每个 live mode 计算 `logev` 增益 → `weak = gain .< log(BF_MIN*M)` → 关闭并重拟合（`L274-281`） | `maximize_logalpha`（`response.jl:212-273`）：33 节点对数网格 + bracket 二分 + secant + 确定性 tie-break；`bounded_alpha_certificate`（`L276-282`）与 `covariance_certificate`（`L297-347`）双证书；`optimize_matrix_normal_eb` / `optimize_conditioned_eb` 以 `certificate.valid || error` fail-loud（`response.jl:378, 996-999, 1119-1121`） |
+| 中间对照 V1.0 | `old_src_21017b9/src/response.jl:72-113`：`optimize_evidence_alpha` 固定点 15 步、clamp `1e-4..1e6`、**无 stationarity 证书** | — |
+| 分类 | **理论深化**（证书驱动，SPEC §25：stationarity certificate 必须存在） + **数值变化**（迭代策略、域界） + **修 bug 候选**（V1.0 的"line search 失败即返回"类做法被 SPEC §25 禁止；当前在无证书时抛错）。V0 的 BF 稀疏门控整体移除：**理论变化**（先验结构改变） |
+
+### 1.6 Innovation law
+
+| | 旧版（V0） | 当前 |
+|---|---|---|
+| 实现 | `modecov.jl:1-230`：13 点网格 `DGRID`（`L1`）；每模自己的 `d_k`（`L3-7, L67-92`）；Horn 平行分析 + tail 规则选模（`L121-160`）；idiosyncratic 块对角投影（`L164-193`）；`model.jl:527-548` 每场景抽 `mode_vol_model` 或 iid 残差行 | `predict.jl:76-119`：7 点 `DGRID_V1` + `DELTA_D_V1` 权重（`L10, L14, L94`）；FFT 精确卷积；残差来源为 OOF residual（下述 1.7）；`generate_scenarios_v1` 用单标量 `scale=sqrt(v_forecasts[d]/v_bootstrap)`（`L615`）+ 行 bootstrap/own-row（`L577-604`） |
+| 语义 | 多模 + 异质 + 每模 FIGARCH 型长期记忆 + 尾部规则；尺度是模自身的 `σ` | macro 标量分数后验 + 绝对尺度归一（SPEC §31–§32）；relative 分量的风险由 predictive covariance 表达（`response.jl:1221-1229`） |
+| 分类 | **理论变化**（innovation 法律从多模异质降为 macro 标量 + covariance；是否等价于 SPEC 的 KISS 版需要 SPEC §30 对照——SPEC 明言这是 V1 的 KISS 版非 Markov 风险，不是最终无限维 law） + **数值变化**（FFT vs `DSP.conv`；13→7 点网格且引入 `Δd` 权重，SPEC §31 明确要求含测度） |
+
+【事实】V1.0 的 `mode_vol_factors`（`old_src_21017b9/src/predict.jl:205`）在 `generate_scenarios_v1` 中构造后**未被消费**：`predict.jl:237-250` 的 `eps_shock` 直接取 `res_history` 行、无缩放，最终 `scenarios_log = mu_s .+ eps_shock`（`L250`）。这是中间对照面的静态观察（未接线字段），当前实现有显式绝对尺度（`predict.jl:615`）。
+
+### 1.7 Posterior uncertainty
+
+| | 旧版（V0） | 当前 |
+|---|---|---|
+| 实现 | 几何 bootstrap：`model.jl:402-403`（`bs`）→ 每个 draw 有自己 response posterior（`model.jl:465-469`，`Draw`）→ `predict` 均匀混合（`model.jl:523, 537`）；drift 层级后验（`mu0sd/sd`，`model.jl:536`） | 决策时精确边缘化：`predictive_moments`（`response.jl:1211-1229`）返回 `mu_m/var_m/mu_rel/L_rel`；`L_rel` 为 predictive covariance 的 PSD 主平方根（`numerics.jl:452-460`；`predict.jl:570-572`）；scenario 只抽 relative 因子 + macro 标量（`predict.jl:555-563, 610-622`） |
+| 语义 | 抽整个 `G`（每 bootstrap 几何一个）；几何子空间不确定性显式传播 | 不抽整张 `G`；`Gx` 的边缘 + constrained covariance 精确表达（SPEC §33：这是精确边缘化，不是降阶近似）；**geometry draws 不再存在**（V1.0 的 `Phi_draws` 未出现在当前 `V1Model`，`predict.jl:16-36`） |
+| 分类 | **理论深化**（SPEC §33 精确边缘化） + **理论变化/【需 SPEC 审查】**：geometry subspace uncertainty 从"显式 bootstrap 混合"退场，由固定 gauge + scalar ruler 的确定性几何替代。SPEC §14 论证了固定 gauge 消除了 sign/简并等跟踪问题，但"移除几何不确定性传播"是否在 SPEC §26 的 epistemic uncertainty 语义下被完全覆盖，属规范判断，本文不裁决 |
+
+### 1.8 Scenario integration
+
+| | 旧版（V0） | 当前 |
+|---|---|---|
+| 实现 | `model.jl:521-548`：纯 IID MC（默认 S=1000）；**moment matching**（`L542-546`：`out .+= conditional_mean' .- mean(out, dims=1)`） | `predict.jl:546-625`：IID 或嵌套 randomized Halton（`ScenarioQuadrature`，`L507-531`）；`adaptive_scenario_weights` 用 `kelly_certificate` 的 objective gap + 权重 L1 收敛（`L627-653`）；**无 moment matching**（`predict.jl:533` docstring "No post-hoc mean matching."；`defect_markers.txt:457, 521` 记录该否定声明由 `c109d9f` 引入） |
+| 语义 | 强制场景样本一阶矩等于解析预测均值（V0 注释自称 numerics-only） | 由 quadrature refinement + Kelly certificate 控制采样误差（SPEC §37：数值 refinement 依据 `‖w_{2S}-w_S‖₁` 与目标证书，不得用回测 Sharpe） |
+| 分类 | **理论变化/认识论**（moment matching 移除；收敛改由证书证明） + **数值变化**（Halton） |
+
+【事实】V1.0 亦有 moment matching（`old_src_21017b9/src/predict.jl:253-254`）。移除时间点为 `c109d9f`（2026-10-06 19:00，`defect_markers.txt:19-20, 448-457, 521`）。
+
+### 1.9 Kelly feasible set
+
+| | 旧版（V0） | 当前 |
+|---|---|---|
+| 实现 | `model.jl:553-568`：Clarabel `max sum(log(X f + base))/S`，`f≥0, sum f = budget`；结果 `clamp.(..., 0, budget)` 后 `out .* (budget/sum(out))`；`allocate`（`L600-621`）中 locked 为 `held .* .!free`，未建模 locked 以常数财富 `fill(sum(locked[.!mask]), S)` 参与 base（`L614`） | `kelly.jl:6-134`：`kelly_inputs` 校验（`L6-15`：gross return 必须正有限；base 非负有限）；`fast_kelly_solver` + `kelly_certificate`（`L21-37`，concavity gap / KKT / feasibility），失败回退 `clarabel_kelly_solver`（`L39-58`，同目标同证书）；`locked_wealth`（`L137-148`）对每个 held 资产要求有预测律，缺则 error（`L143`） |
+| 语义 | 已持有且不在 scenarios 中的资产 = 常数财富（等价于把其风险当 cash）；无 fast solver、无证书 | free 资产 = tradable ∧ active；locked 只乘真实持有的列；`0*NaN` 不再进入 base；同一 log-Kelly 目标的两个 solver 都须通过证书 |
+| 分类 | **修 bug**（SPEC §38.1：locked 风险不得当 cash；`0*NaN` 防护与 fail-loud）+ **结构重构**（certificate 化；SPEC §39-§40）。归一化除零/空集边界为数值修复 |
+
+### 1.10 Universe semantics
+
+| | 旧版（V0） | 当前 |
+|---|---|---|
+| 实现 | `model.jl:570-589`：`firstrows`；`eligible(f,T)=(T-f+1)>=MINROWS`（`L581-582`）；`MINROWS=WARMUP+GEOM_MIN+REG_MIN=256+256+64=576`（`L56-57`）；`scenarios` 只在 eligible 列上生成；`tradable` 默认 `isfinite.(adj[end,:])`（`L630`） | `predict.jl:125-135`：`active_universe_indices` = 至少一条有效日收益；`_prepare_v1` 对全部 active 列建模；`alive_now` = 决策日观测 mask（`prepare.jl:131`）；`mu` 嵌回全 universe（`predict.jl:485-486`）；`kelly.jl:150-160` free = tradable ∧ active |
+| 语义 | 资产须有 ≥576 行历史才进入模型空间（硬门槛）；弱证据以排除表达 | 无 per-asset 硬门槛；弱证据由 posterior 表达（`defect_markers.txt:330` 引 V0 自述"weak evidence is expressed by the posterior ... not by exclusion"是 V0 的目标，但其 `eligible` 仍是硬门槛）；全 NaN dummy 严格排除（SPEC §11/§60） |
+| 分类 | **理论变化**（信息集扩大：所有有收益历史的资产进入建模） + **结构重构**（active/eligible/alive_now 语义分层）。两条路径都满足 SPEC §11（至少一条有效 return）与 §60（dummy 排除），差异在 V0 额外要求 576 行 |
+
+---
+
+## 2. 答辩点名缺陷的逐条核实
+
+### 2.1 `shrink_drift`
+
+- **V0 存在**：【事实】函数定义 `old_src_1d9b7ad/src/model.jl:325-339`（`DriftPost` 结构 `L317-323`，网格 `TAUGRID = [0.0,0.1,0.2,0.4,0.8,1.6,3.2]` `L315`）；拟合调用 `model.jl:464`；`predict` 中消费 `model.jl:535-536`；测试命中 `1d9b7ad:test/runtests.jl:285, 289`（`defect_markers.txt:322-327`）。
+- **移除版本**：【事实】`defect_markers.txt:328, 519, 534-535, 562-564`：`21017b9` 起零命中；`shrink` 家族（含空格变体）唯一存活于 `1d9b7ad`。
+- **当前残留**：无。【事实】对 `src/` 全目录分别检索 `shrink_drift` 与 `shrink`（含空格/连字符变体）均零命中；`defect_markers.txt:534-535` 亦确认 V0 之后全历史零命中（此前一次宽匹配中的 `discard`/`forward` 命中来自同时检索的 `ARD` 子串，与 `shrink` 无关）。当前条件均值不含 drift 项（`predict.jl:480-486`）。
+- 【推断】该缺陷的语义后果（横截面收缩先验消失）与 1.1 的行为差异直接相关；但"缺陷"定性以报告原文为准（见 0.3 第 2 条）。
+
+### 2.2 ARD / BF 门控
+
+- **V0 存在**：【事实】`bayes_ard`（`model.jl:248-286`）：`BF_MIN=10.0`（`L246`）；`weak = gain .< log(BF_MIN*M)`（`L279`）；`α[weak] .= ALPHA_MAX`（`L281`）；调用 `model.jl:453`；注释自述"26% of macro modes on white noise"的过发现（`L238-239`）。存在性矩阵：`defect_markers.txt:329-339, 538-548`。
+- **移除版本**：【事实】`defect_markers.txt:330-333, 539, 553-559`：ARD 与 BF家族的唯一宿主为 `1d9b7ad`；`21017b9` 起零命中；字面 token 'BF' 全历史零源码命中（仅二进制 fixture）。
+- **当前残留**：无。【事实】对 `src/` 全目录搜索 `bayes_ard` / `BF_MIN` / `ARD`（含大小写变体）无命中；`defect_markers.txt:538-539` 确认唯一宿主为 V0。当前先验为 Matrix-Normal + 全局 α（`response.jl:1160-1185`），EB 由证书把关（`response.jl:351-380`）。
+
+### 2.3 Selection 泄漏承认注释
+
+- **V0 存在**：【事实】`model.jl:18-21`：自述几何窗口与响应证据"disjoint"，随后承认"Estimating the eigenvectors on the very rows they are then regressed on is selection on the response: on pure noise P(|t|>1.96)=0.68 instead of 0.05"——即缺陷自认。存在性矩阵 `defect_markers.txt:343, 480-483, 522`。
+- **修复版本**：【事实】`21017b9` 头部声明"Blocked Cross-Fitting: geometry is estimated out-of-fold to strictly eliminate selection leakage"（`old_src_21017b9/src/predict.jl:1-8`；`defect_markers.txt:492-501, 510-513` 引 `predict.jl:107-137` 的分块交叉拟合）。
+- **当前残留**：无缺陷面。【事实】`src/` 无 `selection` 命中；`bin/bench.jl:47-53` 的 `selection` 是基准引擎选择变量名（`defect_markers.txt:363-367, 522`）。当前 OOF 为真正的 per-fold 独立 EB（`predict.jl:405-447`，train Gram = full − fold，`L407-410`）。
+- 【事实补充，非报告点名但同族】V0 的残差 `resid` 是 **in-sample** 拟合残差（`model.jl:458-462`，同一 `ref` 几何的 `β`）；V1.0 的残差预测同样使用**全数据** `resp`（`old_src_21017b9/src/predict.jl:173`，`pred_t=predict_modes(resp,...)`），其"cross-fit"只发生在坐标 `z_rel_cf`（`L112-136`），不在模型参数上。当前 SPEC §27-§29 的 OOF 隔离（每 fold 独立 EB，`predict.jl:429-447`）是真正的 out-of-fit innovation。
+- 【推断】"selection 泄漏"在两代旧版中形态不同：V0 是几何/响应重叠（已自认），V1.0 是坐标交叉但模型未交叉。二者都被当前实现取代；该演进与 residual oracle 的 9 行样本保真证据（AGENTS.md 第6任段）一致。
+
+### 2.4 可能的 zero residual / mean matching
+
+**zero residual**：
+- 【事实】V0 无 zero-fill：`defect_markers.txt:66, 524`（`zero_fill` 在 V0 零命中）。V0 的缺失残差回退是 own-row 随机行（`model.jl:509-516` `innovation`；`modecov.jl:173-178`），若某资产无 own 行会直接 `rand(1:0)` 抛错——无显式零回退。
+- 【事实】V1.0 存在 `: 0.0` 零回退：`old_src_21017b9/src/predict.jl:246`（`!isempty(own_r) ? model.res_history[rand(rng, own_r), j] : 0.0`）。
+- 【事实】当前为 fail-loud：`predict.jl:598`（`isempty(own) && error("active asset has no observed OOF residual")`）。
+- 【事实】`zero embedding`（当前）是规范语义而非缺陷：`predict.jl:38-42` 明确"absent components are defined to be zero in the field, not in the return data"，`incremental.jl:6, 32` 说明新资产列插入精确零；`defect_markers.txt:66, 524-527`（HEAD 命中为规范 zero embedding + 测试断言）。
+- 分类：**修 bug**（把 V1.0 的静默零回退替换为显式失败；SPEC §56 fail-loudly）。
+
+**mean matching**：
+- 【事实】V0 存在 moment matching（`model.jl:542-546`）；V1.0 存在（`old_src_21017b9/src/predict.jl:253-254`）；当前不存在，且 docstring 明确否定（`predict.jl:533`）；`defect_markers.txt:19-20, 448-457, 521` 记录 `c109d9f`（2026-10-06 19:00）引入"No post-hoc mean matching"。
+- 分类：**理论变化/认识论**（V0/V1.0 把它标为 numerics-only，当前以 quadrature + certificate 承担同一误差控制职责，SPEC §37）。
+
+---
+
+## 3. 语义漂移总结
+
+### 3.1 缺陷清除（修 bug）
+
+1. `shrink_drift` / ARD / BF 稀疏门控整体拆除（唯一宿主 `1d9b7ad`；`21017b9` 起零命中）——先验结构与选择门控被 Matrix-Normal + 证书化 EB 取代。
+2. in-sample residual → 真正 per-fold OOF（SPEC §27-§29；V0 `model.jl:458-462`，V1.0 坐标交叉而非模型交叉）。
+3. locked 资产风险不得当 cash：V0 `allocate` 的常数财富（`model.jl:614`）→ 当前 `locked_wealth` fail-loud（`kelly.jl:137-148`，SPEC §38.1）；`0*NaN` 防护。
+4. V1.0 的静默 `0.0` 缺失残差回退 → 显式 error（`predict.jl:598`）。
+5. Kelly 无证书 → 双证书（`kelly.jl:21-37`）与同目标 Clarabel 回退（SPEC §39-§40）。
+
+### 3.2 理论深化（认识论升级）
+
+1. 每模 ARD 先验 → 全局 Matrix-Normal + evidence-maximised α，且 stationarity / covariance 双证书（SPEC §25）。
+2. neutrality：先验子空间（V0）→ 精确 Gaussian conditioning 于均值与协方差（当前；SPEC §22）。V1.0 的 mean-only 投影作为中间态记录。
+3. posterior uncertainty：抽整张几何/响应 → `Gx` 决策时边缘化 + PSD 主平方根唯一化（SPEC §26, §33；`numerics.jl:452-460`）。
+4. 场景误差控制：moment matching → Halton quadrature + `kelly_certificate` 收敛判据（SPEC §37）。
+5. universe：576 行硬门槛 → 全部 active 资产 + posterior 表达弱证据（SPEC §11）。
+
+### 3.3 可能改变策略行为但无理论判决（建议 SPEC 审查的候选）
+
+1. **drift 层级先验的存废**（1.1）：当前 SPEC §34 不包含 drift 项，故形式合规；但它是一次实质先验删除，且是 V0→当前差异中横截面行为最敏感的一项。建议 SPEC 明确记录"层级 drift 是否被有意废弃、其统计职能由谁承接"。
+2. **geometry subspace uncertainty 的退场**（1.7）：V0/V1.0 显式传播 bootstrap 几何不确定性；当前 `V1Model` 无 `Phi_draws`。固定 gauge 论证（SPEC §14）解释了几何**跟踪**问题，但未显式裁决"几何不确定性是否仍应进入 predictive"。建议 SPEC 给出结论。
+3. **innovation 法律的多模 → macro 标量**（1.6）：SPEC §30 自述这是 KISS 版、非最终 law；但 V0 的每模异质 d 与 idio 投影被整体替换，其相对/横截面风险由 `L_rel` 承接。需确认在 SPEC §26 总不确定性公式下无风险丢失。
+4. **V1.0 的 mean-only neutrality**（1.3）：若 SPEC 历史审计需要，此条应作为"修复提交中的局部退步"单列；当前实现已超越它。
+5. **`MINROWS` 硬门槛移除**（1.10）：对极年轻资产，当前让其进入模型（由 posterior/EB 收缩），V0 排除。是否为有意的信息集扩大，建议 SPEC 一句确认。
+
+### 3.4 相对行为的可能主因（排序，均为【推断】）
+
+1. drift 层级移除（横截面收缩消失，低信噪比下预测形状改变）；
+2. innovation 尺度与法律（多模异质 → macro 标量 + predictive covariance；scenario 尾部/分散度改变，Kelly 规模改变）；
+3. OOF residual 化（残差宽度校准改变，`scale=sqrt(v_forecasts/v_bootstrap)` 的 `v_bootstrap` 取自 OOF）；
+4. moment matching 移除（有限 S 下样本均值噪声不再被逐资产对齐）；
+5. neutrality 处理差异（对 band 间投影的均值/协方差形状影响）。
+
+---
+
+## 4. 未能确定的项
+
+1. 答辩报告原文不可读（`old_src_snapshots.txt:125-127`）；"shrink_drift / ARD / BF 门控" 是否就是报告全部点名项，未逐字核对（`old_src_snapshots.txt:128-129`）。
+2. 旧版本之间（V0→V1.0→`85f6e97`→`d5e97dd`→`c109d9f`→…→HEAD）存在多个中间提交，本文只逐项给出"V0 / V1.0 / 当前"三点证据；精确的移除提交点除已引用者（shrink/ARD/BF=`21017b9`、mean matching=`c109d9f`、zero fill 规范=`HEAD`）以外未逐提交穷举。
+3. 未运行任何命令，未做数值对照；"策略行为改变"的排序是静态推断，不是收益证据。
+4. geometry uncertainty 退场的规范性归属（3.3-2）与 drift 存废（3.3-1）依赖不可读的规范史，本文仅提供可核对的源码事实。
+5. `602b897` 快照（性能线终点）未在本文逐项展开；如需第四点对照，需另立任务。
+
+---
+
+## 附：证据索引（路径与行号）
+
+- 旧快照（V0，8 文件）：`old_src_1d9b7ad/src/model.jl`（含 Kelly `L553-568`）、`old_src_1d9b7ad/src/modecov.jl`、`old_src_1d9b7ad/src/backtest.jl`、`old_src_1d9b7ad/src/broker.jl`、`old_src_1d9b7ad/src/data.jl`、`old_src_1d9b7ad/src/KTrader.jl`、`old_src_1d9b7ad/src/live.jl`、`old_src_1d9b7ad/src/repomix-output.xml`（V0 无独立 kelly.jl / geometry.jl 文件；`old_src_snapshots.txt:12-20`）。
+- 中间对照（V1.0）：`old_src_21017b9/src/predict.jl`、`old_src_21017b9/src/response.jl` 等 9 文件（`old_src_snapshots.txt:29-38`）。
+- 当前源码：`src/predict.jl`、`src/response.jl`、`src/prepare.jl`、`src/kelly.jl`、`src/numerics.jl`、`src/geometry.jl`、`src/residual_oracle.jl`、`src/incremental.jl` 等 13 文件。
+- 侦查证据：`dev/evidence/manager13/defect_markers.txt`（A–F 节）、`src_evolution.txt`、`old_src_snapshots.txt`（含聚合与逐文件 SHA-256）。
+- 规范对照：SPEC §11、§14、§19、§22、§24-§26、§27-§29、§30-§32、§33-§34、§37、§38-§40、§56（AGENTS.md 内）。
+
+---
+
+*本报告为纯静态语义比对；所有分类均为该层级内的工程判断，推断处已标【推断】。不宣布任何发布、验收或收益结论。*
+
+==> docs/POSTERIOR_DEFINITION.md <==
+# KTrader Posterior Definition — SPEC 级定义草案
+
+**文档状态：草案（Gate 0 重开后 Deliverable 4），交 SPEC 审查。**
+**性质：定义与现状盘点，不是实现；本文件的任何目标条款都不改变当前运行时行为，落地须另立受控施工。**
+**证据基准：当前工作树源码（HEAD 602b897 + dirty 47 时点）只读核对；全部引用为 `file:line`。**
+**纪律：本文中所有「具体选择」均标注「留待 SPEC 审查决定，禁止由回测选择」——任何先验、积分网格、收敛判据都不得以回测收益/Sharpe 作为裁决依据。**
+
+---
+
+## 0. 阅读约定
+
+- $\mathcal H_t$ 为价格历史信息集；$Y$ 为训练目标（relative field 的下一日值）；$\Theta$ 泛指全部未知固定对象。
+- 「带先验的未知对象」= 有显式测度（连续后验、离散后验或经验测度）并进入预测积分的对象。
+- 「点估计 plug-in」= 由某个判据选出单一数值、当作已知常数代入下游的对象；其自身不确定性不进入任何预测方差。
+- 「条件后验」= 在超参固定这一条件下精确积分掉的对象；它是 plug-in 结构的一部分，不是完整 posterior。
+- 凡本文件与源码冲突，以源码事实为准；凡本文件与 SPEC 冲突，以 SPEC 为规范，本文件如实记录张力供审查。
+
+---
+
+## 1. 未知固定对象清单
+
+| # | 对象 | 当前身份 | 进入预测的方式 | 关键证据 |
+|---|------|----------|----------------|----------|
+| 1 | $G$（相对 response，$N\times P$） | 给定 $(\hat\alpha,\hat\Sigma)$ 下的**条件后验**（半积分对象） | 预测均值 $\mu_{rel}=G_c x_t$ 与预测协方差中的 $x'Vx\cdot\hat\Sigma$ 项 | `src/response.jl:1199-1202`、`src/response.jl:1220-1228` |
+| 2 | $G_{macro}$（macro response） | 给定 $\hat\alpha_m,\hat\sigma^2$ 下的**条件后验** | $\mu_m=\langle G_m,B_m\rangle$、$var_m=B_m'\hat{Cov}_m B_m$ | `src/response.jl:1146-1155`、`src/response.jl:1218-1219` |
+| 3 | $\alpha_m,\alpha_{rel}$（ridge 强度） | **点估计 plug-in**（evidence profile 的 argmax） | 仅以 $\hat\alpha$ 代入谱权重 $d=1/(\lambda+\hat\alpha)$ | `src/response.jl:252`、`src/response.jl:999`、`src/response.jl:1147`、`src/response.jl:1186` |
+| 4 | $\Sigma$（relative innovation 协方差，gauge support 内 $N-1$ 维） | **点估计 plug-in** | 作为 $G$ 条件后验的 column covariance；预测协方差 `dot(x,v).*Sigma_rel` | `src/response.jl:999`、`src/response.jl:179-182`、`src/response.jl:1226` |
+| 5 | $\sigma^2$（macro innovation 方差） | **点估计 plug-in**（无先验、无后验） | `covm = sig2 .* (...)`、scenario 的 macro 方差 | `src/response.jl:1154-1155`、`src/predict.jl:612` |
+| 6 | $d$（fractional memory 指数） | **离散后验**（grid quadrature），先验未显式化 | $p_d\propto\exp(\ell(d))\Delta d$，scenario 离散抽样 | `src/predict.jl:10`、`src/predict.jl:14`、`src/predict.jl:94-96`、`src/predict.jl:613-615` |
+| 7 | innovation 残差分布 | **经验测度 plug-in**（OOF row bootstrap） | scenario 逐场景行抽样 + own-row 回退 | `src/predict.jl:452-454`、`src/predict.jl:590-620` |
+| 8 | 尺度 $scale_d$ / $v_{bootstrap}$ | $\hat v_{bootstrap}$ 点估计；$scale_d$ 条件于抽中的 $d$ | `scale=sqrt(v_forecasts[d]/v_bootstrap)` | `src/predict.jl:499`、`src/predict.jl:615` |
+| 9 | 几何/尺度量：$s_1,s_m,s_\perp,e_0$、`alive_now`、Helmert gauge | 确定性数据变换，**非推断对象** | 作为已知坐标/度量代入 | `src/predict.jl:244-279`、`src/predict.jl:473-481`、`src/numerics.jl:368-380` |
+
+逐项说明：
+
+1—**$G$**。相对通道的完整链条是：先验 $G\mid\Sigma,\alpha\sim MN(0,\Sigma,\alpha^{-1}I)$（SPEC §19），ridge 后验因子 $V=(X'X+\alpha I)^{-1}$（`src/response.jl:169-174`），未约束均值 $\hat G$（`src/response.jl:1187-1191`），再做精确 trace-neutral conditioning $G_c=\hat G-\Omega C'(C\Omega C')^{-1}C\hat G$（`src/response.jl:1192-1202`，实现见 `src/response.jl:131-143`）。`predictive_moments` 对 $Gx_t$ 做精确边缘化（`src/response.jl:1211-1230`），其中 `mu_rel` 是后验均值、`L_rel` 含条件后验的 predictive covariance。结论：$G$ 的不确定性**在 $\hat\alpha,\hat\Sigma$ 固定这一条件下**真实进入了预测；但 $\hat\alpha,\hat\Sigma$ 本身无后验，所以是半积分对象。
+
+2—**$G_{macro}$**。macro 链平行：EB 或固定 ridge 得 $\alpha_m$（`src/response.jl:1146-1149`），$\hat\sigma^2$ 点估计（`src/response.jl:1154`），`covm` 是条件后验协方差（`src/response.jl:1155`），`var_m` 进入 scenario（`src/response.jl:1219`、`src/predict.jl:612`）。
+
+3—**$\alpha_m,\alpha_{rel}$**。`maximize_logalpha` 在 log α 网格上以 evidence 的 argmax 选点（`src/response.jl:212-273`，选定处 `src/response.jl:252`），`optimize_conditioned_eb` 返回 `(alpha,Sigma)` 标量/矩阵对（`src/response.jl:999`）。存在 KKT/边界证书（`src/response.jl:276-282`、`src/response.jl:789-816`）与域界 `EB_ALPHA_MIN/MAX`（`src/response.jl:207-208`）——**证书是驻点证明，不是后验**。SPEC §24 明确 `EB_ALPHA_MIN/MAX` 是数值域界、不是金融超参数。
+
+4—**$\Sigma$**。同上由 `optimize_conditioned_eb` 返回（`src/response.jl:999`），经 `supported_covariance` 投影到 gauge support（`src/response.jl:179-182`）。`EB_COVARIANCE_FLOOR=1e-8`（`src/response.jl:209`）是数值保护（SPEC §25 明示不得当理论风险参数）。
+
+5—**$\sigma^2$**。`sig2=max(sse/max(n-gamma_m,1.0),1e-8)`（`src/response.jl:1154`）是频率派点估计；无 prior、无 posterior、无证书。它通过 `covm`、`var_m`、以及 scenario 的 macro draw 进入预测（`src/predict.jl:612`）。
+
+6—**$d$**。当前是清单中唯一真正「对超参做离散积分」的对象：`causal_fractional_posterior` 返回 $p_d\propto\exp(\ell(d))\cdot\Delta d$（`src/predict.jl:94-96`），网格与 cell 宽度见 `src/predict.jl:10,14`；scenario 从 `cumsum(d_posterior)` 离散抽样（`src/predict.jl:613-615`）。先验目前**隐式**为网格上的均匀×$\Delta d$；SPEC §31 预留「若未来有明确连续 prior $p(d)$，再乘 $p(d_g)$」。
+
+7—**innovation 残差**。`ResidualOracle` 冻结本次 solve 的输入（`src/predict.jl:452-454`），scenario 按观察 mask 决定行抽样、缺失 cell 走 own-row 回退（`src/predict.jl:576-620`）。这是经验测度（empirical predictive），无参数后验；其抽样与数值公式精确（`src/predict.jl:533-545` 的契约注释）。
+
+8—**尺度**。$v_{bootstrap}=\max(\mathrm{Var}(e^{macro,OOF}_{history}),10^{-8})$ 点估计（`src/predict.jl:499`）；$scale_d=\sqrt{v_{T+1}(d)/v_{bootstrap}}$ 在抽中 $d$ 后是条件点值（`src/predict.jl:615`）。
+
+9—**几何量**。`s1`、`s_m`、`s_perp`、`e0`、`alive_now`、Helmert gauge 都是确定性构造（`src/predict.jl:244-279`、`src/numerics.jl:368-380`），不承担后验；它们的错误属于工程 bug，不属 epistemic 缺口。
+
+---
+
+## 2. 当前事实：$\Pi(dG\mid\hat\alpha,\hat\Sigma,\mathcal H)$ 的 plug-in EB 结构
+
+**精确陈述（作为源码事实，非规范断言）：**
+
+$$
+\Pi(dG\mid \hat\alpha,\hat\Sigma,\mathcal H)=MN(\hat G_c,\ \hat\Sigma,\ \hat V),\qquad CG=0,
+$$
+
+其中 $\hat V$ 是 $(\alpha I+X'X)^{-1}$ 的谱表示（`src/response.jl:169-174`），$\hat G_c$ 是 trace-neutral 条件均值（`src/response.jl:1192-1202`），$\hat\Sigma$ 是 EB 返回的单一矩阵（`src/response.jl:999`）。决策时刻只解析边缘化 $Gx_t$（`src/response.jl:1211-1230`）：不抽整张 $G$，符合 SPEC §33。
+
+- **$\hat\alpha$、$\hat\Sigma$ 的来源**：`optimize_conditioned_eb` 在 trace-neutral support 下交替优化 evidence，直至 KKT/floor 证书通过或 fail-closed 抛错（`src/response.jl:934-1122`；证书 `src/response.jl:789-816`）。这是 profile EB 的最大化，不是对 $\alpha,\Sigma$ 的后验积分。
+- **macro 侧同构**：`optimize_matrix_normal_eb` 返回 $\hat\alpha_m$、$\hat\Sigma_m$ 与证书（`src/response.jl:351-380`），`sig2` 另行点估计（`src/response.jl:1154`）。
+- **fold 路径**：每个 fold 用 train Grams 独立求自己的 $\hat\alpha^{(-f)},\hat\Sigma^{(-f)}$（`src/predict.jl:405-447`），held-out 行不进入 fold EB；warm start 取上一决策日同 fold 的 α（`src/predict.jl:441`），属严格过去信息。增量路径经 `solve_current!` → `_fit_prepared_v1` → `solve` 共用同一装配（`src/incremental.jl:951-957`、`src/predict.jl:338-340`），不存在第二套 posterior。
+- **scenario 的其余层**：$d$ 离散后验（`src/predict.jl:613-615`）、残差行经验 bootstrap（`src/predict.jl:590-620`）、fractional quasi-likelihood（`src/predict.jl:101-119`）。
+
+**必须钉死的声明：**
+
+> **当前结构是 epistemic approximation，不是完整 posterior。** 准确地说：它是条件于超参点估计 $(\hat\alpha,\hat\Sigma,\hat\sigma^2,\hat v_{bootstrap})$ 与经验残差测度的「部分后验预测」；完整对象 $\Pi(dG,d\alpha,d\Sigma,d\sigma^2,\dots\mid\mathcal H)$ **未被计算，也未被证明可由当前结构近似**。任何把它称为「完整 posterior」「Bayesian posterior predictive」的措辞，除非另行给出证明，均不成立。
+
+差距的精确清单：
+1. $\alpha,\Sigma,\sigma^2$ 无后验测度（第 1 节 #3/#4/#5）——其不确定性未进入任何预测方差；
+2. $d$ 有离散后验但先验未显式化（#6）；
+3. innovation 是经验测度而非参数化后验（#7）；
+4. fractional likelihood 是 quasi-likelihood（`src/predict.jl:101-119`），SPEC §30 本就只声称 KISS 版。
+
+---
+
+## 3. 目标定义：$\Pi(dG,d\alpha,d\Sigma\mid\mathcal H)$ 的层次模型抽象形式
+
+以下为**目标抽象**，用于 SPEC 审查；每一条具体选择都留白。
+
+### 3.1 层次结构（抽象形式）
+
+$$
+\begin{aligned}
+&\text{先验（结构固定，形式留白）：}\\
+&\qquad G\mid \Sigma,\alpha \sim MN(0,\Sigma,\alpha^{-1}I),\qquad C\,g=0,\quad g=\mathrm{vec}(G);\\
+&\qquad \Sigma \sim p_\Sigma(\cdot)\ \text{（支撑在 relative gauge support 内、PSD + 正定下界）};\\
+&\qquad \alpha \sim p_\alpha(\cdot)>0;\\
+&\text{似然：}\qquad Y = XG' + E,\qquad E\ \text{的行结构按 innovation 模型（见第 6/7 项）};\\
+&\text{后验：}\qquad \pi(G,\alpha,\Sigma\mid Y)\ \propto\ p(Y\mid G,\Sigma)\,p(G\mid\Sigma,\alpha)\,p_\Sigma(\Sigma)\,p_\alpha(\alpha)\,\mathbf 1[Cg=0];\\
+&\text{预测：}\qquad p(r_{t+1}\mid\mathcal H)=\int p(r_{t+1}\mid G,\alpha,\Sigma,\text{innovation})\,d\Pi(G,\alpha,\Sigma\mid\mathcal H).
+\end{aligned}
+$$
+
+### 3.2 留白与纪律
+
+| 待定项 | 候选方向（**留待 SPEC 审查决定，禁止由回测选择**） | 当前状态 |
+|---|---|---|
+| $p_\alpha(\alpha)$ | log-uniform / half-Cauchy / 其他适当先验；`EB_ALPHA_MIN/MAX` 只作数值域界，不得充当先验截断的金融理由 | 不存在 |
+| $p_\Sigma(\Sigma)$ | gauge support 上的 inverse-Wishart（需定自由度/尺度）或 non-informative + 与 floor 明确区分的正定约束 | 不存在 |
+| $\sigma^2$ 是否升格 | 独立 inverse-gamma 或 profile | 点估计 |
+| $d$ 的显式先验 | SPEC §31 预留的 $p(d)$ | 隐式均匀 |
+| innovation 参数化 | 保持经验 bootstrap（声明为 empirical predictive）或参数后验 | 经验测度 |
+
+**纪律条款**：上表任何选择都不得依据回测 Sharpe、收益或「哪个先验让曲线好看」来决定；候选评估只能用统计恰当性、refinement 收敛与性质测试（SPEC §95、开发守则 §24）。
+
+### 3.3 目标必须保持的不变量
+
+- trace-neutral 约束必须在**联合后验的支撑上**成立（SPEC §21-22、§61），不能退化为「只对均值减 trace」；
+- $\alpha$ 的后验必须带 evidence/先验的联合密度，不能退回「profile argmax + 声称积分」；
+- 任何积分近似都必须有 refinement certificate 且 fail-closed（SPEC §56）；
+- $G$ 的解析边缘化（§33）仍然是首选，不因引入超参后验而退化为抽整张 $G$。
+
+---
+
+## 4. 积分策略顺序
+
+按「便宜→贵」与证据阶梯一致排序；能用便宜阶梯裁明的事，不劳烦贵的（开发守则条款 B、SPEC §67）。
+
+**第 1 阶（解析边缘化，必须做尽）。**
+$G\mid\Sigma,\alpha$ 是高斯，$Gx_t$ 的 predictive moments 已有解析式（`src/response.jl:1211-1230`）；trace-neutral conditioning 只在 14×14 的约束空间求解（`src/response.jl:1192-1199` 注释；实现 `src/response.jl:131-143`）。目标：对 $(\alpha,\Sigma)$ 固定下的所有高斯块继续解析积分，禁止对 $G$ 整体做随机采样再求平均。
+
+**第 2 阶（scalar 超参确定性 quadrature）。**
+- $\alpha$（1 维、正）：目标为 $\pi(\alpha\mid Y)\propto E(\alpha)\,p_\alpha(\alpha)$ 的确定性 quadrature；网格/节点密度与收敛判据（细化到 evidence 曲线与积分量稳定）**留待 SPEC 审查决定**。当前 `maximize_logalpha` 的 33 节点+bracket 是**优化器的候选机制**（`src/response.jl:212-273`），不是后验积分，不得直接挪用为「已有积分」。
+- $d$ 已在此层（`src/predict.jl:94-96`），保持 $\Delta d$ 与显式先验；细化时先验质量不得漂移（SPEC §64）。
+
+**第 3 阶（低维剩余积分，收敛受控）。**
+- $\Sigma$ 在 gauge support 内为 $(N-1)$ 维 PSD 对象；候选为 Laplace（曲率可用现有自然梯度/Jacobian 结构，`src/response.jl:646-680`、`src/response.jl:583-624`）或对参数化（特征值/Cholesky 坐标）做确定性 quadrature。
+- 必须有 refinement certificate；不收敛即 fail-closed，不得静默返回非驻点/非收敛结果（SPEC §56）。
+
+**第 4 阶（随机后验采样，最后手段）。**
+仅当 1—3 阶被证明不可行时启用；固定 seed、可复现（SPEC §36），且采样误差必须独立报告、不得把「scenario 数」当作后验积分精度的替代。
+
+**本模型的具体边缘化顺序（目标建议，供 SPEC 裁决）：**
+1. 内层：给定 $(\alpha,\Sigma)$ 解析积分 $G$（已具备）；
+2. 次内层：$\alpha\mid\Sigma$（或 $\alpha$ 的联合 profile）做 1 维确定性 quadrature；
+3. 外层：$\Sigma$ 做 Laplace/低维 quadrature；
+4. 再外层：$d$ 与 innovation 的后验（$d$ 已是 1 维；innovation 视第 3.2 节决定）；
+5. macro 链（$\alpha_m,\sigma^2$）平行处理。
+注意：当前实现的交替**优化**（`src/response.jl:962-1114`）与上述积分顺序是不同对象；不得把优化器迭代路径当作积分路径。
+
+---
+
+## 5. 预测方差分解
+
+**规范目标分解（SPEC §26 的明确形式）：**
+
+$$
+\mathrm{Var}(r\mid\mathcal H)
+=
+\underbrace{\mathbb E_\Theta[\mathrm{Var}(r\mid\mathcal H,\Theta)]}_{\text{within}}
++
+\underbrace{\mathrm{Var}_\Theta[\mathbb E(r\mid\mathcal H,\Theta)]}_{\text{between}},
+\qquad \Theta=(G,\alpha,\Sigma,\sigma^2,\dots).
+$$
+
+**当前实现的对应（诚实映射）：**
+
+- 已做：在**条件后验**近似下，$G$ 的条件不确定性进入了 predictive covariance——相对通道 `dot(x,v).*Sigma_rel` 与 trace-conditioning 修正（`src/response.jl:1226`），macro 通道 `var_m`（`src/response.jl:1219`）；innovation 方差由残差 bootstrap × $scale_d^2$ 近似（`src/predict.jl:615,620`）。
+- **未做（根因）**：$\alpha,\Sigma,\sigma^2$ 固定于点估计（`src/response.jl:999`、`src/response.jl:1154`），因此条件均值 $\mathbb E(r\mid\mathcal H,\hat\alpha,\hat\Sigma,\dots)$ 之上不存在超参后验的变异——**between 项中来自超参的贡献恒为零**。这不是数值误差，结构上就没有测度可积。
+- 同时注意：条件后验对 $G$ 的积分所贡献的方差，严格属于「对 $G$ 的 between 部分已在条件层完成」；一旦把 $\Theta$ 定义为含超参的完整对象，当前实现只完成了 $\Theta$ 的一个切片。
+
+**报告要求：**
+1. 分解必须**可报告**：within（innovation，含 bootstrap/scale）与 between（$G$ 条件部分 + 超参部分）分别给出数值；
+2. 当前状态下必须如实标注「超参 between 分量：未计算（=0 by construction，非统计结论）」；
+3. 任何声称「posterior uncertainty 已完整进入 scenarios」的陈述，必须先给出 between 项的非零超参分量或证明其可忽略——否则撤回该措辞。
+
+---
+
+## 6. 去留判据：保留 plug-in vs 实现完整积分
+
+两条路线都允许，但各自的最小证据形态不同；选择不得由回测驱动。
+
+**路线 A：保留 plug-in（显式标记为 epistemic approximation）。**
+最小证据形态（全部可与回测无关地取得）：
+1. SPEC 文本显式声明本近似（本文第 2 节的形式）；
+2. 超参后验集中性证据：$\alpha$、$\Sigma$ 在最优点的局部曲率/证据敏感性报告（例如 evidence 沿 $\log\alpha$ 的平坦度、$\Sigma$ 特征方向的 Laplace 尺度），并明确「集中 ⇏ 方差为零」；
+3. 至少一个可复现的差异界：plug-in predictive 方差 vs 条件后验方差的相对差距，说明被忽略的超参分量量级；
+4. 若做不出 2/3，则以更弱的形态保留：「未测量，仅声明近似」——这也允许，但不得再称完整 posterior。
+
+**路线 B：实现完整积分。**
+最小证据形态：
+1. 先验 $p_\alpha,p_\Sigma$（及 $\sigma^2$、$d$、innovation 的选择）经 SPEC 审查定稿，**禁止由回测选择**；
+2. 积分实现带 refinement certificate（类似 scenario 的 $|w_{2S}-w_S|_1$ 收敛口径，SPEC §37/§64），不收敛 fail-closed；
+3. 与解析/plug-in 对照的回归测试：固定 seed 下，$E\Pi[\cdot]$ 与条件矩在「先验退化为点质量」极限下一致；
+4. predictive variance 分解（第 5 节）双分量可报告；权重/方差的差异在受控 tolerance 内说明；
+5. 任何情况下保留 reference 路径（开发守则条款 21）。
+
+**共同铁律：**
+- **不得用 Sharpe / 回测收益/换手 决策 A 或 B，或决定任何先验、网格、积分精度**（SPEC §95、开发守则 §24）；
+- 路线切换必须走 SPEC 审查，不接受「优化器顺路升级为积分」；
+- 不论哪条路线，当前源码行为不变更——本文件不触发任何施工。
+
+---
+
+## 7. 未决问题清单（交 SPEC 审查）
+
+1. **$\alpha$ 先验**：形式（log-uniform / half-Cauchy / 其他）、域与 `EB_ALPHA_MIN/MAX` 的关系；若保留边界，边界撞墙时的报告义务。
+2. **$\Sigma$ 先验**：gauge support 上的具体分布（inverse-Wishart 参数？non-informative？）以及它与 `EB_COVARIANCE_FLOOR`（数值保护，`src/response.jl:209`）的边界如何措辞区分。
+3. **$\Sigma$ 积分的表示与收敛判据**：Laplace vs 参数化 quadrature；$(N-1)$ 维 PSD 域的积分误差如何证书化。
+4. **$\sigma^2$**：是否升格为带 inverse-gamma 的未知量；macro `covm`（`src/response.jl:1155`）随之是否变化。
+5. **$d$ 的连续先验**：SPEC §31 预留项落地与否；若不落地，显式声明「均匀网格先验」为当前规范。
+6. **innovation**：保持经验 bootstrap（并正式声明为 empirical predictive）还是参数化；经验测度的 plug-in 性质是否写入规范。
+7. **报告格式**：第 5 节方差分解的字段、精度与「不可计算」的标注规范。
+8. **A/B 决策门槛**：谁批准、以什么证据翻案、refinement 到何种程度算「做尽」。
+9. **API 表达**：`predictive_moments` 返回的 NamedTuple（`mu_m,var_m,mu_rel,L_rel,x_features`，`src/response.jl:1229`）是否需要携带「哪些分量含超参后验」的结构性标注，供下游 scenario/报告使用。
+10. **SPEC §26 措辞对齐**：$\Pi$ 的定义域（含不含超参）必须在 SPEC 全文钉死；当前「posterior uncertainty 进入 predictive」的表述在两种定义域下含义不同，是本清单里最需要先裁决的一项。
+
+---
+
+## 8. 与既有 SPEC 的关系（一致点与张力）
+
+**一致（作为规范执行无误）：**
+- SPEC §19/§33：Matrix-Normal 条件后验与决策时刻精确边缘化——实现相符（`src/response.jl:1192-1202`、`src/response.jl:1211-1230`）；
+- SPEC §21-22：trace neutrality 在 covariance support 内、非 post-hoc 减均值——实现相符（`src/response.jl:1192-1199` 注释明确拒绝欧氏减均值）；
+- SPEC §25/§24：EB 证书与边界为数值域界——实现相符（`src/response.jl:207-209`、`src/response.jl:789-816`）；
+- SPEC §30/§31：fractional KISS 与 $\Delta d$ quadrature mass——实现相符（`src/predict.jl:94-96`）。
+
+**张力/待裁决（本文件的中心议题）：**
+- SPEC §26 写 $\bar\mu=\mathbb E_\Pi[\mu_G]$，$\bar\Sigma=\mathbb E_\Pi[\Sigma_G]+\mathrm{Cov}_\Pi(\mu_G)$。若 $\Pi$ 读作**完整联合后验**，当前实现不满足（超参无测度，第二个 $\mathbb E_\Pi[\Sigma_G]$ 用 $\hat\Sigma$ 代入）；若 $\Pi$ 读作**条件于超参点估计的条件后验**，实现满足。两种读法给出的规范义务（是否必须实现完整积分）完全不同——这是与 SPEC 的实质冲突点，需审查裁决。
+- SPEC §95 禁止「因某选择让回测好看而选择」——本文件全部留白项遵守；但若 SPEC 不补先验形式，完整积分在规范上不可执行。
+- 历史注记：本文不改写任何既有 SPEC 文本、不改动 README/AGENTS；冲突以本清单形式提交，不自行裁决。
+
+---
+
+*（本文件为 Gate 0 重开后 Deliverable 4 交付物；未运行任何命令，未修改 src/、test/、README.md、AGENTS.md 或任何既有文档。）*
+
+==> docs/TRACE_NEUTRALITY_DERIVATION.md <==
+# Trace Neutrality 推导与裁决
+
+**文档状态：静态分析记录（非规范性文档，不改写 SPEC）**
+**任务范围：Gate 0 重开后的 Deliverable 3。本轮未运行任何命令、未执行任何数值实验；全部结论来自源码、测试、文档与 dev 注记的逐字阅读。若本文件与 SPEC/AGENTS 冲突，以后者为准。**
+**结论先行：当前仓库中不存在从 price-only 对称性出发生成的 trace neutrality 推导。该约束的诚实裁决是 candidate hypothesis（V1 显式建模假设），尚不能升级为 theorem 或 identification requirement。**
+
+---
+
+## A. Forbidden direction 的精确语义
+
+### A.1 机制事实（逐字核对）
+
+`src/response.jl:106-108`：
+
+```julia
+function get_constraint_columns(N::Int, n_bands::Int)
+    [(((b-1)*2+channel-1)*N+1):(((b-1)*2+channel)*N) for b in 1:n_bands for channel in 1:2]
+end
+```
+
+- 外层遍历 `b = 1:n_bands`，内层 `channel = 1:2`；每个元素是一个长度 `N` 的连续列区间。
+- `n_bands=7`（`BANDS = 2 .^ (1:7)`）时共 **14** 个区间，顺序为：`(b1,Q),(b1,P),(b2,Q),(b2,P),…,(b7,Q),(b7,P)`。
+
+设计矩阵列布局（`src/response.jl:55-75`，`fill_design_matrix!`）：
+
+```julia
+offset = (b-1)*2N
+col_q = offset + j
+col_p = offset + N + j
+```
+
+- 每个 band `b` 占 `2N` 列，前半 `N` 列为 Q 通道（逐资产），后半 `N` 列为 P 通道（逐资产）。
+- 因此 `cols[c]` 展开后第 `j` 个列索引恰对应资产 `j` 在该 band/channel 的自己的 feature 列。
+
+约束矩阵 `C` 的显式构造见于 `test/conditioned_eb_tests.jl:155-158`：
+
+```julia
+cols=KTrader.get_constraint_columns(N,length(KTrader.BANDS)); C=zeros(length(cols),N*P)
+for c in eachindex(cols),j in 1:N
+    C[c,j+(cols[c][j]-1)*N]=1.0
+end
+```
+
+按 Julia 列主序，`vec(G)` 中 `G[i,p]` 位于下标 `i+(p-1)*N`。故对第 `c` 行：
+
+\[
+(C\,\mathrm{vec}(G))_c \;=\; \sum_{i=1}^{N} G\!\left[i,\;\mathrm{cols}[c][i]\right].
+\]
+
+因为 `cols[c]` 是连续区间且区间内第 `i` 列对应资产 `i`，该式化为所在块的 **对角和**：
+
+\[
+c=2b-1:\quad \operatorname{tr} A_b \;=\; \sum_{i=1}^{N} G[i,\,\text{asset }i\text{ 的 Q 列}],
+\qquad
+c=2b:\quad \operatorname{tr} B_b \;=\; \sum_{i=1}^{N} G[i,\,\text{asset }i\text{ 的 P 列}].
+\]
+
+这与 `src/response.jl:128` 的实现 `h[c] = tr(view(G, :, cols[r]))` 以及 `ridge_constraint_traces`（`src/response.jl:412-418`，直接收缩各块对角）逐字一致；`dev/response_deadwork_20261008.md:7-19` 的等价改写记录同样确认该语义。
+
+### A.2 语义陈述
+
+`C` 的每一行是一个作用在系数空间上的线性泛函，语义为：
+
+> **在固定的时间尺度 band \(b\) 与固定的通道（Q 或 P）上，全部资产"对自身输入"的系数之和为零。**
+
+- Q 与 P 在此处是 AGENTS §16 定义的 paired local path coordinates：Q 对应"位置偏离"（`-(X-c0)/s`），P 对应"方向/确认"（`(c0-c1)/s`）。`A_b`/`B_b` 只是 G 在该块上的记号（AGENTS §17：\(G_b=A_b+iB_b\)），**不是"实部/虚部"意义上的频域对象**。
+- 约束只涉及**块内对角配对** \((i,\text{asset }i\text{ 自己的列})\) 的和，**不涉及**块内 \(i\neq j\) 的 off-diagonal 项，也不涉及跨 band/跨通道的任意组合。
+- 约束禁止的是一族方向：任何满足 \(\operatorname{tr}A_b\neq0\) 或 \(\operatorname{tr}B_b\neq0\) 的系数矩阵。AGENTS §21 给这族方向的解释是"每个时间尺度的 universal common timing response 被移除"；含义文本为"所有资产在某 band 上同样的趋势或同样的 anticipatory bias"。**注意语义精度**：C 实际杀死的是**对角和**；例如块内 \(G[i,j]=g\)（全常数矩阵）满足 \(\operatorname{tr}=Ng\neq0\) 会被移除，但块内 \(G[i,i]=0,\ G[i,j]=g\ (i\neq j)\) 的纯交换分量 \(\operatorname{tr}=0\) 不被该约束禁止。也就是说，"universal common response 被移除"这一表述只在"共同响应指对角自响应分量"时才与 C 严格等价；若共同响应还包括资产间的对称传导分量，则 C 并不移除它。这一语义缺口在本文件 D 与未决问题中继续处理。
+
+---
+
+## B. 为什么它应当是 hard removed（identification），现有论证是否成立
+
+### B.1 仓库现有论证的原文与位置
+
+- AGENTS §21（line 704-723）："它是 structural / identification constraint，不是防过拟合的数值 regularizer。"
+- AGENTS §22（line 727-765）："禁止：先拟合无约束 posterior；只把 mean 的 trace 减掉；covariance 仍允许离开 neutral subspace。"并给出精确条件化公式 \(m_c=m-\Omega C^T(C\Omega C^T)^{-1}Cm\)、\(\Omega_c=\Omega-\Omega C^T(C\Omega C^T)^{-1}C\Omega\)。
+- AGENTS §61（line 2083-2093）：宪法测试要求 posterior mean / sample support 均满足 \(\operatorname{tr}A_b=\operatorname{tr}B_b=0\)，threshold 应接近 machine precision。
+- `dev/evidence/final_2_0_0_20261009/README.pre-final.md:213-217`："Posterior uncertainty over the path-response law and trace neutrality are theoretical constraints that would remain under unlimited compute."
+- AGENTS 历史段 §13（line 3087）把"trace neutrality 只是 post-hoc mean correction"列为 0.9 时代的核心缺陷；§12（line 3051-3064）称"早期双重 neutralization 被统一成 operator constraint"。
+
+### B.2 评估
+
+把现有材料拆成可检验的主张：
+
+1. **"必须存在于 posterior support 而非只修 mean"——成立且证据充分。** 后验协方差若不条件化，scenario 抽样（`generate_scenarios_v1` 消费 `L_rel`）仍会离开 neutral 子空间；`condition_trace_neutrality` 的 dense oracle 对照（`test/conditioned_eb_tests.jl:190-198`，`exact.G_c ≈ dense`、`exact.inv_M ≈ inv(Symmetric(M))`，atol 1e-10）证明实现与标准条件化公式一致。这一条是"hard conditioning 的正确实现方式"，不是识别性证明。
+2. **"它是 identification constraint 而非数值 regularizer"——作为识别性主张，仓库材料不足以支持。** 识别性（identification）的正式标准是：约束方向在观测分布上不可识别，或与已建模通道严格冗余/共线。仓库中没有任何一处证明 \(\operatorname{tr}A_b\)、\(\operatorname{tr}B_b\) 方向在 data-law 下不可区分。相反，`dev/theory_incremental_20261009/THEORY.md:243-251` 明确记录：约束后的修正被分配到"未识别方向"，且"未识别系数的均值不一定是 0"、"不同支撑块会经 14 个 trace 约束产生条件相关"。这段文字实际上把 forbidden 方向当作**可以被条件化机制触碰的方向**，与"这些方向已被识别掉、不存在"的强识别语义不符。
+3. **"无限算力下仍存在"——不蕴含 identification。** 一个硬先验/支撑选择同样在无限算力下存在；该句只能排除"这是数值截断/近似"的误读，不能排除"这是建模选择"。
+4. **一个尚未被仓库提出的潜在识别论证（本文档分析，非既有依据）**：relative 目标 \(Y\) 与 innovation 位于严格 zero-sum relative support（AGENTS §12；`fit_response_operator` 对 `Sigma` 做 `supported_covariance(..., gauge)`；`conditioned_eb` 以 `gauge` 参数投影），若模型把"\(E\) 严格支撑在 \(\mathbf{1}^\perp\)"当作精确约束，则每行预测 \(XG^T\) 也需行和为零；而对角均匀方向 \(cI\) 对行和的贡献是 \(c\cdot\sum_{p\in\text{block}}X[t,p]\)，一般不为零。这条路线**若**能被形式化，可以论证该方向被 target support 的似然结构识别为 0，硬约束只是把有限样本下的估计噪声提前截掉。但仓库没有做这个推导，且它需要与 §34 的 \(\mu_{rel}^{zero-sum}\) 使用端投影交互核对，因此当前只能列为"升级所需的可能推导形态"，不能算作既有证据。
+
+### B.3 小结
+
+现状是：**hard removal 在工程上被完整实现且自洽（精确条件化、进入协方差、有 dense oracle 测试）；但"它是 identification requirement"这一规范性主张在仓库中没有推导支撑，属于被制度化的声明。** 因此对 B 项的诚实回答是：为什么它"应当是"hard removed，在现有材料中找不到可引用的证明；能找到的只是"V1 选择这样做"的记录。把 mean 修掉、covariance 不管的做法有明确反例意义（scenario 会违反 §61），这一半成立；"因此必须 hard remove 而非留给 posterior"另一半的识别性前提未证。
+
+---
+
+## C. 为什么是逐 band、逐 Q/P 的 14 条约束
+
+### C.1 事实
+
+- 14 = \(2\times|BANDS|=2\times7\)（AGENTS §22 line 765："把核心约束 solve 压到 14×14"）。
+- 粒度是 per-band、per-channel（A 项已证）。`test/relative_support_tests.jl` 的 fixture（N=2, gauge 维 1）与 `dev/theory_incremental_20261009/THEORY.md:251` 的"14 个 trace 约束"均按此粒度引用。
+
+### C.2 为什么不能更弱——变体差异分析（本文档推导；仓库未给直接论证）
+
+仓库中**未找到**"为什么是这一特定粒度、而不是这些变体"的论证。以下比较是本文档基于线性代数与语义的静态分析：
+
+1. **只保留一条全局约束 \(\sum_b(\operatorname{tr}A_b+\operatorname{tr}B_b)=0\)**：
+   - 个别 band 的共同分量可相互抵消而整体通过约束。例如 band1 对角 \(+c\)、band2 对角 \(-c\)，全局和为零，但每个尺度内部都存在真实的 common response，与 §21 的文字含义（"每个时间尺度的……被移除"）不符。
+   - 对后验几何的影响：单条约束的零空间远大于 14 条，forbidden 方向只是被"平均"掉，per-scale 识别方向保留在 support 中。
+2. **只保留 \(\operatorname{tr}A_b+\operatorname{tr}B_b=0\)（合并 Q/P）**：
+   - Q 与 P 是语义不同的通道（位置偏离 vs 方向/确认）。合并后共同的"位置偏差响应"与共同的"确认/预期偏差"可以互相抵消：\(+\delta\) 在 Q、\(-\delta\) 在 P 时通过约束，但两条经济通道各自的共同分量都未被移除。
+   - per-channel 分开保证每个语义方向独立地净共同响应为零。
+3. **只约束 posterior mean（post-hoc trace correction），covariance 不条件化**：
+   - 这是 0.9 历史缺陷（AGENTS §13）。scenario 抽样经 `L_rel` 产生，若支撑未条件化，samples 会离开 neutral 子空间，§61 的"posterior mean / sample support 均满足"无法成立。
+   - 因此该变体的差别不是"少一条约束"，而是"约束没有进入模型的预测分布"——AGENTS §22 已明确禁止。
+4. **一般投影 \(P_{\text{forbidden}}G=0\)**：
+   - 若 \(P_{\text{forbidden}}\) 的零空间恰等于 14 条 C 行的零空间，则与当前约束**数学等价**；当前 `condition_trace_neutrality` 正是该投影在 \(\Omega\) 度量下的精确条件化实现（B.2 第 1 条）。
+   - 若"更一般"指不同的投影（如只把输出方向 e0 上的整体载荷清零），则与 C 不同：C 是按"输入资产自己的列 × 输出行求和"配对的 14 个泛函 \(\left(\sum_i G[i,\text{asset }i\text{ 的列}]\right)\)，而 e0 输出通道是 \(\sum_i G[i,p]\) 对每个固定输入列 \(p\) 的载荷。两者在块内全常数矩阵 \(G[i,j]=g\) 上会给出不同结果（C 得到 \(Ng\)，e0 通道每列得到 \(Ng\) 同样非零，但结构不同；在 \(G[i,j]=\delta_{ij}c\) 上 C 得到 \(Nc\) 非零，而每个固定列 \(p\) 的 e0 通道载荷为 \(c\) 也只有当 \(p\) 是该资产列时非零）。
+   - 频域变体 \(\operatorname{tr}G(\omega)=0\ \forall\omega\)：项目没有频域算子表示；finite basis 下任何有限条约束都不能逐点表达该无限维条件，除非对 G 的跨频率结构另行假定。且 AGENTS §16 明确禁止把任意 Fourier 相位无条件映射到当前 paired basis 的金融语义。因此该变体在 1.0/2.0 的 finite-basis 架构中不可直接实现；当前 14 条是对每个离散尺度、每个通道的自然有限表述。
+5. **为什么不更强**（例如同时约束 off-diagonal 之和、或整块均值）：
+   - 仓库未讨论。可静态观察：C 只删对角和意味着模型仍能用 off-diagonal 系数表达任何跨资产传导结构；若连 off-diagonal 总和也约束为零，将禁止"全体资产同向传导"这类可能真实的结构，把约束从 identification 风格推向更强的经济先验。当前选择保留了最大灵活性，同时只移除"资产对自身输入的共同响应"。
+
+### C.3 小结
+
+"14 条"与实现结构（2 通道 × 7 尺度 × N 资产块的 per-block 对角和）严格对应，工程上是自洽的最小完备集：**每个 band、每个通道各一条，互不抵消、互不遮蔽**。仓库对"为什么不能更弱/更强"没有成文论证；上述差异比较是本文档的补充分析。
+
+---
+
+## D. 不变量审计
+
+### D.1 permutation（§58）
+
+- C 的每一行是"资产索引 i 同时选择输出行 i 与输入列（资产 i 自己的列）"的求和，求和哑标 \(i\) 对指标重命名不变。资产置换 \(\Pi\)（输出行与输入列块同步重排）下 \(C\cdot\mathrm{vec}(G)\to C\cdot\mathrm{vec}(\Pi^\top G\Pi_{\text{block}})\)，数值仍为各块对角和——**约束集合与置换兼容**。
+- 测试覆盖：`test/v1_constitutional_tests.jl:13-18` 断言 `mu_pred`、`res_history`、`L_rel*L_rel'` 的置换协变，但**没有直接断言 `G_c_mean` 的约束行在置换下的数值不变**。分析支持兼容，直接测试缺失。
+
+### D.2 price-scale（§57）
+
+- 设计矩阵经 `inv_scales`（由 ruler 给出）标准化，系数空间与价格单位无关；C 是纯系数线性泛函。约束与价格缩放解耦。
+- 测试覆盖：`v1_constitutional_tests.jl:9-12` 断言缩放不变性于 `mu_pred`/`L_rel` 层，**不含针对 C 的直接断言**。
+
+### D.3 relative gauge 旋转（§59）
+
+- 关键事实：`constraint_moments`（`src/response.jl:109-130`）**完全不使用 gauge**；它只用 `V.basis`、`V.weights`、`Sigma` 与 `G` 的块对角。`condition_trace_neutrality` 同样不含 gauge。
+- C 的行在 asset 空间定义（对输出行求和即对 e0 方向的载荷），而 gauge 旋转只作用在 \(\mathbf{1}^\perp\) 内部（Helmert basis，AGENTS §13）。因此**约束本体在 gauge 旋转下表示无关**：\(\mathbf{1}^\top Q=0\) 使 e0 方向在 gauge 下不动。
+- gauge 影响的是 conditioning 中 \(\Sigma\) 的 relative support 与证据计算（`_conditioned_block_geometry` 对块做 `gauge'*view(...)` 投影，`src/response.jl:420-424`）。因此端到端 gauge covariance 需要经由 \(\Sigma\) support 传播后仍成立——现有测试是间接的：`test/relative_support_tests.jl` 用 N=2（gauge 维 1，旋转群平凡）的解析消元 fixture；`test/conditioned_eb_tests.jl:148-199` 在 `gauge=Q` 下对照 dense oracle，但不旋转 Q 本身。**直接的 gauge-rotation-invariance 测试（Q→QR）针对 trace 约束未见。**
+
+### D.4 band 表示
+
+- C 的 14 个块与 `BANDS` 的顺序、数量硬绑定（`(b-1)*2N` offsets）。改变 bands 集合或顺序即改变约束集合。这是**表示依赖，不是不变量缺陷**——bands 是设计选择而非对称性；但没有 band 置换等价性的测试（也不应有，不同 band 是不同语义对象）。
+
+### D.5 是否强迫 diagonal self-response 转移到 off-diagonal（sink 风险）
+
+**数学形式（本文档分析）**。条件化后的均值修正为：
+
+\[
+m_c-m=-\Omega C^\top(C\Omega C^\top)^{-1}Cm.
+\]
+
+- 修正位于 \(\mathrm{span}(\Omega C^\top)\)，即 14 个 forbidden 行在 \(\Omega\) 度量下的像所张成的子空间。\(\Omega\) 的结构决定这 14 个方向如何分布到具体系数上。
+- 若数据（或先验）在无约束后验里支持一个共同对角响应（所有资产的 own-response 相同，\(Cm\neq0\)），条件化会把它删除并沿 \(\Omega C^\top\) 的方向重新分配。若 \(\Omega\) 中 forbidden 方向与"同块 \(i\neq j\)"项相关较强，修正就会出现在 off-diagonal 系数上；预测层面等价于把"共同自响应"重写为"资产间互相响应"。
+- `dev/theory_incremental_20261009/THEORY.md:243-251` 记录了相关现象的两面：约束修正被分配到"未识别方向"（\(P_A G_c P_A=-(δ/α)\lambda_c P_A\)），并警告"不同支撑块会经 14 个 trace 约束产生条件相关，不能只留对角方差"。这证明项目已知修正会跨方向传播，**但没有量化其是否集中到少数 cross-asset 方向**。
+- **仓库中没有**任何实验、日志或测试断言测量修正 \(\|m_c-m\|\) 在块内各资产上的分布，因此"人为制造少数 cross-asset signal sink"无法从现有材料证实或证伪。静态上可以确定的是：修正的集中性完全由 \(\Omega\) 的低秩/块结构决定，而不是 C 本身单独决定；当 \(\Omega\) 近各向同性时修正分散，当 \(\Omega\) 低秩时可能集中。
+- 另一点可以静态确定：无论修正如何分布，**它不改变条件后验的自洽性**（dense oracle 已证），改变的只是模型把数据信号表达为 diagonal 还是 off-diagonal 的**经济归因**。这是模型选择偏差问题，不是数值正确性问题。
+
+### D.6 审计汇总
+
+| 不变量 | C 本体是否满足 | 直接测试 |
+|---|---|---|
+| permutation | 分析成立（哑标求和） | 无直接断言（仅 mu/cov 层间接） |
+| price-scale | 成立（系数空间无单位） | 无直接断言 |
+| relative gauge 旋转 | 约束本体表示无关（不含 gauge；e0 不动） | 无 Q→QR 直接测试；间接 fixture |
+| band 表示 | 与 BANDS 硬绑定（设计选择） | 不适用 |
+| diagonal→off-diagonal 转移 | 风险路径存在；程度未量化 | 无任何测量 |
+
+---
+
+## E. 是否存在从 price-only 对称性出发的真正推导
+
+**未找到。**
+
+已检索的位置与结果：
+
+- `AGENTS.md`：§21/§22、§57-§61、§12/§13 历史段、附录 C 第 9 问（"trace neutrality 为什么是理论 constraint？"）。全部为**声明式/历史式**文本，没有任何"从价格序列的某个对称性或可观测等价性推出 C"的推导。
+- `README.md`：未检索到 trace neutrality 的推导段。
+- `CHANGELOG.md` 与 `dev/**/*.md`：仅有 `dev/evidence/final_2_0_0_20261009/README.pre-final.md:213-217` 的"theoretical constraints that would remain under unlimited compute"一句（声明），与 `dev/theory_incremental_20261009/THEORY.md:243-251,353`（讨论约束**之后**的后验几何与数值保留，不是约束的证成）。
+- 源码注释：`src/response.jl` 相关函数注释只解释计算次序与等价改写（如 `ridge_constraint_traces` 的收缩），不含约束来源的推导。
+- 提交注记：本机 `.git` 存在，但本轮不允许运行任何命令；**无法查阅提交历史**。就仓库可读文本而言，AGENTS §13 的历史叙述（"早期双重 neutralization 被统一成 operator constraint"）表明其来源是设计演进中的收敛选择，而非从数据对称性演绎。若提交历史中存在推导，本文件无权声称已覆盖——按委托口径，此类内容记为"本机可读文本中未找到"。
+- 搜索关键词覆盖：`trace neutrality`、`neutrality`、`universal common`、`common timing`、`anticipatory bias`、`identification`、`structural constraint`、`gauge freedom`、`uniform`、`per-band` 等（大小写与中英文混用）。
+
+---
+
+## 裁决
+
+### 分类
+
+**candidate hypothesis（V1 显式建模假设），当前不满足升级为 theorem 或 identification requirement 的证明标准。**
+
+- **theorem**：不可行。没有任何从更高层公理（price-only、固定规律、价格几何）到 C 的演绎链。C 是关于响应算子**系数**的结构约束，price-only 输入原语本身不产生它。
+- **identification requirement**：未证明。缺少"该方向在观测分布上不可识别，或与已建模通道（macro 通道、relative 支撑）严格冗余"的论证。反而有理由认为该方向在有限样本中是**可拟合、可识别的**（似然对它的敏感度一般非零）；被移除是建模偏好。
+- **candidate hypothesis**：与现有文本最一致。README.pre-final.md 的"would remain under unlimited compute"只支持"非数值近似"，不支持更强级别。THEORY.md:243-251 的"未识别方向"措辞同样与"已识别掉"矛盾。
+
+### 升级所需的推导或证据形态
+
+任一即可构成升级路径，三者都要求形式化证明与可复核的测试/反例：
+
+1. **target-support 识别论证**：证明在"innovation 严格支撑于 \(\mathbf{1}^\perp\)、relative 目标行和为零"的模型下，forbidden 方向 \(cI\) 对观测似然的 Fisher 信息为零或被 target support 精确排除（需与 §34 的 \(\mu_{rel}^{zero-sum}\) 使用端操作交互核对，因为使用端投影本身会改变 forbidden 方向的可观测性）。
+2. **参数冗余/重参数化不变性**：证明对任意 \(G\)，存在 \(G'=G+\Delta\)（\(\Delta\) 落在 forbidden 方向且非零）使所有可达预测 \(Gx_t\) 与 \(G'x_t\) 在观测等价意义下相同，从而约束是"去掉冗余参数化"而非"删除可识别自由度"。
+3. **对称性公理**：给出一条独立于 C 的价格世界假设，并证明 C 是其必要条件；同时该假设不能被"真实世界共同响应存在"这类反例反驳。按当前证据，路径 3 最难成立。
+
+配套证据形态：一个能红/绿的最小测试（例如构造数据含真实共同对角响应，验证移除前后预测差异与识别论证的预测一致），并在 \(\Omega\) 的结构下量化 D.5 的修正分布。
+
+### "降级为 explicit hypothesis、不进入 2.0 core" 的操作含义
+
+- **不是**删除约束：`get_constraint_columns`/`condition_trace_neutrality`/`ridge_constraint_traces` 机制、AGENTS §61 的测试、14×14 条件化全部保留不动；不得无声删除、不得放宽阈值。
+- **是**措辞与地位修正：在所有对外叙述（SPEC/README/发布说明）中把该约束标注为"V1 声明的建模假设（candidate hypothesis），未证明为 identification"；不得再以"理论约束/识别性要求"的确定口吻对外宣称；与 macro/relative 分解、Q/P basis 等其它已声明的建模选择并列管理。
+- **重审触发器**：出现 (a) 上述升级证明，或 (b) 反例证据表明该约束造成系统性预测扭曲（如 D.5 的修正集中在少数 cross-asset 方向并被数据证伪），则重新裁决。
+- 本文件不改动任何规范文本；是否执行降级措辞由规范性文档（AGENTS/SPEC）的 owner 决定。
+
+---
+
+## 未决问题清单
+
+1. **升级证明缺失**：B/E 所述识别性论证不存在；target-support 路线尚未与 §34 使用端投影的交互核对。
+2. **D.5 修正分布未量化**：conditioning 修正 \(\Omega C^\top(C\Omega C^\top)^{-1}Cm\) 在 off-diagonal 上的集中程度无任何实验/日志；本轮禁止数值实验，故保持未决。
+3. **语义缺口**：C 只移除对角和；"universal common timing response 被移除"的 AGENTS §21 措辞在"共同响应含资产间对称传导"的解释下过宽。是否需要在规范中收紧措辞，未决。
+4. **gauge 旋转直接测试缺失**：约束本体分析为表示无关，但 Q→QR 的端到端协变性无直接测试。
+5. **提交历史未阅**：本机 `.git` 不可访问（无命令权限）；若提交注记中存在推导，本文件的"未找到"仅覆盖可读文本。
+
+---
+
+## 关键证据位置索引
+
+- `src/response.jl:106-108` — `get_constraint_columns` 的 14 块构造。
+- `src/response.jl:109-130` — `constraint_moments`：\(h_c=\operatorname{tr}(G[:,\text{cols}[c]])\)。
+- `src/response.jl:131-148` — `condition_trace_neutrality`：精确条件化实现。
+- `src/response.jl:412-418` — `ridge_constraint_traces`：对角收缩等价改写。
+- `src/response.jl:55-75` — 设计矩阵列布局（Q/P 逐资产）。
+- `test/conditioned_eb_tests.jl:155-158` — C 的显式构造（语义锚点）。
+- `test/conditioned_eb_tests.jl:190-198` — dense oracle 条件化对照（实现正确性证据）。
+- `test/v1_constitutional_tests.jl:21-27` — §61 约束的宪法测试。
+- `test/relative_support_tests.jl` — gauge 支撑（N=2）分析性测试。
+- `AGENTS.md:704-765` — §21/§22 规范文本。
+- `AGENTS.md:2083-2093` — §61 宪法测试要求。
+- `AGENTS.md:3051-3064, 3087` — 历史段（约束统一与 0.9 缺陷）。
+- `dev/theory_incremental_20261009/THEORY.md:243-251` — 约束后验几何与"未识别方向"记录。
+- `dev/evidence/final_2_0_0_20261009/README.pre-final.md:213-217` — "theoretical constraints / unlimited compute"声明。
+- `dev/response_deadwork_20261008.md:7-19` — trace 收缩的等价性记录。

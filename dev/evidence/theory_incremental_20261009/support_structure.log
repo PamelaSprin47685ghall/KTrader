@@ -1,0 +1,57 @@
+
+[1554146] signal 15: Terminated
+in expression starting at /home/kunweiz/Desktop/vibe/KTrader/dev/theory_incremental_20261009/local_structure.jl:133
+unknown function (ip: 0x7f9f2e045952) at /usr/bin/../lib/libc.so.6
+epoll_wait at /usr/bin/../lib/libc.so.6 (unknown line)
+_backend_poll_once! at /home/kunweiz/.julia/packages/Reseau/tHzjm/src/iopoll/epoll.jl:268
+_poller_thread_main! at /home/kunweiz/.julia/packages/Reseau/tHzjm/src/iopoll/runtime.jl:460
+_poller_thread_entry at /home/kunweiz/.julia/packages/Reseau/tHzjm/src/iopoll/runtime.jl:482
+jlcapi__poller_thread_entry_20137 at /home/kunweiz/.julia/compiled/v1.12/Reseau/vKBJ8_6N9Xv.so (unknown line)
+unknown function (ip: 0x7f9f2e03d0a1) at /usr/bin/../lib/libc.so.6
+unknown function (ip: 0x7f9f2e0c580b) at /usr/bin/../lib/libc.so.6
+unknown function (ip: (nil)) at (unknown file)
+unknown function (ip: 0x7f9f14c2ec76) at /usr/lib/libgomp.so.1
+unknown function (ip: 0x7f9f14c2c8c6) at /usr/lib/libgomp.so.1
+GOMP_parallel at /usr/lib/libgomp.so.1 (unknown line)
+exec_blas at /usr/bin/../lib/julia/../libopenblas64_.so (unknown line)
+dsymv_thread_U at /usr/bin/../lib/julia/../libopenblas64_.so (unknown line)
+dsymv_ at /usr/bin/../lib/julia/../libopenblas64_.so (unknown line)
+dlatrd_ at /usr/bin/../lib/julia/../libopenblas64_.so (unknown line)
+dsytrd_ at /usr/bin/../lib/julia/../libopenblas64_.so (unknown line)
+dsyevr_ at /usr/bin/../lib/julia/../libopenblas64_.so (unknown line)
+syevr! at /build/julia/src/julia-1.12.7/usr/share/julia/stdlib/v1.12/LinearAlgebra/src/lapack.jl:5405
+#ridge_spectrum#60 at /home/kunweiz/Desktop/vibe/KTrader/src/response.jl:165
+ridge_spectrum at /home/kunweiz/Desktop/vibe/KTrader/src/response.jl:150 [inlined]
+structure_main at /home/kunweiz/Desktop/vibe/KTrader/dev/theory_incremental_20261009/local_structure.jl:81
+unknown function (ip: 0x7f9eac790503) at (unknown file)
+unknown function (ip: 0x7f9f2d6ad5ec) at /usr/bin/../lib/julia/libjulia-internal.so.1.12
+unknown function (ip: 0x7f9f2d6acce7) at /usr/bin/../lib/julia/libjulia-internal.so.1.12
+unknown function (ip: 0x7f9f2d6ade43) at /usr/bin/../lib/julia/libjulia-internal.so.1.12
+unknown function (ip: 0x7f9f2d6af218) at /usr/bin/../lib/julia/libjulia-internal.so.1.12
+jl_toplevel_eval_flex at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+jl_toplevel_eval_flex at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+ijl_toplevel_eval at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+ijl_toplevel_eval_in at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+unknown function (ip: 0x7f9f168025c2) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f9f16bba0bf) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f9f15fe9e9a) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f9f167211ab) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f9f167260f3) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f9f16627b4b) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f9f16f37dc3) at /usr/lib/julia/sys.so
+unknown function (ip: 0x7f9f2d6fae27) at /usr/bin/../lib/julia/libjulia-internal.so.1.12
+jl_repl_entrypoint at /usr/bin/../lib/julia/libjulia-internal.so.1.12 (unknown line)
+main at julia (unknown line)
+unknown function (ip: 0x7f9f2dfcc780) at /usr/bin/../lib/libc.so.6
+__libc_start_main at /usr/bin/../lib/libc.so.6 (unknown line)
+_start at julia (unknown line)
+unknown function (ip: (nil)) at (unknown file)
+Allocations: 27141794 (Pool: 27141245; Big: 549); GC: 18
+DATES 2026-09-10 -> 2026-09-11 T=14294 -> 14295 N65 P910; zero posterior fits
+mask_count=60 mask_span_rank=60 transported_mask_span_rank=64
+transported_design_residual_relative=9.908870969123274e-5 numerical_rank_at_1e-6_singular=503 general_bound=896
+raw-coordinate rank is not a proof of low transported rank; no rank is truncated
+date=2026-09-10 fit=0 alpha=14847.783365912503 floor_active=0 of64 base_hessian_min_over_n=0.4950596972686796 base_min_abs_denominator_over_n=0.4950596972686796
+date=2026-09-10 fit=1 alpha=73584.74889256341 floor_active=0 of64 base_hessian_min_over_n=0.4987074934366101 base_min_abs_denominator_over_n=0.4987074934366101
+TIMEOUT-EXCEEDED pgid=1554146 deadline=45s child_rc=143 (timeout is never success)
+scoped_run: rc=124 elapsed=35s deadline=45 killed=1 cancelled=none rss_guard=2048 rss_peak=1397MiB

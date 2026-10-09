@@ -1,0 +1,109 @@
+# failure_fixture.txt — Phase 0 失败 fixture 资产登记（只读盘点）
+# 盘点时间：2026-10-09 17:33–17:40 +0800
+# 规则：只记录实际观察到的事实；未找到的条目写 ABSENT；不编造路径、大小、时间、哈希。
+
+## A. 主失败 fixture — 501 日回测 spool 目录（找到）
+
+Path:      /tmp/ktrader_backtest_yjNDOs/
+Type:      directory (mode drwx------, owner kunweiz)
+Dir size:  9020 bytes (directory entry)
+Dir mtime: 2026-10-09 16:50:00.654156237 +0800
+Files:     449 files, all named decision_<k>.bin
+Total:     70,432,447 bytes (du -sb)
+Index:     min=42, max=500; k=42..500 内缺失 10 个编号：82, 83, 125, 167, 250, 292, 334, 417, 458, 459
+Sizes:     449 files 中 156859 / 156863 / 156867 字节三种（多数 156867）
+mtime:     文件级 2026-10-09 16:45:15 … 16:49:57（顺序递增；目录 mtime=16:50:00 为最后一次写入）
+
+字节内容证据（只读采样）：
+  - decision_500.bin 头部 64 字节 hex 以 `37 4a 4c 1e`（魔数 7JL）开头；
+    内嵌字符串含 `NamedTuple`、`model`、`active`、`free`、`timing`、`BitArray`、
+    `DecisionTiming`、`KTrader`。
+  - 与 src/backtest.jl 的 spool 序列化完全吻合：L255-257 `Serialization.serialize(io,
+    (;model=nothing,X,active,free,timing))`；消费者读取后 L305 `rm(spool_path(k);force=true)`；
+    正常/异常路径最后 L328 `finally ... rm(spool_dir;recursive=true,force=true)`。
+  - 推断（标注为推断）：这些文件是「当日场景矩阵 + active/free/timing」的 spool 产物，
+    不是名义上的“权重文件”。权重的持久化输出需要消费端完成整轮后由 backtest 返回值给出，
+    本次未找到任何独立的 weights/equity/result 文件（其余候选见下）。
+  - 目录未清理 + 文件编号断档 + 停在 500 => 该生产回测未走到正常 finally 清理；
+    是「被中断/被杀」而不是「正常结束后残留」。缺失的 10 个编号（82,83,125,167,250,
+    292,334,417,458,459）对应消费者已读走并删除（read-and-delete）的日期。
+    以上为静态推断，未发现该次运行的日志/脚本/命令记录来逐字确证。
+
+逐文件完整登记（name|size|mtime|sha256，449 行）：
+  dev/evidence/manager12/yjNDOs_fixture_manifest.txt
+  （该清单的 sha256 = b820680f2be202a6248783a0d21a3f0833dccd6ed30f27c62f040f5b9874f556，
+   与生成时 /tmp/mgr12_yjNDOs_manifest.txt 逐字节一致；盘点与写盘时两次复核目录 mtime
+   均为 16:50:00.654156237，sha256 复核 decision_42/499/500 与清单一致。）
+抽样哈希（完整列表见上）：
+  decision_42.bin  | 156859 | 16:45:15 | 54fbf4c9b27d0061b5175389280b07f60b9b588156e060d482769513096ef285
+  decision_499.bin | 156867 | 16:49:50 | 6723c368837b39d7a22d01676e62148f5ce3613fe64cf94ed7b9295f58452bb0
+  decision_500.bin | 156863 | 16:49:57 | 8e7666c99c29454f9659ec2d585c298d2f151b0a4a983520fbc29e68659205f2
+
+## B. 同日更早的次要 spool 目录（找到，作为对照证据）
+
+Path:      /tmp/ktrader_backtest_b2JAdx/
+Dir mtime: 2026-10-09 07:03:37.263021751 +0800
+  decision_1.bin | 156867 | 07:03:37.263021751 | 6fc2c9d7bd0f9c184fa7e2b7011aa23d96b409abf1427f74d993209ad4d2eeb6
+  decision_3.bin | 156867 | 07:03:36.599019478 | 3b3321c05b8515eca5daadeb7e72699d090f9750a25eeddf873d5db51e17c327
+  （缺 decision_2 — 同日有 07:29 的 oof_memory 证据日志）
+
+Path:      /tmp/ktrader_backtest_utjKnG/
+Dir mtime: 2026-10-09 02:48:50.742983887 +0800
+  decision_1.bin | 156859 | 02:48:47.724981937 | bada0759e5adef8385d85a511cb0cc15649a60c0c49b67b6772d826301264f07
+  decision_2.bin | 156863 | 02:48:50.742983887 | 6091ca23857bde8be9e689da3ea0540b04c944813cbc0adb437f6a12513b5c38
+
+Path:      /tmp/ktrader_backtest_eGTJHV/   → 空目录，mtime 2026-10-09 03:26:32.556080470 +0800
+Path:      /tmp/ktrader_backtest_Owk1qF/   → 空目录，mtime 2026-10-09 03:12:56.838503161 +0800
+  （这些目录 mtime 早于 16:45 的失败运行，非本轮失败运行产物；保留为历史对照。）
+
+## C. 回测脚本（找到）
+
+  bin/backtest.jl            |   3570 | 2026-10-07 07:26 | 926bde4c91980751897a1dc729e5d889ff2288cf5fc653c7fbd68ceada47183b
+  dev/earlier_window_replay.jl | 8383 | 2026-10-09 10:46 | c6a8dfc802398084db02f034eadf16bbfbaba18c471a487b01c64174f7fc4288
+  dev/earlier_fit_days.jl    |   3210 | 2026-10-09 10:33 | eff6cc7d52cfc28a08a17878ceaab97a9c73c3265b578dcac58780836821a17c
+  （bin/backtest.jl 是生成 ktrader_backtest_* spool 的唯一生产入口；本机未找到本次 16:45 运行
+    所对应的调用命令行文本或日志。）
+
+## D. 数据文件（找到；即 fixture 的输入面板来源候选）
+
+  data/adj.csv   | 9620548 | 2026-10-06 08:32 | e0c25e04a079947b1c5fbc3879703b76d9d35c20300dccd969fedcb268a29322
+  data/close.csv | 9066076 | 2026-10-06 08:32 | 4b9b17c8d9dbf81f4274187e82c13f43ab094cbddc9d1b3be804b03a4b55aced
+  universe.txt   |     355 | 2026-10-06 08:06 | 68791a197f7dcbb4d18fca874347b45bd045220d676e9e44d0e435dde025be56
+  （data/ 在 .gitignore 内；N65 面板的口径为既有证据记录所称“本地 N65 完整历史”。）
+
+## E. 结果 / 权重 / equity 文件（关键：未找到独立持久化文件）
+
+  仓库内（含 dev/、dist/、release/）与 /tmp 下名称含 weight/equity/501/result 的文件：
+  除代码与证据日志外，未发现任何独立的「501 日权重 / 回测结果 / equity 曲线」产物文件。
+  已搜索：仓库全树（排除 .git）与 /tmp 深度 ≤5。
+  → weights 文件:      ABSENT（无独立文件名匹配；权重曾以 backtest 返回值/日志形态存在，
+                      本次未发现落盘副本）
+  → equity 文件:       ABSENT
+  → 501 命名的结果文件: ABSENT（“501 日”语义只能通过 spool 的 decision_1..500 编号轨迹推断；
+                      decision 编号从 42 开始说明更早编号已被消费者删除或该次运行自 42 起；
+                      1..41 是否存在过无法从残留推断。）
+  → 本次失败运行的 stdout/日志: ABSENT（未找到；仅目录残留）
+
+## F. 相关但不属于本轮 501 日 fixture 的相邻资产（找到，仅登记避免混淆）
+
+  /tmp/ktrader_incremental_feasibility_20261009.log | 894 | 2026-10-09 14:20 |
+      e715a484815d606a857a5277843d19c9c45bbfaf9e60861f5ecf314cd75ac306
+      （内容：一次 prepare-only 探测，含 MethodError 堆栈 + PREP_ONLY 行 + scoped_run rc=1 行；
+        与 dist/incremental-feasibility-20261009.log 同名主题，属独立可行性探测，非 501 日回测。）
+  dev/evidence/support201/day1_6bcddbda2411.jls                   | 508901 | 17:12
+  dev/evidence/support201/reference-schedule_day1_cfc4976bcd11.jls | 508901 | 17:27
+      （2.0.1 candidate 研究快照，gitignored *.jls；与本轮 fixture 无关。）
+  dev/evidence/earlier_closure_20261009/fit_day_*.jls（8 个，每个 ≈28.6 MB）| 10:34–10:41
+  dev/evidence/release_freeze_20261009/latest*.jls / repaired_latest.jls 等
+  dev/evidence/oof_memory_20261009/*.jls / dev/evidence/release_batch_20261009/*.jls
+      （以上均为既有验收/研究模型快照，保留原位。）
+
+## G. 判定摘要
+
+  [找到] /tmp/ktrader_backtest_yjNDOs/ —— 本轮“501 日”失败回测的 spool 残留：
+         449 个 decision_*.bin、编号 42..500、缺 10、总量 70.4 MB、目录未清理、
+         停在 2026-10-09 16:50，与 src/backtest.jl 的 spool 语义精确吻合。
+  [找到] bin/backtest.jl + data/{adj,close}.csv + universe.txt（入口与输入候选）。
+  [ABSENT] 独立 weights / equity / result / 501 命名结果文件；本次失败运行的 stdout 日志。
+  [ABSENT] 本次 16:45 运行的确切命令行与启动者记录（无法从残留确证）。
+  [保留] 次要 spool 目录 4 个与全部既有 .jls/证据文件原位未动；本盘点未修改 /tmp 任何对象。

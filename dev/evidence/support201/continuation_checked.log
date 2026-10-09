@@ -1,0 +1,11 @@
+date=2026-09-10 COLD seconds=4.050769143 bytes=772154000 compile=3.845067993 accepted=true iterations=8
+vs2.0_original alpha_relative=7.201491758703221e-7 covariance_relative=6.951593686336541e-9 original_alpha_gate=false original_cov_gate=false
+date=2026-09-11 COLD seconds=0.408982248 bytes=329510728 compile=0.0 accepted=true iterations=8
+REPEAT_COLD seconds=0.400962651 bytes=329510728 compile=0.0 iterations=8
+WARM_CANDIDATE seconds=0.160432234 bytes=153581176 compile=0.071728205 accepted=true iterations=3
+Test Summary:                                               | Pass  Total  Time
+Research warm/cold candidate agrees on this transition only |    3      3  0.0s
+warm_cold_alpha_relative=1.29193856274589e-11 sigma_relative=3.1881452999055257e-12
+vs2.0_original alpha_relative=7.292543292750533e-7 covariance_relative=8.204379080698184e-8 original_alpha_gate=false original_cov_gate=false
+No general basin/OOF-isolation proof from one transition; production unchanged
+scoped_run: rc=0 elapsed=16s deadline=45 killed=0 cancelled=none rss_guard=2048 rss_peak=1144MiB

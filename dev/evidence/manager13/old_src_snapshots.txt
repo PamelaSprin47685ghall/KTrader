@@ -1,0 +1,136 @@
+# manager13 old_src_snapshots.txt — 旧版 src/ 快照索引
+# generated: 2026-10-09 17:44:14 +0800 ; 方法: git archive <commit> src/ | tar -x
+# 每个快照目录含该 commit 的 src/ 全目录树（逐字节还原）。
+
+==========================================================
+## 快照: old_src_1d9b7ad
+commit:  1d9b7ad464233b86f0210cd7d79b9a362891fa34
+date:    2026-10-06 12:57:22 +0800
+subject: feat: Path Kelly V0 baseline (causal, exact Kelly, threaded backtest, live broker)
+tree-src: 7c5fcdf2971df18464bdf24542dbf22c9f90c305
+files:   8 ; bytes: 134827
+file list:
+  ./src/backtest.jl | 3844 | 250e35a85b387464
+  ./src/broker.jl | 10623 | 8aa7fea2f6b7223d
+  ./src/data.jl | 3468 | 54dde0e1805f1e1a
+  ./src/KTrader.jl | 1496 | dd05378bf0513dbf
+  ./src/live.jl | 5535 | 062023db4b1d90c6
+  ./src/modecov.jl | 10742 | 93d473f4db970935
+  ./src/model.jl | 31314 | 7828706b19dfef99
+  ./src/repomix-output.xml | 67805 | fc1d6bdc7b621cab
+
+==========================================================
+## 快照: old_src_21017b9
+commit:  21017b9daf708d7ba789eb8683373110f01cc20c
+date:    2026-10-06 13:32:21 +0800
+subject: feat(v1.0): Path Kelly V1.0 - Matrix-Normal posterior, blocked cross-fitting, exact trace neutrality, live isomorphism
+tree-src: 7fc8f4d4f6414a91a7fc354437fd342a36d47a31
+files:   9 ; bytes: 54016
+file list:
+  ./src/backtest.jl | 4818 | 383f686b234ba7bf
+  ./src/broker.jl | 10623 | 8aa7fea2f6b7223d
+  ./src/data.jl | 3468 | 54dde0e1805f1e1a
+  ./src/geometry.jl | 5633 | e8b0395914c75cc3
+  ./src/kelly.jl | 2594 | c5d4ae67aa4cf3d2
+  ./src/KTrader.jl | 1360 | ad9344c091593ee3
+  ./src/live.jl | 5535 | 062023db4b1d90c6
+  ./src/predict.jl | 9656 | 3b98c97d7b5470aa
+  ./src/response.jl | 10329 | f76bf71bf487f165
+
+==========================================================
+## 快照: old_src_602b897
+commit:  602b8976b4d5db29e6530241ad78e5f3f724f7fe
+date:    2026-10-06 23:14:00 +0800
+subject: perf: eliminate counts array allocation and tracking from build_X_rel_stacked
+tree-src: a03fbca78fd07bb17de74a735853fcc896653cdf
+files:   10 ; bytes: 88349
+file list:
+  ./src/backtest.jl | 5285 | b0c2bd82af135973
+  ./src/broker.jl | 10623 | 8aa7fea2f6b7223d
+  ./src/data.jl | 3633 | 84dfb8148864ddcd
+  ./src/geometry.jl | 7169 | f5b305838eb7fbef
+  ./src/kelly.jl | 7374 | 6ed02e86c46310c2
+  ./src/KTrader.jl | 2044 | 6c0edf48b412572d
+  ./src/live.jl | 5261 | a9f275db29ec7468
+  ./src/numerics.jl | 4804 | 30160735109e014f
+  ./src/predict.jl | 19888 | 343a74ba6cf64c49
+  ./src/response.jl | 22268 | 8917357f196c494d
+
+==========================================================
+## 全快照聚合哈希（对每个快照内文件排序后逐文件 sha256 汇总）
+40a62ec2d0cb7681dba06eb4271fce46eaa60d7e8d32bfa8b8365d5047ca8c4d  old_src_1d9b7ad 聚合
+0c84248738e72ef1a993b4dc4ca646540a7340c2372d8aeca122b88f3d3deb50  old_src_21017b9 聚合
+266d56e0faaf00d316854a30fb6fc21daa5476fef019eecf197ade7c25c9803f  old_src_602b897 聚合
+
+## 转储保真验证（内容级，2026-10-09 17:45 追加）
+# 方法：对三个快照分别执行
+#   git archive <commit> src/ | tar -x -C /tmp/mgr13_verify_<c>
+#   diff -r /tmp/mgr13_verify_<c>/src <snapshot>/src
+# 结果：三个快照 diff 均为空（DIFF_EMPTY_OK）——转储内容与 git 对象逐内容一致。
+# 说明（更正早期口径）：上表每行的 16 位十六进制是文件内容的 SHA-256 前缀；
+# git 的对象名（blob）使用 SHA-1，两者算法不同、不可直接比较；
+# 保真结论只以上面的 diff -r 为空为准。
+# 说明：V0 快照里的 src/repomix-output.xml 是当时的打包产物，非 Julia 源码；
+# 因任务要求「转储 src/ 全目录」而原样保留。
+
+## 全部快照文件完整 SHA-256（2026-10-09 17:46 追加；用于后续内容比对）
+---- old_src_1d9b7ad ----
+250e35a85b3874649e14714312e179fa11b516df02fda388613e98075d38bb83  ./src/backtest.jl
+8aa7fea2f6b7223d56ddec23ec199510cf00a5676f6794e59aad417a4b0ab6dd  ./src/broker.jl
+54dde0e1805f1e1a4f84121cd1ff2eddbe4e09fc9281bdbdf7f5dd8841f9c5b1  ./src/data.jl
+dd05378bf0513dbfd05963f88ffd62470149efd544db685a252d85c4e2b50440  ./src/KTrader.jl
+062023db4b1d90c65a40c618383ea35aa88289fa03c2659972c54b73cccadc55  ./src/live.jl
+93d473f4db9709359fa408b3e626e30a8edabdbbae0523cc6a2f7ffeaaa074e6  ./src/modecov.jl
+7828706b19dfef99627546a138a2525806f3a1fc8fbd3614ebbc30cbe6ffef2d  ./src/model.jl
+fc1d6bdc7b621cab80f1d2020927e13f8a52abca401f211efbeb5c07a9b0af54  ./src/repomix-output.xml
+---- old_src_21017b9 ----
+383f686b234ba7bf7b01f74e190cfb28e3eadd87962db9348015db83d2e0fa40  ./src/backtest.jl
+8aa7fea2f6b7223d56ddec23ec199510cf00a5676f6794e59aad417a4b0ab6dd  ./src/broker.jl
+54dde0e1805f1e1a4f84121cd1ff2eddbe4e09fc9281bdbdf7f5dd8841f9c5b1  ./src/data.jl
+e8b0395914c75cc3285d28203a6b7b76b503a2be5f2cb60dd60c62dcae283f7a  ./src/geometry.jl
+c5d4ae67aa4cf3d20a50737c177c38cad387d9d03dee40406ec16d05874647eb  ./src/kelly.jl
+ad9344c091593ee3351f4e72583655a17b8f3b1e325c841e0aca765ac085aced  ./src/KTrader.jl
+062023db4b1d90c65a40c618383ea35aa88289fa03c2659972c54b73cccadc55  ./src/live.jl
+3b98c97d7b5470aaf871be3306d75e1bd96e4034503367b779403de743bbe97e  ./src/predict.jl
+f76bf71bf487f165eee990efe91aa7fcf5c476e892bcfe273dd80e982edf4af0  ./src/response.jl
+---- old_src_602b897 ----
+b0c2bd82af135973f3bdabc9a0a8ebe058c614f4f3fcf6431f5c838eb6a25c02  ./src/backtest.jl
+8aa7fea2f6b7223d56ddec23ec199510cf00a5676f6794e59aad417a4b0ab6dd  ./src/broker.jl
+84dfb8148864ddcd55475c81b49ca8f13b0cb86b45dadc7dd80078b66ec84e14  ./src/data.jl
+f5b305838eb7fbef6ddeb06ada023c3b2bcdc4c1f89edcba0315604dce675976  ./src/geometry.jl
+6ed02e86c46310c2e9d35aaa62963ede927eda4faeeeed893a0c781b897e16e1  ./src/kelly.jl
+6c0edf48b412572d80f5ddd1f25c45206f6c383c5c3b5c4a920cb9c15db16bdc  ./src/KTrader.jl
+a9f275db29ec74689130a2bbc388cfde94c4c28a9c028da4f42b871595550b38  ./src/live.jl
+30160735109e014f07811c2944bcf028825f8d30053b647bb5f623db83da1be4  ./src/numerics.jl
+343a74ba6cf64c498bbe2b0e863e42f9e11cf3001ca51644061ac04923c32414  ./src/predict.jl
+8917357f196c494d3585af784c2de4d690fe78bf070a71b5ace86d33f510d431  ./src/response.jl
+
+## 基准候选判断（供 docs/OLD_TO_CURRENT_SEMANTIC_DIFF.md 使用；判断附理由与不确定处）
+
+### 判定 1：缺陷标志维度上的「最后一个含缺陷标志的提交」
+  = 1d9b7ad464233b86f0210cd7d79b9a362891fa34（Path Kelly V0 baseline，2026-10-06 12:57:22）
+  理由（证据）：shrink_drift 与 ARD 的唯一宿主是 1d9b7ad；21017b9（V1.0）起全部后续提交为零。
+  说明：1d9b7ad 在时间序上是最早的实质提交，也是这些缺陷标志的唯一（因此也是最后）宿主。
+  即：不存在比它更晚的「含缺陷标志的提交」——V1.0 已经完成了替换（Matrix-Normal posterior
+  + blocked cross-fitting + exact trace neutrality）。
+
+### 判定 2：其他候选与边界
+  - 21017b9（V1.0）：修复方。含 'Blocked Cross-Fitting ... eliminate selection leakage' 声明；
+    已无 shrink_drift/ARD。可作为「修复后首个版本」对照面。
+  - 602b897：2.0 发布提交（fc54ce48）的直接父提交，性能线终点；无缺陷标志。
+    它是上一任 Phase 0 记录的坐标点，但与答辩缺陷标志无直接绑定。
+  - fc54ce48（HEAD/v2.0.0）：当前版本；无缺陷标志。
+
+### 判定 3：不确定处（不得由猜测填充）
+  - 「早期答辩报告」文本本身不在本机可读范围；本文件的关键词清单来自任务描述，
+    未逐字核对答辩报告原文。若答辩报告点名了其他标志或另一段语义，需以其证据重做对照。
+  - 'shrink_drift' 在 V0 中是一个函数名（模型内收缩估计），是否等同于答辩报告所指的
+    「缺陷」需报告原文确认；本文件只负责给出「该标志在此提交存在/不存在」的事实。
+  - 'mean matching' 在 c109d9f..HEAD 是否定声明（'No post-hoc mean matching.'），
+    不是缺陷实现；'selection' 在 V0 是缺陷承认注释、在 V1.0 被修复、HEAD 仅剩变量名；
+    'BF' 仅命中二进制 fixture；'recenter' 零命中。这些都已如实分类。
+
+### 判定 4：给语义 diff 的推荐组合（证据支持，不越权决定）
+  旧=1d9b7ad（V0 baseline，缺陷标志宿主）；新=fc54ce48（当前 2.0.0）。
+  可选中间对照：21017b9（修复发生点）、602b897（性能线终点/发布父提交）。
+  最终选择权归 docs 文档的正当 owner。

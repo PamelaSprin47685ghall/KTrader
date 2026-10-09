@@ -1,0 +1,99 @@
+# old_version_candidates.txt — 「早期胜出版本」候选 commit 检索（只读）
+# 检索时间：2026-10-09 17:33–17:40 +0800
+# 结论先行：**未找到被文档明确记录为「早期胜出版本 / winner / known-good previous version」的单一 commit。**
+# 如实按以下三层记录：已存在对象、文档注记、判定。
+
+## A. 参考点
+
+- 当前 HEAD: fc54ce48cb65c84d130f87dae58442cc095f7da6（2026-10-09 12:14:17 +0800，
+  提交信息 "release: KTrader 2.0.0 Final (CPU)"；作者 KTrader Bot <ktrader@local>）。
+- 其父为 602b8976b4d5db29e6530241ad78e5f3f724f7fe（2026-10-06 23:14:00，
+  "perf: eliminate counts array allocation and tracking from build_X_rel_stacked"）。
+- 已确认：602b897 是 HEAD 的祖先（`git merge-base --is-ancestor 602b897 HEAD` 成立）；
+  602b897..HEAD 恰好 1 个提交，即 release 提交本身。
+
+## B. 本机可达的全部 ref 与提交
+
+branches:
+  refs/heads/master        → fc54ce48
+  refs/heads/KTrader-2.0   → fc54ce48
+  refs/remotes/origin/master → fc54ce48（无远端配置；本地同名 ref）
+
+tags:
+  v2.0.0                             → annotated tag 67a3da2f4cac686bd00d7437bf74b69a9fff04f5，
+                                       指向 commit fc54ce48；message 明言
+                                       "KTrader 2.0.0 Final — CPU release ... Local release; no remote publication."
+  ktrader-2.0-rc-failed-20261009     → lightweight tag → fc54ce48（本 Phase 0 授权创建，见 summary）
+
+localspace review snapshots（评审工作区快照，全部是 commit，消息均为「LocalSpace review snapshot」）:
+  2d4de886d3385eff2ad717764f5c88aa44f22c38 | 2026-10-09 16:04:13 | 父=fc54ce48
+    （由 refs/localspace/review/ws_e132a7f4-.../baseline 指向）
+  3dbb4cb42627ad6dcda269efdbd0ff09f86450bb | 2026-10-08 11:04:53 | refs/localspace/.../ws_e132a7f4.../open
+  17221fa569a81ecfee5c6e08fce4390e1c0aa574 | 2026-10-08 11:00:17
+  b33dc5fca1e7c20af4392da637ae7a722dcce6d2 | 2026-10-08 11:00:13
+  bb17247884844f521d8fb5849a8fbd8a99dc6c97 | 2026-10-08 10:47:43
+
+`git rev-list --all --count` = 27；其中 22 条为实质开发提交（见 C），5 条为
+LocalSpace review snapshot（快照，非「开发版本」）。
+
+## C. 实质开发提交按主题分组（git log --all，含日期）
+
+【V0 / V1.0 数学闭合线】
+  1d9b7ad464233b86f0210cd7d79b9a362891fa34 | 2026-10-06 12:57 | feat: Path Kelly V0 baseline (causal, exact Kelly, threaded backtest, live broker)
+  21017b9daf708d7ba789eb8683373110f01cc20c | 2026-10-06 13:32 | feat(v1.0): Path Kelly V1.0 - Matrix-Normal posterior, blocked cross-fitting, exact trace neutrality, live isomorphism
+  85f6e9730e6b49e10d45c52f53347009043103ab | 2026-10-06 14:06 | feat(v1.0-closure): complete mathematical closure - Helmert gauge, signal/marking separation, true OOF residuals, constitutional suite
+  d5e97ddfc21629f6707eedd21297a3900ef32e99 | 2026-10-06 14:28 | feat(v1.0): Path Kelly 1.0 Mathematical Closure - constitutional suite 214/214 pass ...
+  c109d9fc70e3ec358c8e50f7e5e37874ca6d3119 | 2026-10-06 19:00 | feat(v1.0-perf): certify dense oracle, fast stationarity EB, vectorized trace conditioning, full suite 270/270 pass
+【perf 系列（v1.0-perf 之后）】
+  e2ab6ece… | 19:33 | Cholesky OOF solve, cached alive return counts, SIMD cumsum/inner loops, greedy threads in backtest
+  cba71aa5… | 20:01 | in-place OOF mu_m evaluation buffer, thread-safe FitWorkspace indexing
+  e1b06aa6… | 20:09 | BLAS.gemm! for sufficient stats xy, OOF mu_rel_eval, and response matrix G
+  7359c683… | 20:19 | block-direct contraction for constraint_moments (280ms→12ms)
+  a3d643b2… | 20:26 | LAPACK syevr! for RRR eigensolve (0.41s per day)
+  ad29c05c… | 20:32 | BLAS.axpy! in-place summation for sufficient stats
+  9a060903… | 20:36 | in-place cumsum buffer for macro and relative paths
+  a6f234be… | 20:51 | fix(test): retain copytri! ... (测试修正)
+  9c957a2e… | 21:38 | exact-stride workspace buffers ... (prep 4ms)
+  039d1636… | 21:56 | extract and inline fill_design_matrix!
+  d6042dfd… | 22:08 | default backtest chunk_size=24
+  1bc18fbf… | 22:10 | docs: record mathematical and numerical optimizations in README.md
+  766d4ce9… | 22:32 | buffer OOF Cholesky scratch matrices
+  21e9ac75… | 22:40 | eliminate isfinite check inside SIMD loop
+  cd7ea6f9… | 23:00 | view on relative_embedding for Y_target_rel
+  602b8976… | 23:14 | eliminate counts array allocation and tracking from build_X_rel_stacked
+【release】
+  fc54ce48… | 2026-10-09 12:14 | release: KTrader 2.0.0 Final (CPU)
+
+## D. 候选判定 — 逐项给证据与理由
+
+1. 没有任何文档把某个 commit 标为「早期胜出版本」。
+   检索范围与词表：dev/、README.md、AGENTS.md 中 `winner` / `胜出` / `early.*winner` /
+   `earlier.*best` / `known-good` / `rollback` / `回退` / `previous version` / `last good` 等。
+   实际命中仅有：
+   - README.pre-final.md:161 "BLAS1/BLAS6 winner is claimed."（指线程配置之争，非版本）
+   - README.pre-final.md:852 "not a mathematical winner version"（否定的措辞，非版本指认）
+   - manager6/10/11 证据中的 "fake rollback"（scoped_run 负控），与版本回退无关。
+   → 结论：**未找到**“被文档记录为胜出的旧版本”。
+
+2. 与本轮失败相关的运行证据（dev/evidence/earlier_closure_20261009 等）均指向
+   已发布字节之上的同一棵历史（HEAD 602b897 → fc54ce48 前后），没有指向更早的“胜出”提交。
+
+3. 结构性候选（供后续 Phase 按证据选择，均非文档指定）：
+   - 602b8976…: 2.0 发布提交的直接父提交；所有 2.0.0 数值验收证据最后出现过的
+     HEAD 记录点（manager4/manager5 快照所载“HEAD 602b897”）。
+   - c41e23a…: `git cat-file -t` 确认存在（commit）。仅在 manager10 证据日志中以
+     「LocalSpace 评审基线 c41e23a @ 2026-10-08 11:31:05」被提及；本机 `git log --all`
+     不含它（不在任何 ref 的祖先链上，是悬空评审基线）。
+   - v2.0.0 / fc54ce48: 正式发布对象（annotated tag + commit）。
+   - LocalSpace snapshots（2d4de886 等 5 条）: 评审工作区快照，不是版本候选。
+
+4. 已排除的误报：全仓 40-hex 字符串中 `086b5fbd032baf544678cc15b52b015e4c4aceb8`
+   不是本仓库对象（`git cat-file -t` 返回 NO_OBJECT）；它出现在 AGENTS.md 的
+   FillArrays 依赖记录中（Manifest 的 git-tree-sha1），不得当作候选 commit。
+   其余 21 个 40-hex 字符串全部经 `git cat-file -t` 确认为 commit，已列入 C 段。
+
+## E. 供下一步的判定句
+
+  「早期胜出版本」的候选在本机可见材料中**未找到**具名记录。若后续有外部输入
+  指认某个 commit hash 为已知良好回退点，应以其证据为准重做对照；
+  在此之前，任何回退/比较选择都不得以本文件的 B/C 段推测代替授权。
