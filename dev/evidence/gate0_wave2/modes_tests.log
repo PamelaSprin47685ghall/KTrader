@@ -1,0 +1,3 @@
+Test Summary:                  | Pass  Total  Time
+gate0 Step 3: mode coordinates |  102    102  3.6s
+scoped_run: rc=0 elapsed=4s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=389MiB

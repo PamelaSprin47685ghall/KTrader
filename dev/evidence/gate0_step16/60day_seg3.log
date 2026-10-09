@@ -1,0 +1,10 @@
+[60seg3] bridged held0 = [0.21273081246875633, 0.15822962342063585, 0.10365457775763821, 0.3664407085303293]
+[60seg3] segment OK: days = 10  t = 297..306
+[60seg3] per-segment (d)(f) OK: equity finite, conservation holds
+[60seg3] bridge (b) OK: days[1].held_before == held0
+[60seg3] (a) OK: terminal held = [0.245041, 0.32344, 0.100482, 0.331037]  sum = 1.0
+[60seg3] terminal held saved -> dev/evidence/gate0_step16/held60_3.txt
+[60seg3] (c) OK: segment equity == cumprod(wealth_factors)（拼接=乘法链）
+[60seg3] (e) OK: benchmarks aligned (len = days+1), cash == 1
+[60seg3] ALL SEGMENT ASSERTIONS PASSED
+scoped_run: rc=0 elapsed=33s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=1438MiB

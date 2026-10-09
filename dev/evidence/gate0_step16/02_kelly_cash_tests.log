@@ -1,0 +1,19 @@
+Test Summary:                                  | Pass  Total   Time
+Case A: deterministic gross < 1 gives all cash |    4      4  11.4s
+Test Summary:                                         | Pass  Total  Time
+Case B: deterministic gross > 1 gives full allocation |    4      4  0.0s
+Test Summary:                                                 | Pass  Total  Time
+Case C: interior solution with analytic first-order condition |    7      7  0.1s
+Test Summary:                                           | Pass  Total  Time
+Case D: locked wealth in base, free on remaining budget |    8      8  0.4s
+Test Summary:                                        | Pass  Total  Time
+D-090 symmetric world: exchangeable triple with cash |    9      9  0.1s
+Test Summary:                                   | Pass  Total  Time
+D-091 no-signal world: zero-mean symmetric rows |    6      6  0.0s
+Test Summary:                                          | Pass  Total  Time
+equivalence: explicit cash column vs budget inequality |    5      5  1.9s
+Test Summary:                 | Pass  Total  Time
+certificate negative controls |    7      7  0.1s
+Test Summary:                 | Pass  Total  Time
+input validation fails loudly |    9      9  0.0s
+scoped_run: rc=0 elapsed=16s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=885MiB

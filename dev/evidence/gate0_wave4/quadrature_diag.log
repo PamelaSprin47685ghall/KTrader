@@ -1,0 +1,21 @@
+Test Summary:                                            | Pass  Total  Time
+nested rule: first M points bitwise-identical (atol = 0) |    5      5  0.2s
+Test Summary:                                 | Pass  Total  Time
+same-seed replay & audit independence (D-065) |    5      5  0.0s
+Test Summary:                                   | Pass  Total  Time
+scrambled point domain & low-discrepancy sanity |    3      3  0.0s
+Test Summary:                                           | Pass  Total   Time
+known Gaussian 2-asset analytic Kelly + KKT propagation |   12     12  12.0s
+Test Summary:                                      | Pass  Total  Time
+tolerance halving: M nondecreasing, weights stable |    2      2  0.1s
+Test Summary:                                           | Pass  Total  Time
+certificate layering: A-pass/B-red rounds keep doubling |    5      5  0.2s
+Test Summary:                          | Pass  Total  Time
+budget exhaustion fails loudly (D-067) |    4      4  0.0s
+Test Summary:                          | Pass  Total  Time
+no fixed-S production shortcut (D-062) |    8      8  1.4s
+Test Summary:                            | Pass  Total  Time
+different seeds converge to same weights |    1      1  0.5s
+Test Summary:                 | Pass  Total  Time
+input validation fails loudly |    9      9  0.1s
+scoped_run: rc=0 elapsed=17s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=918MiB

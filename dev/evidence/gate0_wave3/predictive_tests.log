@@ -1,0 +1,3 @@
+Test Summary:                            | Pass  Total   Time
+gate0 Step 13: PredictiveLaw composition |   56     56  22.9s
+scoped_run: rc=0 elapsed=24s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=1599MiB

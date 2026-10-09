@@ -1,0 +1,15 @@
+Z size = (399, 4)
+row norms: max = 170.83663886313258 at i = 4; p99 = 4.894105096280342
+L row 1 (J=2): |z| = 0.324  rank(V_sm) = 1  min pos λ = 0.00073
+L row 2 (J=3): |z| = 0.716  rank(V_sm) = 2  min pos λ = 0.000147
+L row 3 (J=4): |z| = 0.741  rank(V_sm) = 3  min pos λ = 1.61e-5
+L row 4 (J=5): |z| = 170.837  rank(V_sm) = 4  min pos λ = 6.58e-10
+L row 5 (J=6): |z| = 4.415  rank(V_sm) = 4  min pos λ = 3.95e-7
+L row 6 (J=7): |z| = 11.322  rank(V_sm) = 4  min pos λ = 1.19e-6
+L row 7 (J=8): |z| = 5.037  rank(V_sm) = 4  min pos λ = 1.29e-5
+L row 8 (J=9): |z| = 5.938  rank(V_sm) = 4  min pos λ = 1.54e-5
+Mz diag = [49.213, 1.868, 6.993, 20.033]
+Mz max offdiag = 30.218
+M_z (rows 21+) diag = [1.173, 1.164, 1.114, 1.067]  max offdiag = 0.042
+kurt col1 full = 374.67  rows21+ = 3.2
+scoped_run: rc=0 elapsed=5s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=467MiB

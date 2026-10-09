@@ -1,0 +1,9 @@
+[seg2] bridged held0 = [0.26212233636022925, 1.0489099523322355e-10, 0.09648526911873886, 0.3501807307673005]
+[seg2] segment OK: days = 10  t = 287..296
+[seg2] per-segment (d)(f) OK: equity finite, conservation holds
+[seg2] bridge (b) OK: days[1].held_before == held0
+[seg2] (a) OK: terminal held = [0.212731, 0.15823, 0.103655, 0.366441]  sum = 0.841056
+[seg2] (c) OK: segment equity == cumprod(wealth_factors)（拼接=乘法链）
+[seg2] (e) OK: benchmarks aligned (len = days+1), cash == 1
+[seg2] ALL SEGMENT ASSERTIONS PASSED
+scoped_run: rc=0 elapsed=33s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=1455MiB

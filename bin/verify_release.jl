@@ -4,6 +4,16 @@
 using SHA, TOML
 
 const FINAL_VERSION = "2.0.0"
+# Gate-0 纠偏期状态白名单（Step 16 机械适配，2026-10-09）：原硬校验
+# status=="Final" 与 RELEASE.toml 的 "2.0-RC-G0"（裁决书 D-003/D-097/§57
+# 的合法状态——2.0.0 保留为历史发布物、数学闭合声明已被 Gate-0 审计
+# 撤销）不一致，verify 在「wrong release identity」层拦截。白名单
+# {Final, 2.0-RC-G0}：Final = 历史发布物校验语义（不变）；2.0-RC-G0 =
+# 纠偏期合法状态（凭据校验仍按 2.0.0 历史快照执行——D-002 历史字节
+# 不动）。注意：纠偏期工作树相对 2.0.0 快照的新增/变更文件（src/gate0/
+# 等）仍会被后续逐文件 hash 校验拦截——那是预期行为（本工具验证的是
+# 2.0.0 历史发布物身份，不是当前开发线的验收）。
+const FINAL_STATUSES = ("Final", "2.0-RC-G0")
 const FINAL_ACCEPTANCE_HASH = "dd1fe993b2ad5020e46db8f634fdb9254b816d114ce9dd7c38a64fb188c820df"
 const FINAL_QUALIFICATION_HASH = "31e1c48729147d5022a0b5f894c23afece80cd0bb9a596161fd7619c359e3f17"
 const FINAL_TEST_LIBRARIES = ("dev/probes.jl", "dev/m1_artifact_replay.jl")
@@ -37,7 +47,7 @@ end
 function verify_final_release(root=normpath(joinpath(@__DIR__,"..")))
     metadata=TOML.parsefile(final_path(root,"RELEASE.toml"))
     final_require(metadata["name"]=="KTrader" && metadata["version"]==FINAL_VERSION &&
-        metadata["status"]=="Final" && metadata["edition"]=="CPU" &&
+        metadata["status"] in FINAL_STATUSES && metadata["edition"]=="CPU" &&
         metadata["gpu_release"]=="2.1","wrong release identity")
     provenance=metadata["acceptance"]
     final_require(provenance["sha256"]==FINAL_ACCEPTANCE_HASH &&

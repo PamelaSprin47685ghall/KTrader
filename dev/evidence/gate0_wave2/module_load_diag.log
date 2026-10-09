@@ -1,0 +1,3 @@
+count = 33
+BANDCOL,BANDS,Eligibility,KTraderGate0,MarketFacts,TAUS,WARMUP,asset_field_reconstruct,benchmark_universe,cash_kelly,cash_kelly_certificate,cash_kelly_certified,center_of_mass,compute_s_perp,cumulative_path_coordinates,domain_mode_basis,effective_bars_252,executable,fast_s_m,free,from_bars_arrays,locked,locked_wealth_gate0,mode_basis_design,mode_field,model_admitted,path_basis_1d,principal_sqrt_root,relative_gauge,risk_domain_mode_basis,ruler,signal_prices,trade_eligible
+scoped_run: rc=0 elapsed=2s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=550MiB

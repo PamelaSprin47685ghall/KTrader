@@ -1,0 +1,29 @@
+ERROR: LoadError: Some tests did not pass: 5 passed, 1 failed, 0 errored, 0 broken.
+in expression starting at /home/kunweiz/Desktop/vibe/KTrader/dev/evidence/gate0_wave2/kelly_diag_copy.jl:14
+Test Summary:                                  | Pass  Total   Time
+Case A: deterministic gross < 1 gives all cash |    4      4  10.7s
+Test Summary:                                         | Pass  Total  Time
+Case B: deterministic gross > 1 gives full allocation |    4      4  0.0s
+Test Summary:                                                 | Pass  Total  Time
+Case C: interior solution with analytic first-order condition |    7      7  0.0s
+Test Summary:                                           | Pass  Total  Time
+Case D: locked wealth in base, free on remaining budget |    8      8  0.3s
+Test Summary:                                        | Pass  Total  Time
+D-090 symmetric world: exchangeable triple with cash |    6      6  0.0s
+D-091 no-signal world: zero-mean symmetric rows: Test Failed at /home/kunweiz/Desktop/vibe/KTrader/dev/evidence/gate0_wave2/kelly_diag_copy.jl:156
+  Expression: maximum(w) - minimum(w) <= 1.0e-6
+   Evaluated: 1.4252806619097225e-6 <= 1.0e-6
+
+Stacktrace:
+ [1] top-level scope
+   @ ~/Desktop/vibe/KTrader/dev/evidence/gate0_wave2/kelly_diag_copy.jl:148
+ [2] macro expansion
+   @ /usr/share/julia/stdlib/v1.12/Test/src/Test.jl:1777 [inlined]
+ [3] macro expansion
+   @ ~/Desktop/vibe/KTrader/dev/evidence/gate0_wave2/kelly_diag_copy.jl:156 [inlined]
+ [4] macro expansion
+   @ /usr/share/julia/stdlib/v1.12/Test/src/Test.jl:680 [inlined]
+Test Summary:                                   | Pass  Fail  Total  Time
+D-091 no-signal world: zero-mean symmetric rows |    5     1      6  0.8s
+RNG of the outermost testset: Random.Xoshiro(0x24a1a10ce5439505, 0xbb18d3a2fbf6c623, 0x6ef6a7ee0dba51a1, 0xa40060b3436f76c1, 0xfcc00882f5d7beda)
+scoped_run: rc=1 elapsed=14s deadline=50 killed=0 cancelled=none rss_guard=2048 rss_peak=891MiB

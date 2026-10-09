@@ -1,9 +1,35 @@
 # KTrader 2.0.0 Final — CPU
 
+> **Gate-0 状态声明（2026-10-09）**
+>
+> 2.0.0 作为历史发布物保留，原字节、原 hash、原时间线不变（裁决书 D-002）；
+> 但其「数学闭合」声明已被 Gate-0 审计撤销，不再是当前推荐规范（D-003）。
+> 当前开发状态为 **KTrader 2.0-RC / Gate 0 Reopened**（版本线记号 2.0-RC-G0，
+> 见裁决书 D-097 与 §57）；本仓库当前实现按裁决书推荐名称称为
+> KTrader 2.0 RC legacy implementation。
+>
+> 规范依据：[AGENTS.md](AGENTS.md) 的 Gate-0 裁决书；逐项分析见 docs/ 下六份文档：
+> MODEL_LEDGER.md、OLD_TO_CURRENT_SEMANTIC_DIFF.md、
+> TRACE_NEUTRALITY_DERIVATION.md、POSTERIOR_DEFINITION.md、
+> INNOVATION_LAW.md、NUMERICAL_INTEGRATION_SPEC.md。
+>
+> 在 Gate 0 关闭前，本 README 其余以发布时点口径写成的表述（含「正式版本」
+> 等）一律按历史时间线理解；裁决书 D-096 的禁用名称清单同时生效。
+
+> **Gate-0 纠偏新线名称与现状（2026-10-10，裁决书 D-042）**：纠偏新线 KTraderGate0
+> 已落地十一个模块、Step 1-15；测试证据目录为 dev/evidence/gate0_wave2/3/4/ 各
+> summary.md。新线的正式名称是「modular posterior predictive」——即 Bayesian
+> response posterior + cross-fitted semiparametric innovation predictive。在
+> innovation 仍使用经验 / quasi-likelihood 结构期间，禁止称 fully Bayesian
+> generative posterior predictive（D-042）。Gate-0 Exit 十八项清单的逐项核对见
+> [docs/GATE0_EXIT_CHECKLIST.md](docs/GATE0_EXIT_CHECKLIST.md)。
+
 价格历史 → 因果多尺度特征 → 独立 OOF 后验 → 收益场景 → 原始对数 Kelly → 执行。
 
 2.0.0 是 CPU 正式版本。保留原 1.0 数学定义和已有 `*_v1` API；GPU 属于
 [2.1](ROADMAP_2_1.md)，不是本版本依赖或发布门槛。
+（时间线标注：本两行为 2.0.0 发布时点口径；其「正式版本」地位已被
+Gate-0 裁决撤销，当前状态见文首声明。）
 
 ## 安装与版本校验
 
@@ -84,7 +110,9 @@ bash bin/scoped_run.sh 45 /tmp/ktrader-architecture.log --rss-guard=2048 \
 
 ## 发布内容
 
-[RELEASE.toml](RELEASE.toml) 固定 Final 版本与验收来源；
+[RELEASE.toml](RELEASE.toml) 固定 Final 版本与验收来源（时间线标注：此为
+发布时点口径；status 已按 Gate-0 裁决改为 2.0-RC-G0，[acceptance] 历史
+验收凭据按 D-002 原样保留）；
 [CHANGELOG.md](CHANGELOG.md) 汇总变化；[ROADMAP_2_1.md](ROADMAP_2_1.md) 记录 GPU 范围。
 源码归档包含完整测试和必要开发测试库，不包含行情、拟合快照、GPU 二进制
 或逐轮开发历史。仓库中的原始证据保留，旧 README 位于
