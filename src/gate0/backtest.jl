@@ -57,9 +57,44 @@
 # seed（SPEC §36）；全部判据与回测收益/Sharpe 无关（SPEC §95）。
 # =============================================================================
 
-using Random, LinearAlgebra, Statistics
+using Random, LinearAlgebra, Statistics, Serialization, SHA
 
 export Gate0DayRecord, Gate0BacktestResult, run_gate0_backtest
+
+"""An intentional, checkpointed pause is not a completed backtest."""
+struct BacktestPaused <: Exception
+    next_t::Int
+    checkpoint::String
+end
+Base.showerror(io::IO, e::BacktestPaused) =
+    print(io, "Backtest paused before decision ", e.next_t,
+          "; resume checkpoint ", e.checkpoint, " (not a completed backtest)")
+
+function _backtest_signature(mf, el, options)
+    io = IOBuffer()
+    serialize(io, (VERSION, mf, el, options))
+    for path in sort(filter(p -> endswith(p, ".jl"), readdir(@__DIR__; join=true)))
+        write(io, basename(path), '\0', read(path))
+    end
+    manifest = joinpath(@__DIR__, "..", "..", "Manifest.toml")
+    isfile(manifest) && write(io, read(manifest))
+    bytes2hex(sha256(take!(io)))
+end
+
+function _write_backtest_checkpoint(path::String, payload)
+    mkpath(dirname(abspath(path)))
+    temp, io = mktemp(dirname(abspath(path)))
+    try
+        serialize(io, payload)
+        flush(io)
+        close(io)
+        mv(temp, path; force=true) # completed file replaces the old checkpoint
+    finally
+        isopen(io) && close(io)
+        isfile(temp) && rm(temp)
+    end
+    nothing
+end
 
 """
     Gate0DayRecord
@@ -261,6 +296,12 @@ function run_gate0_backtest(mf::MarketFacts, el::Eligibility;
                             mu_qmc::Bool = false,
                             # CHISQ-QMC（A 门过门配置，CQ_*）：透传 driver；默认 false。
                             mu_chisq_qmc::Bool = false,
+                            reuse_forecasts::Bool = true,
+                            checkpoint::Union{Nothing,String} = nothing,
+                            resume::Bool = false,
+                            max_new_days::Union{Nothing,Int} = nothing,
+                            max_new_forecasts::Union{Nothing,Int} = nothing,
+                            progress::Bool = false,
                             kwargs...)
     T, N = size(mf.observed)
     (1 <= t_start < t_end <= T) ||
@@ -273,17 +314,69 @@ function run_gate0_backtest(mf::MarketFacts, el::Eligibility;
         throw(ArgumentError("run_gate0_backtest: held0 must be non-negative and finite"))
     sum(held0) <= 1.0 + 1e-12 ||
         throw(ArgumentError("run_gate0_backtest: Σ held0 = $(sum(held0)) > 1（总预算超限）"))
+    for limit in (max_new_days, max_new_forecasts)
+        limit === nothing || limit >= 1 || throw(ArgumentError("backtest slice limits must be positive"))
+    end
+    (resume || max_new_days !== nothing || max_new_forecasts !== nothing) && checkpoint === nothing &&
+        throw(ArgumentError("resume/slicing requires an explicit checkpoint path"))
+    max_new_forecasts !== nothing && !reuse_forecasts &&
+        throw(ArgumentError("forecast slicing requires reuse_forecasts=true"))
+    posterior_options = (Float64(get(kwargs, :posterior_tol, 1e-6)),
+                         Int(get(kwargs, :posterior_max_cells, 2048)),
+                         Float64(get(kwargs, :u_span, 5.0)))
+    cache = reuse_forecasts ? _ForecastCache(mf, el, posterior_options) : nothing
+    signature = checkpoint === nothing ? "" : _backtest_signature(mf, el,
+        (t_start, t_end, held0, mode, seed, mu_qmc, mu_chisq_qmc, (; kwargs...)))
 
     held = Float64.(collect(held0))
     equity = 1.0
     equity_curve = [1.0]
     records = Gate0DayRecord[]
-    for t in t_start:(t_end - 1)
+    next_t = Ref(t_start)
+    if checkpoint !== nothing && isfile(checkpoint)
+        resume || throw(ArgumentError("checkpoint already exists; use resume=true or a new path"))
+        # Only read checkpoints created locally by this program, never untrusted
+        # uploaded Serialization files. Verify data, policies, numerics and code.
+        saved = deserialize(checkpoint)
+        (saved.version == 1 && saved.signature == signature) ||
+            error("backtest checkpoint mismatch: data, policy, numerical settings or source code changed")
+        saved.next_t == t_start + length(saved.records) || error("backtest checkpoint has inconsistent day count")
+        length(saved.equity_curve) == length(saved.records)+1 || error("backtest checkpoint has inconsistent equity count")
+        t_start <= saved.next_t <= t_end || error("backtest checkpoint day is outside requested interval")
+        held, equity = saved.held, saved.equity
+        equity_curve, records = saved.equity_curve, saved.records
+        next_t[] = saved.next_t
+        cache === nothing || merge!(cache.entries, saved.forecasts)
+    elseif resume
+        throw(ArgumentError("checkpoint not found: $checkpoint"))
+    end
+    save_checkpoint() = checkpoint === nothing ? nothing :
+        _write_backtest_checkpoint(checkpoint,
+            (; version=1, signature, next_t=next_t[], held, equity,
+               equity_curve, records,
+               forecasts=cache === nothing ? Dict{Int,_ForecastValue}() : cache.entries))
+    if cache !== nothing
+        cache.on_update = () -> begin
+            cache.additions % 8 == 0 && save_checkpoint()
+            if max_new_forecasts !== nothing && cache.additions >= max_new_forecasts
+                save_checkpoint()
+                throw(BacktestPaused(next_t[], checkpoint))
+            end
+        end
+    end
+    save_checkpoint()
+    new_days = 0
+    try
+    for t in next_t[]:(t_end - 1)
+        if max_new_days !== nothing && new_days >= max_new_days
+            throw(BacktestPaused(t, checkpoint))
+        end
         held_before = copy(held)
         # 步骤 1-2：决策（因果截断在 driver 内；T4/all_cash 语义转译于此）
         dec = single_day_decision(mf, el, held; t = t, seed = seed,
                                   mode = mode, mu_qmc = mu_qmc,
-                                  mu_chisq_qmc = mu_chisq_qmc, kwargs...)
+                                  mu_chisq_qmc = mu_chisq_qmc,
+                                  forecast_cache = cache, kwargs...)
         # 步骤 3：marking gross + 财富因子（D-017：locked 照漂不当 cash）
         gross = _marking_gross(mf, t, dec.w_universe)
         wealth = dot(dec.w_universe, gross) + dec.w_cash
@@ -296,6 +389,17 @@ function run_gate0_backtest(mf::MarketFacts, el::Eligibility;
         held = [dec.w_universe[j] * gross[j] / wealth for j in 1:N]
         push!(records, Gate0DayRecord(t, dec, held_before, gross,
                                       wealth, equity))
+        next_t[] = t+1
+        new_days += 1
+        save_checkpoint()
+        if progress
+            println("completed=$(length(records))/$(t_end-t_start) date=$(mf.dates[t]) t=$t M=$(dec.M) equity=$equity forecasts=$(cache === nothing ? 0 : length(cache.entries))")
+            flush(stdout)
+        end
+    end
+    catch
+        save_checkpoint()
+        rethrow() # numerical failures never become success or a cash fallback
     end
 
     bm = _benchmark_curves(mf, el, t_start, t_end)

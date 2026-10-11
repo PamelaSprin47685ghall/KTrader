@@ -150,7 +150,8 @@ end
         xt = randn(rng, P)
         pm = predict_mu(post, xt)
         c0 = post.conditional[1]
-        c = dot(xt, c0.V_fact \ xt)
+        # Independent precision-system oracle, not the production factor field.
+        c = dot(xt, (X' * X + alpha * I) \ xt)
         # 路径 A（t 公式）：均值 = B̂x̃、within = (c/(ν−2))S
         @test isapprox(pm.mu, c0.B_hat * xt, atol = 1e-10)
         @test isapprox(pm.within[1, 1], (c / (post.nu - 2)) * c0.S_alpha[1, 1], atol = 1e-10)

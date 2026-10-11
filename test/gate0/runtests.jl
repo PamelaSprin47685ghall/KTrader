@@ -82,6 +82,9 @@ if "1" in _GATE0_MODULES
         println("\n=== include test/gate0/market_tests.jl ===")
         include(joinpath(Main._TDIR, "market_tests.jl"))        # Step 1 四 mask
     end
+    @eval module Gate0Runtests_MarketIO
+        include(joinpath(Main._TDIR, "market_io_tests.jl"))
+    end
 end
 
 if "2" in _GATE0_MODULES
@@ -102,6 +105,9 @@ if "4" in _GATE0_MODULES
     @eval module Gate0Runtests_Posterior
         println("\n=== include test/gate0/posterior_tests.jl ===")
         include(joinpath(Main._TDIR, "posterior_tests.jl"))     # Step 8 slow full-posterior
+    end
+    @eval module Gate0Runtests_CovarianceAction
+        include(joinpath(Main._TDIR, "covariance_action_tests.jl"))
     end
 end
 
@@ -152,11 +158,17 @@ if "11" in _GATE0_MODULES
         println("\n=== include test/gate0/driver_tests.jl ===")
         include(joinpath(Main._TDIR, "driver_tests.jl"))        # Step 15 端到端单日 driver
     end
+    @eval module Gate0Runtests_CausalForecast
+        include(joinpath(Main._TDIR, "causal_forecast_tests.jl"))
+    end
 end
 
 if "12" in _GATE0_MODULES
     @eval module Gate0Runtests_Backtest
         println("\n=== include test/gate0/backtest_tests.jl ===")
         include(joinpath(Main._TDIR, "backtest_tests.jl"))      # Step 15 多日回测（默认场景 1）
+    end
+    @eval module Gate0Runtests_Checkpoint
+        include(joinpath(Main._TDIR, "checkpoint_tests.jl"))
     end
 end

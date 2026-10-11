@@ -188,6 +188,124 @@ end
 # 主入口：single_day_decision
 # ---------------------------------------------------------------------------
 
+# One owner for causal preprocessing. In particular, a forecast made at `origin`
+# must not use the active set or any ruler estimated at a later decision date.
+function _response_prefix(mf::MarketFacts, el::Eligibility, origin::Int)
+    1 <= origin <= size(mf.observed, 1) ||
+        throw(ArgumentError("_response_prefix: origin outside market history"))
+    act = findall(view(el.model_admitted, origin, :))
+    isempty(act) && return nothing
+    signal = ifelse.(mf.observed[1:origin, act], mf.adj[1:origin, act], NaN)
+    xlog = log.(signal)
+    firsts = [findfirst(isfinite, view(xlog, :, j)) for j in eachindex(act)]
+    all(!isnothing, firsts) || error("_response_prefix: admitted asset has no price")
+    s1 = vec(ruler(xlog, Int[i for i in firsts])[:, 1])
+    r = fill(NaN, origin, length(act))
+    if origin > 1
+        r[2:end, :] .= diff(xlog; dims=1)
+    end
+    obs = isfinite.(r)
+    E = domain_mode_basis(length(act))
+    mp = build_mode_problem(r, Matrix{Bool}(obs), s1, E; dc=true)
+    rows = Int[s for s in WARMUP:(origin-1) if any(view(obs, s+1, :))]
+    (; act, s1, E, mp, rows, obs)
+end
+
+const _HistoricalForecast = NamedTuple{(:active, :mean_log_return),
+    Tuple{Vector{Int}, Vector{Float64}}}
+const _ForecastValue = Union{Nothing,_HistoricalForecast}
+
+# One backtest owns this cache; never global. MarketFacts/Eligibility are
+# read-only snapshots. The cache is safe only because preprocessing is now
+# rebuilt at the historical forecast origin, not at today's decision date.
+mutable struct _ForecastCache
+    market::MarketFacts
+    eligibility::Eligibility
+    options::Tuple{Float64,Int,Float64}
+    entries::Dict{Int,_ForecastValue}
+    on_update::Function
+    hits::Int
+    additions::Int
+end
+_ForecastCache(mf, el, options) =
+    _ForecastCache(mf, el, options, Dict{Int,_ForecastValue}(), () -> nothing, 0, 0)
+
+function _cache_forecast!(cache::_ForecastCache, origin::Int, forecast)
+    fresh = !haskey(cache.entries, origin)
+    cache.entries[origin] = forecast
+    if fresh
+        cache.additions += 1
+        cache.on_update()
+    end
+    forecast
+end
+
+function _posterior_log_forecast(post::ResponsePosterior, prep, origin::Int)
+    xnow = view(prep.mp.X_full, origin, :)
+    mean_mode = zeros(length(prep.act))
+    for c in post.conditional
+        mean_mode .+= c.weight .* (c.B_hat * xnow)
+    end
+    (; active=copy(prep.act), mean_log_return=prep.s1 .* (prep.E * mean_mode))
+end
+
+"""Historical forecast in actual asset log-return units, using prices only
+through `origin`. `nothing` means that the model has insufficient observations;
+numerical integration failures are errors, not statistical missing observations.
+"""
+function _historical_forecast(mf::MarketFacts, el::Eligibility, origin::Int;
+                              tol::Float64=1e-6, max_cells::Int=2048,
+                              u_span::Float64=5.0)
+    prep = _response_prefix(mf, el, origin)
+    (prep === nothing || length(prep.rows) < 2) && return nothing
+    local post
+    try
+        post = fit_full_posterior(prep.mp.X[prep.rows, :], prep.mp.Y[prep.rows, :];
+                                  tol=tol, max_cells=max_cells, u_span=u_span)
+    catch err
+        if err isa ErrorException && occursin("posterior improper", err.msg)
+            return nothing
+        end
+        rethrow()
+    end
+    _posterior_log_forecast(post, prep, origin)
+end
+
+"""Prequential surprises: make the forecast at u-1, then observe the real
+adjacent return at u. A new listing cannot rewrite an old forecast. The final
+division by today's s1 is only a change of units for the innovation consumer;
+it is never fed back into a historical response fit.
+"""
+function _market_prequential_residuals(mf::MarketFacts, el::Eligibility,
+                                       row_ids::Vector{Int}, act::Vector{Int},
+                                       s1::Vector{Float64};
+                                       tol::Float64=1e-6, max_cells::Int=2048,
+                                       u_span::Float64=5.0,
+                                       forecast_cache::Union{Nothing,_ForecastCache}=nothing)
+    out = fill(NaN, length(row_ids), length(act))
+    local_col = Dict(j => k for (k, j) in enumerate(act))
+    for (i, u) in enumerate(row_ids)
+        if forecast_cache !== nothing && haskey(forecast_cache.entries, u-1)
+            forecast_cache.hits += 1
+            forecast = forecast_cache.entries[u-1]
+        else
+            forecast = _historical_forecast(mf, el, u-1;
+                                            tol=tol, max_cells=max_cells, u_span=u_span)
+            forecast_cache === nothing || _cache_forecast!(forecast_cache, u-1, forecast)
+        end
+        forecast === nothing && continue
+        for (k, j) in enumerate(forecast.active)
+            col = get(local_col, j, 0)
+            col == 0 && continue
+            if mf.observed[u-1, j] && mf.observed[u, j]
+                realized = log(mf.adj[u, j]) - log(mf.adj[u-1, j])
+                out[i, col] = (realized - forecast.mean_log_return[k]) / s1[col]
+            end
+        end
+    end
+    out
+end
+
 """
     single_day_decision(mf, el, held; t, seed, mode, ...) -> Gate0DayDecision
 
@@ -270,6 +388,7 @@ function single_day_decision(mf::MarketFacts, el::Eligibility,
                              # prequential 路径用它降低 2D 求积成本（D-038
                              # bracket 语义，非精度放宽）。
                              u_span::Float64 = 5.0,
+                             forecast_cache::Union{Nothing,_ForecastCache} = nothing,
                                  # b′（μ 通道部分 QMC，设计 MU_CHANNEL_QMC_DESIGN）：
                                  # E3 判据已成立（A 越过）；默认 false 逐位不变；
                                  # 60-day 前置待验证。仅作用于 :adaptive 分支。
@@ -278,6 +397,11 @@ function single_day_decision(mf::MarketFacts, el::Eligibility,
                                  # :adaptive 分支；默认 false 逐位不变。
                                  mu_chisq_qmc::Bool = false)
     T_full, N = size(mf.observed)
+    if forecast_cache !== nothing
+        (forecast_cache.market === mf && forecast_cache.eligibility === el &&
+         forecast_cache.options == (posterior_tol, posterior_max_cells, u_span)) ||
+            throw(ArgumentError("single_day_decision: forecast cache belongs to different data/policy/numerics"))
+    end
     mode in (:adaptive, :reference) ||
         throw(ArgumentError("single_day_decision: mode must be :adaptive or :reference (got $mode)"))
     (1 <= t <= T_full) ||
@@ -306,26 +430,10 @@ function single_day_decision(mf::MarketFacts, el::Eligibility,
                dropped_free_universe = Int[]))
     end
 
-    # --- 步骤 2：signal → log/return（相邻 finite 对，D-012/D-022） ---
-    signal = signal_prices(mf_t)[:, act]              # t × N_act
-    x_log = log.(signal)                              # observed=false 处 NaN
-    f_first = [findfirst(view(el_t.executable, 1:t, j)) for j in act]
-    # （active ⟹ 至少一条相邻观测对 ⟹ f_first 非零——构造保证；防御再查）
-    all(i -> i !== nothing, f_first) ||
-        error("single_day_decision: active 资产 $(findall(i -> i === nothing, f_first)) 无观测行——与 A^model prefix 语义矛盾")
-    s1_act = vec(ruler(x_log, Int[i for i in f_first])[:, 1])   # 一日 ruler（D-024）
-
-    # returns 覆盖时刻 1:t（行 s = 时刻 s 的 return；行 1 无 return → NaN），
-    # 使 X_full 含决策行 t（x_now = X_full[t,:]）。行 1 空观察（mode_field
-    # 契约：|O|=0 → m=0, e=0——零嵌入，不进统计由 rows 剔除承担）。
-    r = Matrix{Float64}(undef, t, N_act)
-    r[1, :] .= NaN
-    r[2:t, :] .= x_log[2:t, :] .- x_log[1:t-1, :]
-    obs_ret = isfinite.(r)                            # t × N_act；行 s = 时刻 s 的观察
-
-    # --- 步骤 3：mode 坐标（[m; Qᵀe] / [1|B_m|B_⊥]，D-021~D-031） ---
-    E_active = domain_mode_basis(N_act)
-    mp = build_mode_problem(r, Matrix{Bool}(obs_ret), s1_act, E_active; dc = true)
+    # --- 步骤 2–3：与历史 forecast 共用同一个因果 preprocessing owner ---
+    prep = _response_prefix(mf_t, el_t, t)
+    s1_act, obs_ret = prep.s1, prep.obs
+    E_active, mp = prep.E, prep.mp
 
     # --- 步骤 4：训练行（WARMUP 起有观察行；空观察行剔除——fold 行集入口） ---
     # 配对行 s：X 行 = 时刻 s feature、Y 行 = 时刻 s+1 输出（build_mode_problem
@@ -382,31 +490,36 @@ function single_day_decision(mf::MarketFacts, el::Eligibility,
     X_tr = mp.X[rows, :]
     Y_tr = mp.Y[rows, :]
     post = fit_full_posterior(X_tr, Y_tr; tol = posterior_tol,
-                              max_cells = posterior_max_cells)  # propriety 红 → 重抛（D-036）
+                              max_cells = posterior_max_cells, u_span = u_span)
+    # Store today's actual full-posterior mean for tomorrow's surprise. Neither
+    # the next return nor tomorrow's model inputs are available to this fit.
+    forecast_cache === nothing ||
+        _cache_forecast!(forecast_cache, t, _posterior_log_forecast(post, prep, t))
 
     # --- 步骤 8：strict prequential residual history（P0-1 收口） ---
-    # production 残差源 = prequential_residual_rows（不 export，同 include
-    # 链可见）：每历史日期 s 用截至 s−1 的信息拟合、预测 s、观察 r_s、得到
+    # production 残差源 = _market_prequential_residuals：每历史日期 s
+    # 重新用截至 s−1 的观测、active set、ruler 拟合，预测 s、观察 r_s、得到
     # ε_s、追加——历史当时真正发生的 forecast surprise（H_t → predict
     # r_{t+1} → observe r_{t+1} → ε_{t+1} → append）。3-fold OOF
     # （oof_residual_rows_full）已降级为 legacy/reference diagnostic，不再
     # 被 production 决策链消费（F_folds 退出 production theory）。
-    resid_all = prequential_residual_rows(X_tr, Y_tr, E_active;
+    resid_all = _market_prequential_residuals(mf_t, el_t, row_ids, act, s1_act;
                                           tol = posterior_tol,
                                           max_cells = posterior_max_cells,
-                                          u_span = u_span)
+                                          u_span = u_span,
+                                          forecast_cache = forecast_cache)
     # resid_all: n × N_act（asset 空间）。早期行（train 不足 A2 propriety）
-    # 输出 NaN——残差不可定义。innovation_state 的 J 行判定只看 row_masks
-    # （NaN 行若 mask 覆盖 R 会进 J → eps_R 非有限 → 崩溃），故此处**过滤
-    # NaN 行**（与 innovation_state 契约「非 J 行的缺失由 mask 表达、NaN
-    # 合法——J 行不合法」一致）：残差不可定义的行不进任何统计（V/ℓ/z
-    # pool / 满秩 gate 全部基于可定义残差行）。
-    keep_res = Int[i for i in 1:size(resid_all, 1) if all(isfinite, resid_all[i, :])]
+    # 输出 NaN——残差不可定义。仅剔除整行都不可定义的行；局部缺失进入
+    # residual availability mask，不能因今日新增资产抹掉旧资产的历史。
+    keep_res = Int[i for i in 1:size(resid_all, 1) if any(isfinite, view(resid_all, i, :))]
     isempty(keep_res) &&
         error("single_day_decision: prequential 无任何可定义残差行——全部行 train 不足（A2 propriety）或退化；残差历史不可定义")
     resid = resid_all[keep_res, :]                # n_ok × N_act（asset 空间）
     row_ids_ok = row_ids[keep_res]                # 过滤后行身份（仍严格递增）
-    row_masks_ok = row_masks[keep_res]            # 过滤后行 mask（与残差行序一致）
+    # Availability includes a contemporaneous forecast, not just a traded bar.
+    # Missing young-asset residuals remain NaN and must not erase older assets.
+    row_masks_ok = [BitVector(row_masks[i] .& isfinite.(view(resid_all, i, :)))
+                    for i in keep_res]
 
     # --- 步骤 8b：二次 resolve（P0-3 满秩 gate） ---
     # 首次 resolve（步骤 6）在 posterior 之前、拿不到残差，只做基础判据

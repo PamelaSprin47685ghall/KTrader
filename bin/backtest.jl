@@ -97,21 +97,18 @@ using Dates, Statistics, LinearAlgebra, Printf
 # 确定性配置，不改变任何数学对象、门禁或容差（P0-7/D-066 不受影响）。
 BLAS.set_num_threads(1)
 
-# 旧线 module 只经模块名访问数据层（避免同名导出 ambiguity，见文件头）
-import KTrader
-
 # ---------------------------------------------------------------------------
 # 加载 Gate-0 独立顶层 module（与 test/gate0/ 各测试文件同模式）
 # ---------------------------------------------------------------------------
 include(joinpath(@__DIR__, "..", "src", "gate0", "KTraderGate0.jl"))
 using .KTraderGate0
+Base.include(KTraderGate0, joinpath(@__DIR__, "..", "src", "gate0", "market_io.jl"))
 
 # ---------------------------------------------------------------------------
 # 数据桥：旧线数据层 → MarketFacts（H1；只搬裸矩阵）
 # ---------------------------------------------------------------------------
 data_dir = get(ENV, "GATE0_DATA_DIR", joinpath(@__DIR__, "..", "data"))
-b = KTrader.load_bars(data_dir)
-mf = from_bars_arrays(b.dates, b.symbols, b.close, b.adj, b.bar)
+mf = KTraderGate0.load_market_facts(data_dir)
 
 # ---------------------------------------------------------------------------
 # 参数解析（参数面 = GATE0_*；默认值与 driver 合同一致）
@@ -151,6 +148,33 @@ t_end = parse(Int, get(ENV, "GATE0_T_END", string(T)))
 t_start = parse(Int, get(ENV, "GATE0_T_START",
                          string(max(WARMUP + 1, t_end - 20))))
 
+# Calendar dates are exact session dates. END_DATE is the final valuation day,
+# not another decision; this preserves [t_start,t_end) accounting semantics.
+for (date_key, row_key) in (("GATE0_START_DATE", "GATE0_T_START"),
+                             ("GATE0_END_DATE", "GATE0_T_END"))
+    haskey(ENV, date_key) && haskey(ENV, row_key) &&
+        error("Set only one of $date_key and $row_key")
+end
+function _session_index(key)
+    d = Date(ENV[key])
+    i = findfirst(==(d), mf.dates)
+    i === nothing && error("$key=$d is not present in the input session calendar")
+    i
+end
+haskey(ENV, "GATE0_END_DATE") && (t_end = _session_index("GATE0_END_DATE"))
+if haskey(ENV, "GATE0_START_DATE")
+    t_start = _session_index("GATE0_START_DATE")
+elseif !haskey(ENV, "GATE0_T_START")
+    t_start = max(WARMUP+1, t_end-20)
+end
+checkpoint_text = strip(get(ENV, "GATE0_CHECKPOINT", ""))
+checkpoint = isempty(checkpoint_text) ? nothing : abspath(checkpoint_text)
+resume = get(ENV, "GATE0_RESUME", "false") == "true"
+optional_limit(key) = haskey(ENV, key) ? parse(Int, ENV[key]) : nothing
+max_new_days = optional_limit("GATE0_MAX_NEW_DAYS")
+max_new_forecasts = optional_limit("GATE0_MAX_NEW_FORECASTS")
+reuse_forecasts = get(ENV, "GATE0_REUSE_FORECASTS", "true") == "true"
+
 # ---------------------------------------------------------------------------
 # Eligibility（默认政策或 252 有效交易日政策，D-018/H4）
 # ---------------------------------------------------------------------------
@@ -160,13 +184,14 @@ println("KTrader current entry: bin/backtest.jl -> KTraderGate0 (Gate-0 line; 20
 println("Julia=$(VERSION) threads=$(Threads.nthreads()) panel=$(size(mf.observed)) input=$(first(mf.dates)):$(last(mf.dates))")
 println("window=$t_start:$t_end mode=$mode S_reference=$s_reference seed=0x$(string(seed, base = 16)) trade252=$trade252")
 println("posterior_tol=$posterior_tol posterior_max_cells=$posterior_max_cells max_scenarios=$max_scenarios weight_tol=$weight_tol utility_tol=$utility_tol kelly_tol=$kelly_tol mu_qmc=$mu_qmc mu_chisq_qmc=$mu_chisq_qmc")
-println("Gate-0 slow reference (D-083): single-threaded, no incremental/cache; multi-day windows are batch loads.")
+println("Historical forecasts use their own causal preprocessing; exact forecast reuse=$reuse_forecasts checkpoint=$checkpoint resume=$resume")
 
 # ---------------------------------------------------------------------------
 # 主入口：run_gate0_backtest
 # ---------------------------------------------------------------------------
 println("Running KTrader Gate-0 backtest from $t_start to $t_end...")
-res = run_gate0_backtest(mf, el;
+res = try
+    run_gate0_backtest(mf, el;
                          t_start = t_start, t_end = t_end,
                          mode = mode,
                          seed = seed,
@@ -178,7 +203,20 @@ res = run_gate0_backtest(mf, el;
                          utility_tol = utility_tol,
                          kelly_tol = kelly_tol,
                          mu_qmc = mu_qmc,
-                         mu_chisq_qmc = mu_chisq_qmc)
+                         mu_chisq_qmc = mu_chisq_qmc,
+                         reuse_forecasts = reuse_forecasts,
+                         checkpoint = checkpoint, resume = resume,
+                         max_new_days = max_new_days,
+                         max_new_forecasts = max_new_forecasts,
+                         progress = true)
+catch err
+    if err isa KTraderGate0.BacktestPaused
+        showerror(stderr, err)
+        println(stderr)
+        exit(75) # resumable pause, never a successful full backtest
+    end
+    rethrow()
+end
 
 # ---------------------------------------------------------------------------
 # 输出 Gate0BacktestResult 关键字段

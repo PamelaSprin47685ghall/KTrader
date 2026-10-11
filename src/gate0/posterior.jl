@@ -163,21 +163,73 @@ function _log_evidence_rank1(st::SufficientStats, lam::Vector{Float64},
     denom = 1.0 + δ * e1Be1
     (isfinite(denom) && denom > 0.0) ||
         error("_log_evidence_rank1: SM denominator nonpositive (numerical)")
-    # CS 层重排（2026-10-10；不改数学）：两次 Q 乘合并为单次 GEMM（减少
-    # BLAS 调用次数——小尺寸高频调用开销是 measured 瓶颈嫌疑）；修正项改
-    # 广播（省一个 P×N 外积分配）。第二因子仍为 (B⁻¹e1)ᵀ·Sxy（修复保留）。
-    QZ = spec.Q * hcat(spec.v ./ d, spec.W ./ d)
-    Bie1 = QZ[:, 1]
-    Bis = QZ[:, 2:(N + 1)]
-    w1 = Bie1' * st.Sxy
-    Ais = Bis .- (δ / denom) .* Bie1 .* w1
-    Sraw = st.Syy .- st.Sxy' * Ais
+    # Q'Q=I: compute Sxy' A⁻¹ Sxy entirely in spectral coordinates.
+    # The evidence needs N×N contractions, not the P×N coefficient matrix.
+    # S = Syy - W' D⁻¹ W + δ/(1+δ v'D⁻¹v) (W'D⁻¹v)(...)'.
+    Wd = spec.W ./ d
+    w1 = spec.W' * (spec.v ./ d)
+    Sraw = st.Syy .- spec.W' * Wd .+ (δ / denom) .* (w1 * w1')
     Sα = Symmetric((Sraw + Sraw') ./ 2)
     logdet_lam = sum(log, lam)
     # R4'''：Sα 的 logdet 改走 eigen-based 鲁棒路径（F1/F2；cholesky(Sα)
     # 在 n<P 早期行的低 α 端抛 PosDefException）。
     (N / 2) * logdet_lam - (N / 2) * (logdet_B + log(denom)) -
         (st.n / 2) * _robust_logdet_psd(Sα)
+end
+
+# For a fixed αp, changing the DC precision α0 is a rank-one update of both
+# the coefficient precision and the residual quadratic form.  Integrating
+# over thousands of (α0, αp) nodes must not repeat the P×N covariance
+# contraction and N×N eigensolve for every α0.  This is an algebraic
+# determinant lemma, not a discretisation or a different posterior.
+struct Rank1EvidenceSlice
+    logdet_B::Float64
+    h::Float64
+    q::Float64
+    logdet_S0::Float64
+end
+
+function _rank1_evidence_slice(st::SufficientStats, spec::SxxRankOneSpec,
+                               αp::Float64)
+    d = spec.lam .+ αp
+    all(>(0.0), d) || return nothing
+    vd = spec.v ./ d
+    h = dot(spec.v, vd)
+    b = spec.W' * vd
+    S0 = st.Syy - spec.W' * (spec.W ./ d)
+    F = eigen(Symmetric((S0 + S0') ./ 2))
+    scale = max(maximum(abs, F.values), 1.0)
+    # The reference deliberately floors tiny eigenvalues of S(α). The
+    # determinant lemma may only bypass that operation where no floor can be
+    # active. All poorly conditioned points retain the original calculation.
+    minimum(F.values) > 16 * _PSD_FLOOR_REL * scale || return nothing
+    v = F.vectors' * b
+    q = sum(abs2(v[i]) / F.values[i] for i in eachindex(v))
+    Rank1EvidenceSlice(sum(log, d), h, q, sum(log, F.values))
+end
+
+function _log_evidence_rank1_cached(st::SufficientStats,
+                                    lam::Vector{Float64},
+                                    spec::SxxRankOneSpec,
+                                    cache::Dict{Float64,Union{Nothing,Rank1EvidenceSlice}})
+    P = size(st.Sxx, 1)
+    N = size(st.Syy, 1)
+    αp = lam[2]
+    α0 = lam[1]
+    slice = get!(cache, αp) do
+        _rank1_evidence_slice(st, spec, αp)
+    end
+    slice === nothing && return _log_evidence_rank1(st, lam, spec)
+    δ = α0 - αp
+    denom = 1 + δ * slice.h
+    denom > 0 || return _log_evidence_rank1(st, lam, spec)
+    ratio = 1 + (δ / denom) * slice.q
+    # A nearly singular S(α) must use the reference eigenvalue-floor rule,
+    # rather than an unstable rank-one determinant ratio.
+    ratio > 1e-9 || return _log_evidence_rank1(st, lam, spec)
+    (N / 2) * (log(α0) + (P - 1) * log(αp) -
+                slice.logdet_B - log(denom)) -
+        (st.n / 2) * (slice.logdet_S0 + log(ratio))
 end
 
 # 回退包装（阶段 1；fail-soft）：spec === nothing → 原路径；SM 防护断言
@@ -296,13 +348,41 @@ function _assert_posdef_safe(diag::PosDefDiagnostics, m0::Float64, mp::Float64;
     nothing
 end
 
-# RankOneMul（阶段 2；未导出）：A = Sxx+Λ = B + δe1e1ᵀ 的乘法上下文——
-# A·z = Q(d .* (Qᵀz)) + δ·z₁·e1（O(P²)；替代物化 V/V_fact）。
+# RankOneMul（内部历史类型名）：precision A=Sxx+Λ 的谱表示。
+# V_solve 对它执行 Sherman–Morrison 求解 A\z，不是 A*z。
 # 定义位置必须先于 ConditionalFit 的字段类型引用（顺序修复）。
 struct RankOneMul
     spec::SxxRankOneSpec
     d::Vector{Float64}
     δ::Float64
+end
+
+# Exact, untruncated coefficient mean in the shared eigenbasis. Keeping a dense
+# N×P B_hat at every integration node is unnecessary: only the O(P) diagonal
+# and O(N) rank-one coefficient depend on this node. Matrix(B) is the explicit
+# reference representation; production prediction uses the specialized product.
+struct SpectralCoefficientMean <: AbstractMatrix{Float64}
+    spec::SxxRankOneSpec
+    d::Vector{Float64}
+    eta::Float64
+    a::Vector{Float64}
+end
+Base.size(B::SpectralCoefficientMean) = (size(B.spec.W, 2), length(B.d))
+function Base.getindex(B::SpectralCoefficientMean, i::Int, j::Int)
+    @boundscheck checkbounds(B, i, j)
+    s = 0.0
+    @inbounds for k in eachindex(B.d)
+        s += (B.spec.W[k, i] - B.eta * B.a[i] * B.spec.v[k]) *
+             B.spec.Q[j, k] / B.d[k]
+    end
+    s
+end
+function Base.:*(B::SpectralCoefficientMean, x::AbstractVector{Float64})
+    q = (B.spec.Q' * x) ./ B.d
+    B.spec.W' * q .- (B.eta * dot(B.spec.v, q)) .* B.a
+end
+function Base.Matrix(B::SpectralCoefficientMean)
+    (B.spec.W' ./ B.d' .- B.eta .* B.a * (B.spec.v ./ B.d)') * B.spec.Q'
 end
 
 # ---------------------------------------------------------------------------
@@ -379,14 +459,14 @@ end
 
 """
 每节点解析块（RP §6.4）：给定 (α₀,α_p) 的条件后验充分参数——
-B̂ = SxyᵀV（N×P）、V = (Sxx+Λ)⁻¹（列精度以 V 承载，V⁻¹ 按需由
-`V_fact` 求解）、S(α)（matrix-t 行尺度）、**ν = n+1−N 精确绑定**
+B̂ = SxyᵀV（N×P）、V = (Sxx+Λ)⁻¹（列协方差；`V_fact` 保存 precision
+Sxx+Λ 的分解，以 solve 返回 V·x）、S(α)、**ν = n+1−N 精确绑定**
 （裁决 G7；禁止 n−N 版本）、节点后验质量 weight。
 """
 struct ConditionalFit
-    B_hat::Matrix{Float64}        # N×P
+    B_hat::Union{Matrix{Float64},SpectralCoefficientMean} # N×P, dense or exact factored representation
     V::Union{Matrix{Float64},Nothing}   # P×P = (Sxx+Λ)⁻¹；rank1=true 时未物化（nothing）
-    V_fact::Union{Cholesky{Float64,Matrix{Float64}},RankOneMul}  # 求解/乘入口（lazy 时 = A·z 上下文）
+    V_fact::Union{Cholesky{Float64,Matrix{Float64}},RankOneMul}  # precision A 的分解；solve 得 covariance V*z
     S_alpha::Matrix{Float64}      # N×N（matrix-t 行尺度）
     nu::Int                       # ν = n+1−N（精确绑定，裁决 G7）
     weight::Float64               # 节点后验质量 p_k
@@ -639,10 +719,23 @@ function adaptive_quadrature_2d(logf::Function,
         rel = Z > 0 ? err_total / Z : Inf
     end
     (rel <= tol) || error("Numerical integration did not converge: budget exhausted at $(length(cells)) cells (relative error estimate $rel > tol $tol) — D-067: no silent return of the last grid")
-    weights = [cell_val(c) for c in cells]
+    # Return the SAME quadrature measure that passed the error estimate. The
+    # cell integral uses 2×2 Gauss–Legendre nodes; moving all that mass to each
+    # cell centre afterwards changes posterior moments and predictive draws.
+    nodes = Tuple{Float64,Float64}[]
+    weights = Float64[]
+    g = 1.0 / sqrt(3.0)
+    for (a, b, c, d) in cells
+        mx, hx = (a+b)/2, (b-a)/2
+        my, hy = (c+d)/2, (d-c)/2
+        for sx in (-g, g), sy in (-g, g)
+            node = (mx + hx*sx, my + hy*sy)
+            push!(nodes, node)
+            push!(weights, exp(fv(node...) - m) * hx * hy)
+        end
+    end
     total = sum(weights)
     total > 0 || error("Numerical integration did not converge: integrand mass is zero")
-    nodes = [((a + b) / 2, (c + d) / 2) for (a, b, c, d) in cells]
     (; nodes = nodes, weights = weights ./ total, logZ = log(total) + m,
        n_cells = length(cells), rel_err = rel)
 end
@@ -753,20 +846,20 @@ function _fit_node(st::SufficientStats, lam::Vector{Float64}, w::Float64;
     N = size(st.Syy, 1)
     if rank1 && spec !== nothing && all(==(lam[2]), view(lam, 2:P))
         # 阶段 2 lazy 路径（FIRST-DAY-FIT-1）：全程经 spec、无 cholesky；
-        # A⁻¹Sxy 用 SM（阶段 1 同式）、A·z 由 RankOneMul 承担。O(P²N)。
+        # A⁻¹Sxy 与 A⁻¹z 均用 SM；V = A⁻¹，不能把 precision A 当 covariance。
         α0 = lam[1]; αp = lam[2]; δ = α0 - αp
         d = spec.lam .+ αp
         if all(>(0.0), d)
             e1Be1 = sum(spec.v .^ 2 ./ d)
             denom = 1.0 + δ * e1Be1
             if isfinite(denom) && denom > 0.0
-                Bis = spec.Q * (spec.W ./ d)
-                Bie1 = spec.Q * (spec.v ./ d)
-                Ais = Bis .- ((δ / denom) .* Bie1) * (Bie1' * st.Sxy)
-                Sraw = st.Syy .- st.Sxy' * Ais
+                a = spec.W' * (spec.v ./ d)
+                eta = δ / denom
+                Bhat = SpectralCoefficientMean(spec, d, eta, a)
+                Sraw = st.Syy .- spec.W' * (spec.W ./ d) .+ eta .* (a * a')
                 S = Symmetric((Sraw + Sraw') ./ 2)
                 nu2 = st.n + 1 - N
-                return ConditionalFit(Matrix(Ais'), nothing, RankOneMul(spec, d, δ),
+                return ConditionalFit(Bhat, nothing, RankOneMul(spec, d, δ),
                                       Matrix(S), nu2, w)
             end
         end
@@ -776,7 +869,9 @@ function _fit_node(st::SufficientStats, lam::Vector{Float64}, w::Float64;
     V = A \ Matrix(I, P, P)                 # (Sxx+Λ)⁻¹（对称正定）
     V = Matrix(Symmetric((V + V') ./ 2))
     B_hat = (st.Sxy' / A)                   # Sxyᵀ·V（N×P）
-    V_fact = cholesky(Symmetric(V))
+    # V_solve returns V*z. Store the precision factor A so A\z = V*z.
+    # Factoring V and solving it would instead return V⁻¹*z (wrong variance).
+    V_fact = A
     S = s_alpha(st, lam)
     nu = st.n + 1 - size(st.Syy, 1)
     ConditionalFit(B_hat, V, V_fact, Matrix(S), nu, w)
@@ -842,7 +937,7 @@ function fit_full_posterior(X::AbstractMatrix{Float64},
                             max_cells::Int = 2048,
                             alpha_fixed = nothing,
                             u_span::Float64 = 5.0,
-                            rank1::Bool = false,
+                            rank1::Bool = true,
                             # R4'''（F1/F2）：可选诊断出口（不导出；传入的
                             # mutable 对象被就地填充）。不传时内部照常做安全断言。
                             posdef_diag::Union{Nothing,PosDefDiagnostics} = nothing)
@@ -885,7 +980,10 @@ function fit_full_posterior(X::AbstractMatrix{Float64},
     # R4'''（F1/F2）：防御性软包装——PosDef → 该点 logf = -Inf + 记录；
     # 核心 Sα 路径已由 _robust_logdet_psd 承担（eigen + floor），见上。
     diag = posdef_diag === nothing ? PosDefDiagnostics() : posdef_diag
-    _raw_ev(lam_::Vector{Float64}) = _evidence_eval(st, lam_, _spec)
+    evidence_cache = Dict{Float64,Union{Nothing,Rank1EvidenceSlice}}()
+    _raw_ev(lam_::Vector{Float64}) = _spec === nothing ?
+        log_evidence(st, lam_) :
+        _log_evidence_rank1_cached(st, lam_, _spec, evidence_cache)
     _ev(lam_::Vector{Float64}) = _soft_evidence(_raw_ev, lam_, diag)
     logf(u0, up) = _soft_logf(_raw_ev, lambda_diag(P, u0, up, has_a0),
                               log_prior_d035a(u0, up), u0, up, diag)
@@ -995,15 +1093,19 @@ function predict_mu(post::ResponsePosterior, x_t::AbstractVector{Float64})
 end
 
 
-function _mul_A(rm::RankOneMul, z::Vector{Float64})
-    y = rm.spec.Q * (rm.d .* (rm.spec.Q' * z))
-    y[1] += rm.δ * z[1]
-    y
+function _solve_A(rm::RankOneMul, z::Vector{Float64})
+    # Sherman–Morrison: (B + δ*e1*e1')⁻¹ z, B = Q*Diagonal(d)*Q'.
+    qz = (rm.spec.Q' * z) ./ rm.d
+    b1 = rm.spec.v ./ rm.d
+    denom = 1.0 + rm.δ * dot(rm.spec.v, b1)
+    (isfinite(denom) && denom > 0) ||
+        error("V_solve: nonpositive Sherman–Morrison denominator")
+    rm.spec.Q * (qz .- (rm.δ * dot(rm.spec.v, qz) / denom) .* b1)
 end
 
-# V·z 的求解入口（默认 = V_fact \ z = A·z；lazy = RankOneMul 的 A·z）
+# Covariance action V*z, V=(Sxx+Λ)⁻¹. Both paths solve the precision system.
 V_solve(c::ConditionalFit, z::Vector{Float64}) =
-    c.V_fact isa RankOneMul ? _mul_A(c.V_fact, z) : (c.V_fact \ z)
+    c.V_fact isa RankOneMul ? _solve_A(c.V_fact, z) : (c.V_fact \ z)
 
 """
     draw_mu(posterior, x_t, rng) -> Vector{Float64}
