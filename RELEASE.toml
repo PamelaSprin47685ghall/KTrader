@@ -4,7 +4,11 @@ version = "2.0.0"
 # D-003、D-097、§57）。[acceptance] 段的 hash 与凭据路径为 2.0.0 历史验收
 # 凭据，按 D-002 一字不动保留。
 status = "2.0-RC-G0"
-status_note = "Gate 0 Reopened：2.0.0 保留为历史发布物，其数学闭合声明已被 Gate-0 审计撤销（AGENTS.md 裁决书 D-002/D-003）；当前开发线为 KTrader 2.0-RC / Gate 0 Reopened。"
+status_note = "Gate 0 Reopened：2.0.0 保留为历史发布物，其数学闭合声明已被 Gate-0 审计撤销（AGENTS.md 裁决书 D-002/D-003）；当前开发线为 KTrader 2.0-RC / Gate 0 Reopened。2026-10-10 入口切换：当前唯一入口为 bin/backtest.jl（KTraderGate0，Gate-0 线），旧线工具保留为历史 release（见 README.md）。"
+# 2026-10-10 唯一当前入口切换（Gate-0 验收结论第 7 步）：当前入口与旧线
+# 标记。不参与 verify_release.jl 的历史身份校验（该工具只读固定键）。
+current_entry = "bin/backtest.jl (KTraderGate0; Gate-0 line)"
+current_entry_note = "旧 2.0 线（src/KTrader）冻结为历史 release；bin/bench.jl / bin/report.jl / bin/live.jl 保留为历史线工具，不再作为当前入口。"
 edition = "CPU"
 mathematical_contract = "Path Kelly 1.0"
 gpu_release = "2.1"

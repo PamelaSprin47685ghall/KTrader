@@ -22,9 +22,11 @@
 #     ──> free/locked（D-016/D-017，universe→active 域映射）
 #     ──> resolve_risk_domain（R_t = free ∪ locked；T4 判定次序，裁决 C3）
 #     ──> fit_full_posterior（Π(b₀,G,α₀,α_p,Σ_R|H)——完整 quadrature）
-#     ──> fold_grid → fit_fold_posteriors → oof_residual_rows_full
-#         （OOF asset 空间残差行，D-043/D-044）
-#     ──> innovation_state（ε→q(d)→V_t→z pool，R 域 mode 坐标）
+#     ──> prequential_residual_rows（strict prequential 残差行，P0-1——
+#         production 残差源；legacy 3-fold OOF 仅作 reference/diagnostic）
+#     ──> resolve_risk_domain 二次调用（满秩 gate，P0-3——传 residual_rows）
+#     ──> innovation_state（ε→q(d)→V_t→z pool，R 域 mode 坐标；
+#         require_full_rank=true——sample null space 不得当零风险）
 #     ──> x_now（决策行 feature）
 #     ──> 决策（adaptive_scenario_kelly 双证书收敛【D-062 生产路径】或
 #         predictive_law + cash_kelly 固定 S reference【D-062 合法用途】）
@@ -39,17 +41,14 @@
 # 这是裁决 C3 对「回测驱动器捕获该错误、记录诊断、当日维持持仓」的单日
 # driver 落点。非 coverage 类错误一律重抛（不吞、不降级）。
 #
-# 接口摩擦（如实记录，不修改既有文件）：quadrature.jl 的
-# adaptive_scenario_kelly 在 locked 非零时存在语义分歧——其 solve_layer 把
-# **R 域全列** X 直接传给 cash_kelly（locked 列因此进入 free 优化列），
-# 同时 base = locked_wealth_gate0(X, locked) 已含 locked 贡献（同一列风险
-# 被双重计入），与 kelly.jl docstring「locked 资产不在 free 优化列中」及
-# locked_wealth_gate0「X is the FULL scenario matrix (free and locked)」的
-# 调用约定冲突。本 driver 的处理：**locked 非零时自动回落 :reference 路径**
-# （predictive_law 固定 S + 手工切 free 子列 + locked_wealth_gate0 全列
-# base——语义正确的 D-017 组装），diagnostics.quadrature_locked_fallback
-# = true 如实标注；locked 全零时 adaptive 入口语义无分歧、直接使用。该
-# 摩擦已报告 Manager，quadrature.jl 修复切列后可移除回落。
+# P0-4 收口（批次 2）：quadrature.jl 的 solve_layer 已修复 locked 通道——
+# locked 列不进 free 优化列（切 free 子列传 cash_kelly、全列进
+# locked_wealth_gate0 的 base），wealth 表示统一方案 2（X_free·w_free +
+# w_cash + base_locked），全 locked 分支为 w_cash·1 + base_locked。本 driver
+# 不再存在「adaptive 有 locked 就回落 :reference 固定 S」的 production
+# fallback——adaptive_scenario_kelly 直接处理 locked（D-017/D-068 语义：
+# locked 风险参与 wealth、不进 free 优化列）。reference 固定 S 路径仅保留
+# 为 D-062 的合法用途（unit test / artifact replay / fixture）。
 #
 # reference 纪律（D-082/D-083）：单线程、无缓存、无优化；fail-loudly
 # （SPEC §56）；固定 seed（SPEC §36 同 seed 重放）；全部判据与回测收益
@@ -68,13 +67,17 @@ const _DIAG_SEED_XOR = 0xD1A6571C5EED0000   # 诊断样本流 seed 派生常数
 # 报告类型（D-076 字段清单的具体 NamedTuple 形态）
 # ---------------------------------------------------------------------------
 
-"""决策证书报告：A = 权重收敛（D-064 A）、B = utility regret（D-064 B）、
-C = cash_kelly_certificate（D-064 C 求解误差）、converged = 积分收敛、
-kelly_objective = 决策层 (1/S)Σlog(wealth)。固定 S reference 路径的 A/B
-为 NaN（无积分收敛证书——D-062 语义：固定 S 是 reference 对照，不冒充
-收敛）；held_maintained / all_cash 全 NaN（NOT COMPUTED，不显示 0）。"""
-const CertReport = NamedTuple{(:A, :B, :C, :converged, :kelly_objective),
-    Tuple{Float64, Float64, NamedTuple, Bool, Float64}}
+"""决策证书报告（P0-6 收口）：A = 权重收敛 ‖w_{2M}−w_M‖₁（D-064 A）、
+B = B_opt（fine-rule regret：I_2M(w_{2M}) − I_2M(w_M) ≤ ε_U，在优化 fine
+rule 上求值——P0-6 修复后 certificate_B 语义即 B_opt，非旧单向 regret）、
+B_audit = |I_audit(w_{2M}) − I_audit(w_M)|（独立 audit replicate 绝对目标
+差，D-064 B / D-065）、C = cash_kelly_certificate（D-064 C 求解误差）、
+converged = 积分收敛、kelly_objective = 决策层 (1/S)Σlog(wealth)。固定 S
+reference 路径的 A/B/B_audit 为 NaN（无积分收敛证书——D-062 语义：固定
+S 是 reference 对照，不冒充收敛）；held_maintained / all_cash 全 NaN
+（NOT COMPUTED，不显示 0）。"""
+const CertReport = NamedTuple{(:A, :B, :B_audit, :C, :converged, :kelly_objective),
+    Tuple{Float64, Float64, Float64, NamedTuple, Bool, Float64}}
 
 """方差分解报告（裁决 A5 / 裁决书 §30）：epistemic/aleatoric 为 asset 空间
 R 子集上的 trace（同域可加口径）；ν≤2 时 epistemic 为 NaN 且
@@ -96,10 +99,10 @@ const ConcentrationReport = NamedTuple{(:top_asset, :top_weight, :risky_weight,
 
 """驱动器诊断（mode 特定）：reason = 分支原因；error_text = T4 错误原文；
 dropped_free_universe = resolve 剔除的 free 资产（资金留 cash，D-056 出
-路 4）；quadrature_locked_fallback = adaptive 请求因接口摩擦回落
-reference（见文件头「接口摩擦」段）。"""
-const DriverDiag = NamedTuple{(:reason, :error_text, :dropped_free_universe,
-    :quadrature_locked_fallback), Tuple{Symbol, String, Vector{Int}, Bool}}
+路 4）。P0-4 收口：不再有 quadrature_locked_fallback 字段——adaptive
+请求一律直接处理 locked（quadrature.jl 已修复 locked 通道），无回落。"""
+const DriverDiag = NamedTuple{(:reason, :error_text, :dropped_free_universe),
+    Tuple{Symbol, String, Vector{Int}}}
 
 """
     Gate0DayDecision
@@ -146,7 +149,8 @@ end
 # ---------------------------------------------------------------------------
 
 _no_cert()::CertReport =
-    (; A = NaN, B = NaN, C = (;), converged = false, kelly_objective = NaN)
+    (; A = NaN, B = NaN, B_audit = NaN, C = (;), converged = false,
+       kelly_objective = NaN)
 
 _no_varsplit()::VarSplitReport =
     (; epistemic = NaN, aleatoric = NaN, within_computed = false,
@@ -159,6 +163,26 @@ _no_concentration(M::Int)::ConcentrationReport =
        integration_M = M, converged = false, top_posterior_mean_asset = 0,
        top_posterior_mean_value = NaN, top_innovation_eigenvalue = NaN,
        top_innovation_mode_asset = 0)
+
+"""T4 驱动器语义（裁决 C3）：innovation 层 coverage 不足（locked 引起）时
+维持当日持仓 + 记录诊断，不重排、不 crash。首次 resolve（基础判据，步骤 6）
+与二次 resolve（满秩判据，步骤 8b）共用此辅助——held_maintained 不需要
+任何模型计算（不重排 ⇒ 无后验消费），维持当日持仓状态本身。"""
+function _held_maintained_result(held::AbstractVector{Float64},
+                                 act::Vector{Int},
+                                 free_act::Vector{Int},
+                                 locked_act::Vector{Int},
+                                 t::Int, msg::String)
+    R_held = sort(union(free_act, locked_act))
+    w_risky_held = Float64[held[act[j]] for j in R_held]
+    return Gate0DayDecision(:held_maintained, t, R_held,
+        Int[act[j] for j in R_held], Float64.(held), w_risky_held,
+        1.0 - sum(held), sum(held[act[locked_act]]),
+        1.0 - sum(held[act[locked_act]]),
+        _no_cert(), 0, _no_varsplit(), _no_concentration(0), Int[],
+        (; reason = :innovation_coverage_locked, error_text = msg,
+           dropped_free_universe = Int[]))
+end
 
 # ---------------------------------------------------------------------------
 # 主入口：single_day_decision
@@ -181,13 +205,19 @@ _no_concentration(M::Int)::ConcentrationReport =
 - `t`：决策日（1 ≤ t ≤ T）；
 - `seed`：决策随机流 seed（SPEC §36 同 seed 重放契约）；
 - `mode`：`:adaptive`（默认，生产路径——adaptive_scenario_kelly 双证书
-  A/B/C 收敛，D-062/D-064/D-065）或 `:reference`（固定 S 对照——D-062 的
-  合法用途：unit test / artifact replay / fixture）。locked 非零时
-  `:adaptive` 自动回落 `:reference`（文件头「接口摩擦」段——quadrature.jl
-  的 locked 通道与 kelly.jl 的 D-017 组装语义分歧，如实标注不静默）；
-- `F_folds` / `S_reference` / `diag_S` / `min_scenarios` / `max_scenarios` /
-  `weight_tol` / `utility_tol` / `kelly_tol`：透传各层（数值配置语义，
-  非策略参数——D-066：tolerance 为定稿流程初始候选）。
+  A/B_opt/B_audit/C 收敛，D-062/D-064/D-065）或 `:reference`（固定 S 对照
+  ——D-062 的合法用途：unit test / artifact replay / fixture）。locked 非零
+  时 `:adaptive` **直接处理**（quadrature.jl 的 solve_layer 已修复 locked
+  通道——P0-4 收口，不再回落 fixed-S；locked 列不进 free 优化列、其
+  scenario wealth 贡献由 base 承担，D-017/D-068）；
+- `S_reference` / `diag_S` / `min_scenarios` / `max_scenarios` /
+  `weight_tol` / `utility_tol` / `kelly_tol` / `posterior_tol` /
+  `posterior_max_cells` / `u_span`：透传各层（数值配置语义，非策略参数——
+  D-066：tolerance 为定稿流程初始候选，**禁止由运行预算决定**；运行超时
+  的正确行为是 fail / 缩小 fixture，不是放宽 tolerance——P0-7 纪律）。
+  `u_span` 是 2D 超参 quadrature 的数值域半宽（默认 5.0，与 posterior.jl
+  的 fit_full_posterior 对齐），**不是 tolerance 放宽**——prequential 路径
+  用它降低逐行 2D 求积成本（D-038 bracket 语义）。
 
 分支（mode 字段）：
 - `:all_cash`——无 active 资产（A^model 全空）或 R_t 空（free 剔尽且无
@@ -207,37 +237,46 @@ certificates（后验对象正确性的数值面）、variance_split（epistemic
 innovation 分解）、concentration（top asset / 权重 / log-growth / margin /
 M / 证书 / top posterior mean direction / top innovation eigenmode）。
 utility_margin_1pct 在**独立诊断样本**（seed ⊻ _DIAG_SEED_XOR，S = diag_S）
-上求值——诊断量，非决策证书（决策收敛证书是 certificates 的 A/B/C）。
+上求值——诊断量，非决策证书（决策收敛证书是 certificates 的
+A/B_opt/B_audit/C——P0-6 收口）。
 """
 function single_day_decision(mf::MarketFacts, el::Eligibility,
                              held::AbstractVector{Float64};
                              t::Int,
                              seed::UInt64 = _DRIVER_DEFAULT_SEED,
                              mode::Symbol = :adaptive,
-                             F_folds::Int = 3,
                              S_reference::Int = 256,
                              diag_S::Int = 64,
                              min_scenarios::Int = 64,
                              max_scenarios::Int = 512,
-                             weight_tol::Float64 = 1e-3,
-                             utility_tol::Float64 = 1e-5,
-                             # kelly_tol 默认标定（Wave 4 执行轮，两轮实测）：1e-8
-                             # 在 reference 路径（S=64+locked base）超 Clarabel+polish
-                             # 可达精度（gap 2.37e-8）；1e-7 在 adaptive 路径
-                             # （solve_layer 的 M~512 行全列）仍超（kkt 3.5e-6、
-                             # gap 4.2e-6——问题规模随 M 退化）。1e-5 为两条路径
-                             # 的可达数值配置（D-066 初始候选；求解证书语义不变，
-                             # kelly_cash_tests 的小 fixture 仍用 1e-8 验证 polish
-                             # 机制本身）。
-                             kelly_tol::Float64 = 1e-5,
-                             # posterior quadrature 配置（Wave 4 执行轮标定）：
-                             # 默认 1e-6/2048 在本 driver 的 DC 宽后验 fixture 上
-                             # 预算耗尽（rel 4.8e-3 @ 2048）；5e-3/4096 收敛但
-                             # 单次全链 ~8s——8 次全链超 50s scoped 预算。
-                             # 2e-2/1024 为时间可达标定（rel ~1e-2 @ 1024 ≤
-                             # 2e-2；全链 ~2-3s；数值配置语义、D-066 初始候选）。
-                             posterior_tol::Float64 = 2e-2,
-                             posterior_max_cells::Int = 1024)
+                             # P0-7 收口：weight_tol/utility_tol/kelly_tol 恢复
+                             # 裁决起始 reference 口径（1e-4/1e-6/1e-6 为严格起点，
+                             # 留待 D-066 refinement 定稿，**禁止由运行预算决定**；
+                             # 运行超时的正确行为是 fail / 缩小 fixture，不是放宽
+                             # tolerance）。
+                             weight_tol::Float64 = 1e-4,
+                             utility_tol::Float64 = 1e-6,
+                             kelly_tol::Float64 = 1e-6,
+                             # posterior quadrature 配置（P0-7 收口）：严格
+                             # reference 口径 1e-6 / 2048 cells（与 posterior.jl
+                             # / oof.jl 默认一致；D-066 初始候选，留待 refinement
+                             # 定稿，禁止由运行预算决定）。
+                             posterior_tol::Float64 = 1e-6,
+                             posterior_max_cells::Int = 2048,
+                             # u_span：数值域参数（非 tolerance 放宽）——2D
+                             # (log α₀, log α_p) quadrature 的 bracket 半宽。
+                             # 生产默认 5.0 与 posterior.jl 的 fit_full_posterior
+                             # 默认对齐（eng-oof 同步后 oof.jl 默认亦为 5.0）；
+                             # prequential 路径用它降低 2D 求积成本（D-038
+                             # bracket 语义，非精度放宽）。
+                             u_span::Float64 = 5.0,
+                                 # b′（μ 通道部分 QMC，设计 MU_CHANNEL_QMC_DESIGN）：
+                                 # E3 判据已成立（A 越过）；默认 false 逐位不变；
+                                 # 60-day 前置待验证。仅作用于 :adaptive 分支。
+                                 mu_qmc::Bool = false,
+                                 # CHISQ-QMC（A 门过门配置，CQ_*）：仅作用于
+                                 # :adaptive 分支；默认 false 逐位不变。
+                                 mu_chisq_qmc::Bool = false)
     T_full, N = size(mf.observed)
     mode in (:adaptive, :reference) ||
         throw(ArgumentError("single_day_decision: mode must be :adaptive or :reference (got $mode)"))
@@ -247,8 +286,6 @@ function single_day_decision(mf::MarketFacts, el::Eligibility,
         throw(DimensionMismatch("single_day_decision: held length $(length(held)) ≠ N=$N"))
     all(x -> isfinite(x) && x >= 0, held) ||
         throw(ArgumentError("single_day_decision: held must be non-negative and finite"))
-    F_folds >= 2 ||
-        throw(ArgumentError("single_day_decision: F_folds ≥ 2 (SPEC §28)"))
     (size(el.model_admitted) == (T_full, N)) ||
         throw(DimensionMismatch("single_day_decision: Eligibility 尺寸与 MarketFacts 不符"))
 
@@ -266,7 +303,7 @@ function single_day_decision(mf::MarketFacts, el::Eligibility,
             zeros(N), Float64[], 1.0, 0.0, 1.0, _no_cert(), 0,
             _no_varsplit(), _no_concentration(0), Int[],
             (; reason = :no_active_assets, error_text = "",
-               dropped_free_universe = Int[], quadrature_locked_fallback = false))
+               dropped_free_universe = Int[]))
     end
 
     # --- 步骤 2：signal → log/return（相邻 finite 对，D-012/D-022） ---
@@ -320,7 +357,7 @@ function single_day_decision(mf::MarketFacts, el::Eligibility,
             zeros(N), Float64[], 1.0, 0.0, 1.0, _no_cert(), 0,
             _no_varsplit(), _no_concentration(0), Int[],
             (; reason = :empty_risk_domain, error_text = "",
-               dropped_free_universe = Int[], quadrature_locked_fallback = false))
+               dropped_free_universe = Int[]))
     end
     try
         R_act, dropped_free_act = resolve_risk_domain(row_ids, row_masks,
@@ -329,15 +366,8 @@ function single_day_decision(mf::MarketFacts, el::Eligibility,
         msg = err isa ErrorException ? err.msg : sprint(showerror, err)
         if occursin("innovation coverage failure", msg)
             # T4 驱动器语义（裁决 C3）：维持当日持仓 + 记录诊断，不 crash。
-            w_risky_held = Float64[held[act[j]] for j in
-                                    sort(union(free_act, locked_act))]
-            return Gate0DayDecision(:held_maintained, t,
-                sort(union(free_act, locked_act)), Int[act[j] for j in sort(union(free_act, locked_act))],
-                Float64.(held), w_risky_held, 1.0 - sum(held),
-                sum(held[act[locked_act]]), 1.0 - sum(held[act[locked_act]]),
-                _no_cert(), 0, _no_varsplit(), _no_concentration(0), Int[],
-                (; reason = :innovation_coverage_locked, error_text = msg,
-                   dropped_free_universe = Int[], quadrature_locked_fallback = false))
+            return _held_maintained_result(held, act, free_act, locked_act,
+                                           t, msg)
         end
         rethrow()                                     # 非 T4：不吞、不降级
     end
@@ -346,28 +376,70 @@ function single_day_decision(mf::MarketFacts, el::Eligibility,
     dropped_free_univ = Int[act[j] for j in dropped_free_act]
 
     # --- 步骤 7：full posterior（Π(b₀,G,α|H)——完整 quadrature，D-034/D-038） ---
-    # posterior_tol/posterior_max_cells 透传（Wave 4 执行轮补齐）：默认
-    # 1e-6/2048 在本 driver 的 DC 宽后验 fixture 上预算耗尽（实测 rel
-    # 4.8e-3 @ 2048 cells）——与 predictive_tests 的调参先例一致
-    # （tol=5e-3/max_cells=4096，数值配置语义、D-066 初始候选）。
+    # posterior_tol/posterior_max_cells 透传（P0-7 收口）：默认 1e-6/2048
+    # 严格 reference 口径（D-066 初始候选；禁止由运行预算决定——运行超时
+    # 的正确行为是 fail / 缩小 fixture）。
     X_tr = mp.X[rows, :]
     Y_tr = mp.Y[rows, :]
     post = fit_full_posterior(X_tr, Y_tr; tol = posterior_tol,
                               max_cells = posterior_max_cells)  # propriety 红 → 重抛（D-036）
 
-    # --- 步骤 8：OOF full-mode folds（D-043/D-044） ---
-    # fold 行号语义修复（Wave 4 执行轮）：fold_grid 的 rows 是 **X_tr 的
-    # 局部行索引**（oof.jl 契约——oof_tests 同款用法：fold_grid(n) →
-    # 1:n）；原传全局 rows（值域 256..t-1）→ folds 的值被当局部索引用，
-    # X_tr[fold, :] 越界（BoundsError 实证）。全局行身份（row_ids）由
-    # innovation_state 独立承载——与 resid 行序一一对应，不受此影响。
-    folds = fold_grid(length(rows); F_folds = F_folds)
-    fp = fit_fold_posteriors(X_tr, Y_tr, folds; tol = posterior_tol,
-                             max_cells = posterior_max_cells)
-    resid = oof_residual_rows_full(fp, X_tr, Y_tr, E_active)   # n × N_act（asset 空间）
+    # --- 步骤 8：strict prequential residual history（P0-1 收口） ---
+    # production 残差源 = prequential_residual_rows（不 export，同 include
+    # 链可见）：每历史日期 s 用截至 s−1 的信息拟合、预测 s、观察 r_s、得到
+    # ε_s、追加——历史当时真正发生的 forecast surprise（H_t → predict
+    # r_{t+1} → observe r_{t+1} → ε_{t+1} → append）。3-fold OOF
+    # （oof_residual_rows_full）已降级为 legacy/reference diagnostic，不再
+    # 被 production 决策链消费（F_folds 退出 production theory）。
+    resid_all = prequential_residual_rows(X_tr, Y_tr, E_active;
+                                          tol = posterior_tol,
+                                          max_cells = posterior_max_cells,
+                                          u_span = u_span)
+    # resid_all: n × N_act（asset 空间）。早期行（train 不足 A2 propriety）
+    # 输出 NaN——残差不可定义。innovation_state 的 J 行判定只看 row_masks
+    # （NaN 行若 mask 覆盖 R 会进 J → eps_R 非有限 → 崩溃），故此处**过滤
+    # NaN 行**（与 innovation_state 契约「非 J 行的缺失由 mask 表达、NaN
+    # 合法——J 行不合法」一致）：残差不可定义的行不进任何统计（V/ℓ/z
+    # pool / 满秩 gate 全部基于可定义残差行）。
+    keep_res = Int[i for i in 1:size(resid_all, 1) if all(isfinite, resid_all[i, :])]
+    isempty(keep_res) &&
+        error("single_day_decision: prequential 无任何可定义残差行——全部行 train 不足（A2 propriety）或退化；残差历史不可定义")
+    resid = resid_all[keep_res, :]                # n_ok × N_act（asset 空间）
+    row_ids_ok = row_ids[keep_res]                # 过滤后行身份（仍严格递增）
+    row_masks_ok = row_masks[keep_res]            # 过滤后行 mask（与残差行序一致）
+
+    # --- 步骤 8b：二次 resolve（P0-3 满秩 gate） ---
+    # 首次 resolve（步骤 6）在 posterior 之前、拿不到残差，只做基础判据
+    # （|J|≥2）。prequential 残差就绪后二次 resolve 传 residual_rows——
+    # 「足」还要求 rank{ε_s^(R) : s ∈ J} = |R|（fractional kernel 正权重 ⇒
+    # V_t(d) ≻ 0 ∀d；sample null space 不得宣布为 physical zero-risk
+    # space）。剔除 free 直至满秩；locked 导致不可收缩 → 维持当日持仓
+    # （T4，裁决 C3）。注意二次 resolve 与 innovation_state 都消费**过滤后**
+    # 的 row_ids_ok/row_masks_ok/resid（NaN 行不进 joint 行集）。
+    free_after_first = setdiff(free_act, dropped_free_act)
+    try
+        R_act2, dropped2 = resolve_risk_domain(row_ids_ok, row_masks_ok,
+                                               free_after_first, locked_act,
+                                               t; residual_rows = resid)
+        R_act = R_act2
+        append!(dropped_free_act, dropped2)
+        N_R = length(R_act)
+    catch err
+        msg = err isa ErrorException ? err.msg : sprint(showerror, err)
+        if occursin("innovation coverage failure", msg)
+            return _held_maintained_result(held, act, free_act, locked_act,
+                                           t, msg)
+        end
+        rethrow()                                 # 非 T4：不吞、不降级
+    end
 
     # --- 步骤 9：innovation state（R 域 V_t/q(d)/z pool，D-045a） ---
-    st = innovation_state(resid, row_ids, row_masks, R_act, E_active; t = t)
+    # require_full_rank=true（P0-3 收口）：二次 resolve 已保证 joint
+    # residual span 满秩（prequential 残差），此处构造层再检查一次
+    # （R 域 mode 坐标的 residual_rank——正交变换不改变秩，等价）——
+    # sample null space 绝不进入生产决策（不得当零风险）。
+    st = innovation_state(resid, row_ids_ok, row_masks_ok, R_act, E_active;
+                          t = t, require_full_rank = true)
 
     # --- 步骤 10：决策行 feature ---
     x_now = vec(mp.X_full[t, :])                      # P = 1 + 14·N_act（含 DC 列）
@@ -384,32 +456,42 @@ function single_day_decision(mf::MarketFacts, el::Eligibility,
     locked_exposure = sum(locked_w)
 
     # --- 步骤 12：决策分支 ---
-    use_adaptive = (mode == :adaptive) && all(iszero, locked_w)
-    fallback_flag = (mode == :adaptive) && !all(iszero, locked_w)
-
+    # P0-4 收口：adaptive 请求一律走 adaptive_scenario_kelly（locked 直接
+    # 由 quadrature.jl 的 solve_layer 处理——free-column Kelly + base_locked，
+    # 方案 2 表示）。不再存在「adaptive 有 locked 就回落 :reference 固定 S」
+    # 的 production fallback；:reference 仅保留为 D-062 合法用途（unit
+    # test / artifact replay / fixture）。
     local w_R::Vector{Float64}
     local w_cash::Float64
     local certs::CertReport
     local M_dec::Int
 
-    if use_adaptive
-        # 生产路径（D-062）：双证书 A/B/C 收敛（locked 全零——语义无分歧）。
+    if mode == :adaptive
+        # 生产路径（D-062）：双证书 A/B_opt/B_audit/C 收敛。locked 由
+        # adaptive_scenario_kelly 直接处理（locked 列不进 free 优化列、其
+        # scenario wealth 贡献由 base 承担——D-017/D-068）。
         res = adaptive_scenario_kelly(post, st, x_now;
                                       s1 = s1_act, E_active = E_active,
                                       rule_seed = seed,
+                                      locked = locked_w,
                                       min_scenarios = min_scenarios,
                                       max_scenarios = max_scenarios,
                                       weight_tol = weight_tol,
                                       utility_tol = utility_tol,
-                                      kelly_tol = kelly_tol)
+                                      kelly_tol = kelly_tol,
+                                      mu_qmc = mu_qmc,
+                                      mu_chisq_qmc = mu_chisq_qmc)
         w_R = res.w_risky
         w_cash = res.w_cash
         certs = (; A = res.certificate_A, B = res.certificate_B,
+                 B_audit = res.certificate_B_audit,
                  C = res.certificate_C, converged = true,
                  kelly_objective = res.certificate_C.objective)
         M_dec = res.M
     else
-        # 固定 S reference 路径（D-062 合法用途；locked 非零时的语义正确组装）。
+        # 固定 S reference 路径（D-062 合法用途；locked 非零时语义正确组装
+        # ——free-column Kelly + base_locked，与 quadrature.jl 的 solve_layer
+        # 同构）。
         pl = predictive_law(post, st, x_now; s1 = s1_act,
                             E_active = E_active, rng = MersenneTwister(seed),
                             S = S_reference)
@@ -418,11 +500,14 @@ function single_day_decision(mf::MarketFacts, el::Eligibility,
         base = locked_wealth_gate0(pl.gross, locked_w)
         if isempty(free_pos)
             # free 剔尽（R = locked）：无可优化列——预算全留 cash（唯一决策）。
+            # 方案 2（P0-5）：wealth = w_cash·1 + base_locked（无 X·w 项——
+            # locked 贡献由 base 承担；旧写法 pl.gross*locked_w .+ budget .+
+            # base 中 pl.gross*locked_w == base → locked 双重计入）。
             w_R = copy(locked_w)
             w_cash = budget
             obj = isempty(pl.gross) ? 0.0 :
-                mean(log.(vec(pl.gross * locked_w) .+ budget .+ base))
-            certs = (; A = NaN, B = NaN,
+                mean(log.(budget .+ base))
+            certs = (; A = NaN, B = NaN, B_audit = NaN,
                      C = (; feasibility = 0.0, kkt_residual = 0.0,
                           objective_gap = 0.0, objective = obj, dual = NaN),
                      converged = false, kelly_objective = obj)
@@ -438,8 +523,8 @@ function single_day_decision(mf::MarketFacts, el::Eligibility,
                 end
             end
             w_cash = w_cash_f
-            certs = (; A = NaN, B = NaN, C = cert, converged = false,
-                     kelly_objective = cert.objective)
+            certs = (; A = NaN, B = NaN, B_audit = NaN, C = cert,
+                     converged = false, kelly_objective = cert.objective)
         end
         M_dec = S_reference
     end
@@ -488,25 +573,39 @@ function single_day_decision(mf::MarketFacts, el::Eligibility,
         top_innov_asset = 0
     end
 
-    # utility margin：独立诊断样本（seed ⊻ _DIAG_SEED_XOR；诊断量非证书）
+    # top 集中度（D-076）：全 R 域最大权重（含 locked 维持）
     top_k = N_R > 0 && maximum(w_R) > 0 ? argmax(w_R) : 0
+
+    # utility margin：独立诊断样本（seed ⊻ _DIAG_SEED_XOR；诊断量非证书）。
+    # P0-5 方案 2 表示：I = mean(log.(X_free·w_free .+ w_cash .+ base_locked))
+    # ——locked 贡献由 base 承担，绝不在 X_full·w_full（已含 locked 填回）上
+    # 再加 base（locked double-count）。margin 只在 free 权重上操作（locked
+    # 不可交易、不可重排——D-017）；无 free 可优化列时 NOT COMPUTED。
+    free_pos_diag = Int[k for k in 1:N_R if locked_w[k] == 0]
     margin = NaN
-    if top_k > 0
-        rng_diag = MersenneTwister(seed ⊻ _DIAG_SEED_XOR)
-        pl_d = predictive_law(post, st, x_now; s1 = s1_act,
-                              E_active = E_active, rng = rng_diag, S = diag_S)
-        base_d = locked_wealth_gate0(pl_d.gross, locked_w)
-        I_of(w, wc) = mean(log.(vec(pl_d.gross * w) .+ wc .+ base_d))
-        w_shift = copy(w_R)
-        wc_shift = w_cash
-        w_shift[top_k] = max(w_R[top_k] - 0.01, 0.0)
-        order = sortperm(w_R; rev = true)
-        if N_R >= 2
-            w_shift[order[2]] = w_shift[order[2]] + 0.01
-        else
-            wc_shift = w_cash + 0.01                 # 次优 = cash（单资产 R 域）
+    if !isempty(free_pos_diag)
+        w_free0 = w_R[free_pos_diag]
+        top_free_k = maximum(w_free0) > 0 ? argmax(w_free0) : 0
+        if top_free_k > 0
+            rng_diag = MersenneTwister(seed ⊻ _DIAG_SEED_XOR)
+            pl_d = predictive_law(post, st, x_now; s1 = s1_act,
+                                  E_active = E_active, rng = rng_diag,
+                                  S = diag_S)
+            base_d = locked_wealth_gate0(pl_d.gross, locked_w)
+            X_free_d = pl_d.gross[:, free_pos_diag]
+            I_of(w_free, wc) =
+                mean(log.(vec(X_free_d * w_free) .+ wc .+ base_d))
+            w_shift = copy(w_free0)
+            wc_shift = w_cash
+            w_shift[top_free_k] = max(w_free0[top_free_k] - 0.01, 0.0)
+            order = sortperm(w_free0; rev = true)
+            if length(w_free0) >= 2
+                w_shift[order[2]] = w_shift[order[2]] + 0.01
+            else
+                wc_shift = w_cash + 0.01             # 次优 = cash（单 free 资产）
+            end
+            margin = I_of(w_free0, w_cash) - I_of(w_shift, wc_shift)
         end
-        margin = I_of(w_R, w_cash) - I_of(w_shift, wc_shift)
     end
 
     concentration = (; top_asset = top_k > 0 ? act[R_act[top_k]] : 0,
@@ -521,13 +620,11 @@ function single_day_decision(mf::MarketFacts, el::Eligibility,
         top_innovation_eigenvalue = lam_max,
         top_innovation_mode_asset = top_innov_asset)
 
-    return Gate0DayDecision(use_adaptive ? :adaptive : :reference, t,
-        R_act, Int[act[j] for j in R_act], w_universe, w_R, w_cash,
-        locked_exposure, budget, certs, M_dec, variance_split,
-        concentration, dropped_free_act,
-        (; reason = fallback_flag ? :quadrature_locked_fallback : :ok,
-           error_text = "", dropped_free_universe = dropped_free_univ,
-           quadrature_locked_fallback = fallback_flag))
+    return Gate0DayDecision(mode, t, R_act, Int[act[j] for j in R_act],
+        w_universe, w_R, w_cash, locked_exposure, budget, certs, M_dec,
+        variance_split, concentration, dropped_free_act,
+        (; reason = :ok, error_text = "",
+           dropped_free_universe = dropped_free_univ))
 end
 
 # ---------------------------------------------------------------------------

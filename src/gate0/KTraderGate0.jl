@@ -74,15 +74,16 @@
 #                     using Random, LinearAlgebra, Statistics 与 export 3 名
 # 后续：Gate-0 全部 Step（1-15）已收口（单日 driver + 多日 backtest）。
 #
-# export 面收口（86 名，无重名）：market 11 名（本骨架层 export）+
+# export 面收口（90 名，无重名）：market 11 名（本骨架层 export）+
 # geometry 11 名（文件内自带 export）+ modes 6 名（文件内自带 export）+
 # response 4 名（文件内自带 export）+ posterior 14 名（文件内自带
-# export）+ oof 5 名（文件内自带 export）+ innovation 16 名（文件内
-# 自带 export）+ predictive 2 名（文件内自带 export）+ quadrature 7 名
-# （文件内自带 export）+ driver 3 名（文件内自带 export）+ backtest
-# 3 名（文件内自带 export）+ kelly 4 名（本骨架层 export；
-# kelly_cash_tests.jl 消费面——cash_kelly_inputs 为内部校验函数，
-# 不导出）。
+# export）+ oof 5 名（文件内自带 export）+ innovation 20 名（文件内
+# 自带 export；P0-2 新增 initial_mesh/adaptive_d_quadrature、P0-3 新增
+# residual_rank/rank_sufficient）+ predictive 2 名（文件内自带
+# export）+ quadrature 7 名（文件内自带 export）+ driver 3 名（文件内
+# 自带 export）+ backtest 3 名（文件内自带 export）+ kelly 4 名（本
+# 骨架层 export；kelly_cash_tests.jl 消费面——cash_kelly_inputs 为
+# 内部校验函数，不导出）。
 
 module KTraderGate0
 

@@ -193,7 +193,27 @@ function ruler(x::AbstractMatrix{Float64}, f::AbstractVector{<:Integer},
                 out[j, a] = exp(m_l + H * (lτ[a] - m_tau))
             end
         else
-            out[j, :] .= 1.0
+            # 短历史回退（n_use < 2；登记供 SPEC 审查——见
+            # docs/RULER_SHORT_HISTORY_FALLBACK.md）：用该资产自身的
+            # 一阶（τ=1）增量 RMS 作为所有 τ 的平坦外推（H=0——单点
+            # 无法识别 scaling 斜率，不发明趋势；不设 4τ 门槛：这是
+            # 「无门槛内数据可用」时唯一的真实尺度信息）。
+            # 可达性：active 资产在 prefix 内必有 ≥1 个相邻观测对 ⇒
+            # ws ≥ 1 恒成立；ws == 0 保留 1.0 作最后兜底（不可达防御，
+            # 见文档 §4）。旧行为（s ≡ 1.0，≈日波动 100% 的荒谬尺度）
+            # 曾使极短历史资产预测律病态（testset (8) t=271 红；证据
+            # archive/evidence/gate0_t4_recovery_20261010/）。
+            acc = 0.0; ws = 0.0
+            @inbounds @simd for t in (fj + 1):T
+                x1 = x[t, j]; x0 = x[t - 1, j]
+                if isfinite(x1) && isfinite(x0)
+                    d = x1 - x0
+                    wt = w === nothing ? 1.0 : w[t]
+                    acc += wt * d * d
+                    ws += wt
+                end
+            end
+            out[j, :] .= ws > 0 ? sqrt(max(acc / max(ws, 1e-12), 1e-12)) : 1.0
         end
     end
     out

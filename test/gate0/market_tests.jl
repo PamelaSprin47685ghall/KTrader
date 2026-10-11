@@ -136,13 +136,15 @@ end
         @test fieldtype(Eligibility, :executable) == BitMatrix
 
         # 导出面钉死：无任何 mutation / setter API（构造函数是唯一入口）。
-        # Step 16 短窗口轮收口后的完整导出面（86 名 API = market 11 +
+        # Step 16 短窗口轮收口后的完整导出面（90 名 API = market 11 +
         # geometry 11 + modes 6 + response 4 + posterior 14 + oof 5 +
-        # innovation 16 + predictive 2 + quadrature 7 + driver 3 +
+        # innovation 20 + predictive 2 + quadrature 7 + driver 3 +
         # backtest 3 + kelly 4；除 market/kelly 外均由文件内自带
         # export——见 src/gate0/KTraderGate0.jl 注释）。
+        # 注：innovation 20 含 P0-2 新增 initial_mesh/adaptive_d_quadrature、
+        # P0-3 新增 residual_rank/rank_sufficient（合法公共 API）。
         # 注：Julia 的 names(M) 恒包含 module 自名 :KTraderGate0，故期望
-        # 集合共 87 名。
+        # 集合共 91 名。
         # 注：backtest 的 _DRIVER_DEFAULT_SEED/_marking_gross/
         # _benchmark_curves 为内部函数/常量（driver/backtest 链内可见），
         # 不导出。
@@ -169,7 +171,9 @@ end
             :DConditionedShapePool, :draw_innovation, :z_pool_rows,
             :z_row_at, :V_at, :shape_moments, :quasi_loglik,
             :joint_row_indices, :coverage_report, :resolve_risk_domain,
-            :default_d_grid, :frac_weights_gate0, :mp_sqrt_factors,
+            :default_d_grid, :initial_mesh, :adaptive_d_quadrature,
+            :residual_rank, :rank_sufficient, :frac_weights_gate0,
+            :mp_sqrt_factors,
             :PredictiveLawResult, :predictive_law,
             :SobolOwenRule, :rule_points, :audit_seed,
             :RQMCScenarioSource, :predictive_rqmc_source,

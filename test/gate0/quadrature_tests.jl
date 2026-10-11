@@ -1,6 +1,6 @@
 # =============================================================================
 # KTraderGate0 — Step 14 tests: adaptive RQMC（nested Sobol + Owen
-# scramble + independent audit replicate + 双证书）。
+# scramble + independent audit replicate + 四证书）。
 #
 # 所属 module: KTraderGate0 的 constitutional suite（test/gate0/ 独立
 # 入口，裁决 H1）。module 骨架与统一入口（test/gate0/runtests.jl）由集
@@ -10,7 +10,7 @@
 # 不变。
 #
 # 覆盖（施工图 Step 14 / §9.5 / NUMERICAL_INTEGRATION_SPEC §3-§4 /
-# 裁决书 D-061~D-067）：
+# 裁决书 D-061~D-067；P0-5/P0-6 修复后）：
 #   嵌套性        M 与 2M 的前 M 个 uniform 点逐位相同（== 精确比较，
 #                  atol=0 语义——NUMERICAL_INTEGRATION_SPEC §2.2-1）
 #   同 seed 重放   同 seed 同输入的 rule 点逐位一致（§2.2-2）
@@ -22,8 +22,8 @@
 #   KKT 传导       fine 解 certificate_C 三项全绿（D-064 C——复用
 #                  kelly.jl 的证书，不复制）
 #   tolerance 减半 ε_w/ε_U 减半 → M 单调不减、w 稳定（D-066 流程）
-#   双证书分层     「A 过 B 红」轮次必须继续翻倍、不得提前退出（§3.1
-#                  owner 表：A+B 积分证据不可由 A 或 KKT 顶替）
+#   证书分层       「A 过 B 红」轮次必须继续翻倍、不得提前退出（§3.1
+#                  owner 表：A+B_opt+B_audit 积分证据不可由 A 或 KKT 顶替）
 #   预算耗尽       max_scenarios 极小 → 错误文本含
 #                  "Numerical integration did not converge"（D-067，
 #                  不返回最后一层权重）
@@ -230,7 +230,8 @@ end
     @test res.certificate_C.objective_gap <= 1e-8
     # 返回对象携带 rule 身份与 A/B 证书数值（审计/重放可追溯）
     @test res.certificate_A <= 1e-3
-    @test res.certificate_B <= 1e-5
+    @test res.certificate_B <= 1e-5          # B_opt（fine-rule regret 上界）
+    @test res.certificate_B_audit <= 1e-5    # B_audit（独立 audit 绝对差）
     @test res.rule_seed == 0x0000C0FFEE
     @test res.audit_seed == audit_seed(0x0000C0FFEE)
     @test res.iterations >= 1 && !isempty(res.history)
@@ -253,10 +254,11 @@ end
 end
 
 # =============================================================================
-# 6. 双证书分层：「A 过 B 红」必须继续翻倍（§3.1 owner 表）
+# 6. 证书分层：「A 过 B 红」必须继续翻倍（§3.1 owner 表）
 #    构造：weight_tol 松（1e-1——A 早过）、utility_tol 极严（1e-7——B
 #    晚过）→ 中期轮次 A 已收敛而 audit 目标间隙仍 > ε_U——循环不得
-#    在该轮退出（A 不可顶替 B；KKT 也不可——C 全程绿但循环仍在翻倍）。
+#    在该轮退出（A 不可顶替 B_opt/B_audit；KKT 也不可——C 全程绿但
+#    循环仍在翻倍）。
 # =============================================================================
 @testset "certificate layering: A-pass/B-red rounds keep doubling" begin
     src = gaussian_rqmc_source(MU_FIX, SIG_FIX)
@@ -274,19 +276,21 @@ end
     @test r.converged
     @test r.M > 32                                  # 至少翻倍过一次
     # 区分力保证：第一轮未全过（否则本测试无区分力）
-    @test (r.history[1].A > wt) || (r.history[1].B > ut)
+    @test (r.history[1].A > wt) || (r.history[1].B_opt > ut) ||
+          (r.history[1].B_audit > ut)
     # 「A 过 B 红时继续翻倍」断言已按 Manager 裁决（Wave 4 执行轮）删除：
     # B（utility regret 语义）是 A 的二阶量——实测 B/A² ≈ 1.5e-7 恒定
     # （B ~ H_eff·A²/2，H_eff ≈ 2σ²）——B 的二阶收敛恒先于 A 的一阶收敛，
     # 「A 先过、B 后红」的分层时序在光滑凸 fixture 上不可构造（其预期
-    # 与 B 的二阶数学性质相反）。双证书的分工是 **A 权重稳定性 / B 目标
-    # regret 两个维度**，而非分层时序；「B 红时循环继续翻倍」的循环行为
-    # 验证为**已知未测项**（未来重尾 fixture 或构造性 mock 可覆盖——
-    # 非光滑/多峰 I 才能使 B 出现一阶效应）。末轮「A∧B 同过才退出」
-    # 的分层核心语义由下方末轮断言验证。
-    # 返回轮（history 末轮）A∧B 同时过
+    # 与 B 的二阶数学性质相反）。证书的分工是 **A 权重稳定性 / B_opt
+    # fine-rule regret / B_audit 独立 audit 绝对差三个维度**，而非分层
+    # 时序；「B 红时循环继续翻倍」的循环行为验证为**已知未测项**（未来
+    # 重尾 fixture 或构造性 mock 可覆盖——非光滑/多峰 I 才能使 B 出现
+    # 一阶效应）。末轮「A∧B_opt∧B_audit 同过才退出」的分层核心语义由
+    # 下方末轮断言验证。
+    # 返回轮（history 末轮）A∧B_opt∧B_audit 同时过
     let h = r.history[end]
-        @test h.A <= wt && h.B <= ut
+        @test h.A <= wt && h.B_opt <= ut && h.B_audit <= ut
     end
     # Certificate C 全程绿（cash_kelly fail-loudly 保证）——但循环在
     # C 全绿的多轮里继续翻倍：C（求解误差）不可顶替 B（积分收敛）。
@@ -403,6 +407,169 @@ end
     @test_throws ErrorException SobolOwenRule(3, UInt64(1))   # dim 上限
     @test_throws ArgumentError RQMCScenarioSource(src.gen, 0, 2)
     @test_throws ArgumentError RQMCScenarioSource(src.gen, 2, 3)
+end
+
+# =============================================================================
+# 11. b′：μ 通道部分 QMC（默认关闭，可回退；设计 MU_CHANNEL_QMC_DESIGN §b′）
+# =============================================================================
+# 语义锚：
+# - 默认关闭 = 逐位零变化（构造性：mu_qmc=false 不进新分支）；
+# - 开启 = 固定 seed 确定性重放、有限性、Φ^{-1} 截尾边界有限；
+# - E2 对应锚：μ 规则的前缀嵌套（由同一 rule_points 机制承载）；
+# - 分布等价性（谱排序不改变协方差）与无偏性/偏误边界归 E3 验证批次。
+@testset "mu-channel partial QMC (b-prime; default off)" begin
+    # (a) μ rule seed 派生：确定性、与 opt/audit 流均不同
+    s0 = UInt64(0x0000C0FFEE)
+    ms1 = _mu_rule_seed(s0)
+    ms2 = _mu_rule_seed(s0)
+    @test ms1 == ms2
+    @test ms1 != s0 && ms1 != audit_seed(s0)
+
+    # (b) μ 规则点列的前缀嵌套（E2 对应锚；与 Sobol 主规则同机制）
+    mr = SobolOwenRule(2, ms1)
+    pm = rule_points(mr, 256)
+    @test rule_points(mr, 64) == pm[1:64, :]
+    @test rule_points(mr, 3) == pm[1:3, :]
+    @test all(x -> 0.0 <= x < 1.0, pm)
+
+    # (c) _draw_mu_qmc 单元：确定性重放 + 有限性 + 截尾边界
+    rng0 = MersenneTwister(20261010)
+    n, N, P = 8, 2, 2
+    X = randn(rng0, n, P)
+    Y = randn(rng0, n, N)
+    post = fit_full_posterior(X, Y; prior = :point_mass, alpha_fixed = 0.5)
+    xt = randn(rng0, P)
+    d1 = _draw_mu_qmc(post, xt, 0.5, 0.25, 0.75, MersenneTwister(7))
+    d2 = _draw_mu_qmc(post, xt, 0.5, 0.25, 0.75, MersenneTwister(7))
+    @test d1 == d2                                  # 同输入同流逐位（确定性）
+    @test all(isfinite, d1)
+    # u_node / u_z 端点：inverse-CDF 与 Φ^{-1} 截尾后仍有限（端点不产生 ±Inf）
+    dfin0 = _draw_mu_qmc(post, xt, 0.0, 0.0, 1.0, MersenneTwister(7))
+    @test all(isfinite, dfin0)
+    dfin1 = _draw_mu_qmc(post, xt, 1.0, 1.0, 0.0, MersenneTwister(7))
+    @test all(isfinite, dfin1)
+    # T-N2：节点 inverse-CDF 与旧 while 版对同一 u 逐点等价（本地参考）
+    _k_ref(u) = begin
+        acc = 0.0
+        kk = 1
+        while kk < length(post.alpha_weights)
+            acc += post.alpha_weights[kk]
+            u <= acc && break
+            kk += 1
+        end
+        kk
+    end
+    cw_n = cumsum(post.alpha_weights)
+    for u in (0.0, 0.1, 0.5, 0.9, 0.999999, 1.0)
+        kk_ref = _k_ref(u)
+        kk_new = min(searchsortedfirst(cw_n, u), length(cw_n))
+        @test kk_new == kk_ref
+    end
+
+    # (d) E4 复核修正（验证批次：原 512 预算下 A=0.00518 未收敛 → error
+    # 未捕获）。本用例意图是「确定性对照」，不是「开启后收敛」：512 预算下
+    # 两跑都按「错误或结果」取值并断言行为一致——错误文本含 last-layer
+    # A/B_opt/B_audit 浮点值，两次文本逐字相等覆盖全链确定性（证据强于仅
+    # 比较收敛解）。同时把「该输入 512 不收敛」转为显式 fail-loud 锚
+    # （D-067 语义；未放松任何门禁/容差；收敛解的对照由第 4 节 4096 承担）。
+    # 若未来数值改进使该锚转绿，属预期的行为复审点（需显式处理，不静默）。
+    src = gaussian_rqmc_source(MU_FIX, SIG_FIX)
+    run512() = try
+        adaptive_scenario_kelly(src; rule_seed = UInt64(0x00A1),
+                                min_scenarios = 32, max_scenarios = 512)
+    catch e
+        e
+    end
+    ra = run512(); rb = run512()
+    @test typeof(ra) == typeof(rb)
+    if ra isa ErrorException
+        @test occursin("Numerical integration did not converge",
+                       sprint(showerror, ra))
+        @test sprint(showerror, ra) == sprint(showerror, rb)   # 全链确定性
+    else
+        @test ra.w_risky == rb.w_risky && ra.w_cash == rb.w_cash
+        @test ra.M == rb.M && ra.certificate_A == rb.certificate_A
+    end
+end
+
+# =============================================================================
+# NODE-QMC-1（§8）：节点选择 QMC 的结构锚
+# =============================================================================
+@testset "NODE-QMC-1: node rule nesting & audit independence" begin
+    sN = UInt64(0x0000C0FFEE)
+    ns1 = _mu_node_rule_seed(sN); ns2 = _mu_node_rule_seed(sN)
+    @test ns1 == ns2
+    @test ns1 != sN && ns1 != audit_seed(sN) && ns1 != _mu_rule_seed(sN)
+    nr = SobolOwenRule(1, ns1)
+    pn = rule_points(nr, 256)
+    @test size(pn) == (256, 1)
+    @test rule_points(nr, 64) == pn[1:64, :]
+    @test rule_points(nr, 3) == pn[1:3, :]
+    @test all(x -> 0.0 <= x < 1.0, pn)
+end
+
+# =============================================================================
+# NEST-SYS-1（§10）：嵌套系统节点采样——分层精确性/嵌套/确定性的结构锚（当前未接线；保留为历史锚）
+# =============================================================================
+@testset "NEST-SYS-1: nested systematic node sampling" begin
+    u0 = _mu_node_shift(UInt64(0x0000C0FFEE))
+    # (a) dyadic 网格精确性：M=1024 的排序点在 u + k/1024 网格上
+    p = _nested_systematic_points(u0, 1024)
+    sp = sort(p)
+    gaps = diff(sp)
+    @test maximum(abs.(gaps .- 1 / 1024)) < 1e-9
+    @test all(x -> 0.0 <= x < 1.0, p)
+    # (b) 频率 ±2：对已知节点权重统计计数（经典 vdc 计数性质 + shift 平移）
+    wtest = [0.2, 0.3, 0.5]
+    cwt = cumsum(wtest)
+    Mstat = 1000
+    pts2 = _nested_systematic_points(u0, Mstat)
+    cnt = zeros(Int, 3)
+    for x in pts2
+        kk = min(searchsortedfirst(cwt, x), 3)
+        cnt[kk] += 1
+    end
+    @test maximum(abs.(cnt .- Mstat .* wtest)) <= 2
+    # (c) 前缀嵌套（按构造顺序）
+    p256 = _nested_systematic_points(u0, 256)
+    @test p256 == p[1:256]
+    @test _nested_systematic_points(u0, 3) == p[1:3]
+    # (d) 确定性 + opt/audit shift 独立
+    @test _mu_node_shift(UInt64(7)) == _mu_node_shift(UInt64(7))
+    @test _mu_node_shift(UInt64(7)) != _mu_node_shift(audit_seed(UInt64(7)))
+end
+
+# =============================================================================
+# Z1-VDC-1 + CHISQ-QMC-1（§9.11/§9.10）：两个正交开关的结构锚
+# =============================================================================
+@testset "Z1-VDC-1 & CHISQ-QMC-1: switches & samplers" begin
+    sZ = UInt64(0x0000C0FFEE)
+    @test _mu_z1_shift(sZ) == _mu_z1_shift(sZ)
+    @test _mu_z1_shift(sZ) != _mu_z1_shift(audit_seed(sZ))
+    @test _mu_chisq_rule_seed(sZ) == _mu_chisq_rule_seed(sZ)
+    @test _mu_chisq_rule_seed(sZ) != _mu_chisq_rule_seed(audit_seed(sZ))
+    gr = SobolOwenRule(1, _mu_chisq_rule_seed(sZ))
+    gp = rule_points(gr, 128)
+    @test rule_points(gr, 32) == gp[1:32, :]
+    @test all(x -> 0.0 <= x < 1.0, gp)
+    z1p = _nested_systematic_points(_mu_z1_shift(sZ), 64)
+    @test length(z1p) == 64 && all(x -> 0.0 <= x < 1.0, z1p)
+    @test z1p[1:16] == _nested_systematic_points(_mu_z1_shift(sZ), 16)
+    rngz = MersenneTwister(20261010)
+    nz, Nz, Pz = 8, 2, 2
+    Xz = randn(rngz, nz, Pz)
+    Yz = randn(rngz, nz, Nz)
+    postz = fit_full_posterior(Xz, Yz; prior = :point_mass, alpha_fixed = 0.5)
+    xtz = randn(rngz, Pz)
+    da = _draw_mu_qmc(postz, xtz, 0.5, 0.5, 0.5, MersenneTwister(11))
+    db = _draw_mu_qmc(postz, xtz, 0.5, 0.5, 0.5, MersenneTwister(11))
+    @test da == db && all(isfinite, da)                 # NaN u_g = 原 MC 路径
+    dq = _draw_mu_qmc(postz, xtz, 0.5, 0.5, 0.5, MersenneTwister(11); u_g = 0.5)
+    @test all(isfinite, dq)
+    @test dq == _draw_mu_qmc(postz, xtz, 0.5, 0.5, 0.5, MersenneTwister(11); u_g = 0.5)
+    d0 = _draw_mu_qmc(postz, xtz, 0.5, 0.5, 0.5, MersenneTwister(11); u_g = 0.0)
+    d1 = _draw_mu_qmc(postz, xtz, 0.5, 0.5, 0.5, MersenneTwister(11); u_g = 1.0)
+    @test all(isfinite, d0) && all(isfinite, d1)       # 截尾端点有限
 end
 
 end # module

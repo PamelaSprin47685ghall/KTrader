@@ -16,6 +16,10 @@
 # #10 的 posterior 层退化对照；#12 归 Step 4 已测层面；#14 为静态审查
 # （Σ_R 不进 innovation——posterior.jl 无 innovation 对象，docstring 红线）。
 #
+# P0-8 补（2026-10-10 文档校准批次）：HalfCauchy-τ 先验表达式级断言
+# （公式/归一化/_WEAKINFO 残留否定）——审计注记此前全 test/gate0/ 无
+# HalfCauchy 直接数值断言；新增断言未运行（运行归 DevOps）。
+#
 # 纪律：合成数据固定 seed；不运行测试（运行归 DevOps）；断言全部与
 # 回测收益无关（开发守则 §24）；dense 对照走与生产实现**独立**的公式
 # 路径（evidence：quadgk 一维积分 + 直接构造 C 的 det，不经 Sylvester；
@@ -312,5 +316,150 @@ end
         @test_throws ArgumentError fit_full_posterior(Xdc, randn(rng, 20, 2);
             prior = :point_mass, alpha_fixed = 0.5)
         @test_throws DimensionMismatch mu_asset(post, randn(rng, 3), randn(3, 3))
+    end
+
+    # -------------------------------------------------------------------
+    # P0-8 补：proper HalfCauchy-τ 先验（表达式级断言）+ _WEAKINFO 残留否定
+    # -------------------------------------------------------------------
+    # 2026-10-10 文档校准批次新增（审计注记：此前全 test/gate0/ 无
+    # HalfCauchy 直接数值断言）。语义：τ~HalfCauchy(0,1) ⇒
+    # p(α)∝1/[√α(1+α)] ⇒ log 坐标密度 log p_u(u) = 0.5u − log(1+eᵘ)
+    # （u = log α）；旧 improper 形式 ∝1/[α(1+α)] 的 log 密度 = u − log(1+eᵘ)。
+    @testset "P0-8 HalfCauchy-tau prior (no weakinfo remnants)" begin
+        # (a) 与 HalfCauchy-τ 公式逐点对照（up 坐标取 0：贡献 −log 2）
+        for u in (-4.0, -1.0, 0.0, 2.0, 6.0)
+            @test isapprox(log_prior_d035a(u, 0.0),
+                           (0.5u - log1p(exp(u))) - log(2.0), atol = 1e-14)
+        end
+        # (b) 与旧 improper 形式（系数 1）可区分：差 = u/2（|u|=4 时 = 2）
+        for u in (-4.0, 4.0)
+            @test abs(log_prior_d035a(u, 0.0)
+                      - ((u - log1p(exp(u))) - log(2.0))) > 1.0
+        end
+        # (c) proper 归一化：单坐标密度 ∫ e^{0.5u−log(1+eᵘ)} du = π
+        lp1(u) = log_prior_d035a(u, 0.0) + log(2.0)      # = 0.5u − log(1+eᵘ)
+        I1 = quadgk(u -> exp(lp1(u)), -Inf, Inf; atol = 1e-9)[1]
+        @test isapprox(I1, π, rtol = 1e-7)
+        # (d) 弱信息特例机器（回测 fixture 标定阈值 3/8）不得余留已定义名
+        @test !isdefined(Gate0PosteriorEnv, :_WEAKINFO_GAP)
+        @test !isdefined(Gate0PosteriorEnv, :_WEAKINFO_RATE)
+        @test !isdefined(Gate0PosteriorEnv, :_WEAKINFO_SAFETY)
+    end
+
+    # -------------------------------------------------------------------
+    # G-L 归一化溢出回归（真数据首日根因；2026-10-10）
+    # -------------------------------------------------------------------
+    # 根因（证据 archive/evidence/gate0_reallimit_firstday_20261010/）：
+    # 旧 m 只取初始 cell 中心 max——G-L 节点（±1/√3、±√(3/5)）偏离中心，
+    # 陡峭 logf 下节点可高出 m 数百（真数据大 P 实测 +502.7），
+    # exp(fv−m) 溢出（阈值 exp(709.78)）→ Inf/NaN。本 fixture 构造同一
+    # 机制：峰 A=750（>709.78）位于 cell (i=3,j=3) 的 2 点 G-L 节点
+    # (1.25/√3, 1.25/√3)≈(0.7217,0.7217)；16 个 cell 中心距峰 ≥0.72
+    # （最大中心贡献 ≈+8.6，远低于节点 +750）→ 旧机制 m≈base+8.6、
+    # 节点 exp(741.4)=Inf，初始 16 cell 的 val/err 即 Inf/NaN → 旧实现
+    # 必红（rel=NaN 或 Inf 触发 did-not-converge）。修复（m 覆盖全部
+    # 求值节点）后应正常收敛。tol=1e-2 为 fixture 级成本控制（收敛性/
+    # 有限性/权重和为 1 的语义断言不变；与 backtest_tests 的 fixture 降
+    # 级同纪律）；m_ref=base+A 模拟调用方粗扫描 mode 参考（tail 证书
+    # 契约：refval 需接近真峰，否则边界判据按设计红）。
+    @testset "G-L normalization overflow regression" begin
+        base = -1.0e6
+        A = 750.0
+        σ = 0.25
+        u0p = 1.25 / sqrt(3.0)                 # cell (i=3,j=3) 的 +g2 节点
+        upp = 1.25 / sqrt(3.0)
+        logf_fix(u0, up) = base + A * exp(-((u0 - u0p)^2 + (up - upp)^2) / (2σ^2))
+        # 构造性声明：峰恰在节点上；全部中心远低于峰（旧 m 不覆盖节点）
+        @test logf_fix(u0p, upp) == base + A
+        @test maximum(logf_fix(c, c) for c in (-3.75, -1.25, 1.25, 3.75)) < base + 10.0
+        res = adaptive_quadrature_2d(logf_fix, (-5.0, 5.0), (-5.0, 5.0);
+                                      tol = 1e-2, m_ref = base + A)
+        @test isfinite(res.logZ)
+        @test res.rel_err <= 1e-2
+        @test res.n_cells < 8192                # 收敛而非撞预算
+        @test all(isfinite, res.weights)
+        @test isapprox(sum(res.weights), 1.0, atol = 1e-12)
+        @test abs(res.logZ - (base + A)) < 50.0 # 峰主导量级（解析差 ~O(log A)）
+        # 确定性重放（同输入逐位；无 RNG）
+        res2 = adaptive_quadrature_2d(logf_fix, (-5.0, 5.0), (-5.0, 5.0);
+                                       tol = 1e-2, m_ref = base + A)
+        @test res.logZ == res2.logZ && res.weights == res2.weights
+    end
+
+    # -------------------------------------------------------------------
+    # R4'''：Sα 鲁棒 logdet（eigen + floor）+ 防御软包装/防护（F1/F2；2026-10-10）
+    # -------------------------------------------------------------------
+    # 语义锚（docs/EARLY_ROW_FIT_FAILURE_DIAGNOSIS.md §8）：
+    # - Sα 理论 PSD；F2 实测负特征值为 [-2.65e-12, -2.70e-13]（数值噪声级）
+    #   → eigen 鲁棒 logdet：λ < -neg_tol 结构性负值 fail loudly；否则 floor。
+    # - 求值点 PosDef（其它分解）→ 防御软包装 -Inf + 诊断；证书/refval 非有限
+    #   → fail loudly；正常档零改变（eigen vs cholesky 差 ~roundoff 级）。
+    # - n=2000/P=911 真实早期行不再失败由 DevOps 探针验证（本 testset 为语义锚）。
+    @testset "R4''' robust PSD logdet & guards" begin
+        # (a) 鲁棒 logdet：正常 PSD 与 cholesky 路径 roundoff 级一致
+        Sbase = Symmetric([2.0 0.3; 0.3 1.5])
+        @test isapprox(Gate0PosteriorEnv._robust_logdet_psd(Sbase),
+                       logdet(cholesky(Sbase)), rtol = 1e-12)
+        # 负噪声特征值（F2 量级）→ floor 后有限、不抛
+        Snoise = Symmetric(diagm([1.0, -2.65e-12]))
+        ld = Gate0PosteriorEnv._robust_logdet_psd(Snoise)
+        @test isfinite(ld)
+        @test isapprox(ld, log(1.0) + log(Gate0PosteriorEnv._PSD_FLOOR_REL), rtol = 1e-10)
+        # 结构性负值 → fail loudly
+        Sbad = Symmetric(diagm([1.0, -0.5]))
+        @test _throws_msg(() -> Gate0PosteriorEnv._robust_logdet_psd(Sbad), "R4 fail-loud")
+        # 确定性重放（同输入逐位；无 RNG）
+        @test Gate0PosteriorEnv._robust_logdet_psd(Snoise) == Gate0PosteriorEnv._robust_logdet_psd(Snoise)
+        # (b) 防御软包装：PosDef → -Inf + 记录；非 PosDef 不吞
+        rawthrow = (lam) -> throw(PosDefException(2))
+        rawok = (lam) -> 7.5
+        dg = Gate0PosteriorEnv.PosDefDiagnostics()
+        @test Gate0PosteriorEnv._soft_logf(rawthrow, [1.0, 1.0], -0.5, -12.0, -12.0, dg) == -Inf
+        @test dg.attempts == 1 && dg.failures == 1
+        @test dg.points == [(-12.0, -12.0)]
+        @test Gate0PosteriorEnv._soft_logf(rawok, [1.0, 1.0], -0.5, 0.0, 0.0, dg) == 7.0
+        @test dg.attempts == 2 && dg.failures == 1
+        rawerr = (lam) -> error("boom")
+        @test_throws ErrorException Gate0PosteriorEnv._soft_logf(rawerr, [1.0], 0.0, 0.0, 0.0, dg)
+        dg2 = Gate0PosteriorEnv.PosDefDiagnostics()
+        for k in 1:(Gate0PosteriorEnv._POSDEF_POINT_CAP + 5)
+            Gate0PosteriorEnv._soft_logf(rawthrow, [1.0], 0.0, Float64(k), 0.0, dg2)
+        end
+        @test dg2.failures == Gate0PosteriorEnv._POSDEF_POINT_CAP + 5
+        @test length(dg2.points) == Gate0PosteriorEnv._POSDEF_POINT_CAP
+        # (c) 中域/占比负控 → fail loudly；远角不触发
+        dg3 = Gate0PosteriorEnv.PosDefDiagnostics()
+        dg3.attempts = 10; dg3.failures = 1
+        push!(dg3.points, (0.5, 0.0))
+        @test _throws_msg(() -> Gate0PosteriorEnv._assert_posdef_safe(dg3, 0.0, 0.0), "R4 fail-loud")
+        dg4 = Gate0PosteriorEnv.PosDefDiagnostics()
+        dg4.attempts = 1000; dg4.failures = 2
+        push!(dg4.points, (-12.0, -12.0))
+        @test Gate0PosteriorEnv._assert_posdef_safe(dg4, 0.0, 0.0) === nothing
+        dg5 = Gate0PosteriorEnv.PosDefDiagnostics()
+        dg5.attempts = 10; dg5.failures = 5
+        push!(dg5.points, (-12.0, -12.0))
+        @test _throws_msg(() -> Gate0PosteriorEnv._assert_posdef_safe(dg5, 0.0, 0.0), "R4 fail-loud")
+        # (d) 证书/refval/全失败防护（2D；模拟非有限求值）
+        logf_badcert = (u0, up) -> (u0 <= -5.0 + 1e-12 ? -Inf : -(u0^2 + up^2))
+        @test _throws_msg(() -> adaptive_quadrature_2d(logf_badcert, (-5.0, 5.0), (-5.0, 5.0);
+                                                       tol = 1e-4), "R4 fail-loud")
+        logf_badref = (u0, up) -> (u0 == -3.0 && up == -3.0 ? -Inf : -(u0^2 + up^2))
+        @test _throws_msg(() -> adaptive_quadrature_2d(logf_badref, (-5.0, 5.0), (-5.0, 5.0);
+                                                       tol = 1e-4), "R4 fail-loud")
+        logf_allbad = (u0, up) -> -Inf
+        @test _throws_msg(() -> adaptive_quadrature_2d(logf_allbad, (-5.0, 5.0), (-5.0, 5.0);
+                                                       tol = 1e-4), "R4 fail-loud")
+        # (e) 正常档零改变：软包装不触发、诊断零失败、确定性重放
+        rng = MersenneTwister(SEED + 11)
+        N2, P2, n2 = 2, 3, 30
+        X2 = randn(rng, n2, P2)
+        G2 = 0.5 .* randn(rng, N2, P2)
+        Y2 = X2 * G2' .+ 0.3 .* randn(rng, n2, N2)
+        dgok = Gate0PosteriorEnv.PosDefDiagnostics()
+        postA = fit_full_posterior(X2, Y2; tol = 1e-4, posdef_diag = dgok)
+        postB = fit_full_posterior(X2, Y2; tol = 1e-4)
+        @test postA.alpha_nodes == postB.alpha_nodes && postA.alpha_weights == postB.alpha_weights
+        @test dgok.failures == 0 && dgok.attempts > 0
     end
 end

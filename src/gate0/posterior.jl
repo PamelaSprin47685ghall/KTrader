@@ -9,8 +9,12 @@
 #
 # 数学权威：docs/GATE0_RESPONSE_POSTERIOR.md（下称 RP）——本文件全部闭式
 # 按其公式编号实现：S(α)（RP §4.2）、marginal evidence（RP §4.3）、
-# matrix-t（RP §4.4）、D-035a 修正先验（RP §5.4/§6.1）、quadrature
-# （RP §6）、within/between 分解（RP §7.2）、输出契约（RP §7.3）。
+# matrix-t（RP §4.4）、quadrature（RP §6）、within/between 分解
+# （RP §7.2）、输出契约（RP §7.3）。
+# 先验：RP §5.4 的 D-035a（p(α)∝1/[α(1+α)]）已被 Gate-0 P0-8 裁决替换
+# 为 proper hierarchical prior τ~HalfCauchy(0,1)（p(α)∝1/[√α(1+α)]，
+# log 坐标 (1/2)u−log(1+e^u)）；RP §5.4 的 propriety 论证与 quadrature
+# 语义不变（右尾仍衰减可积，tail 证书按统一判据签发，无弱信息特例分支）。
 # 管理裁决（docs/GATE0_MANAGER_ADJUDICATIONS.md）：D-035a（裁决 B）、
 # 类型字段 G7（node evidence 与 ν 绑定）、抽样契约 F（μ 通道 matrix-t
 # 后验抽样、quadrature 确定性不消耗 RNG）。
@@ -117,18 +121,201 @@ function s_alpha(st::SufficientStats, lam::Vector{Float64})
 end
 
 # ---------------------------------------------------------------------------
+# 阶段 1：Λ 秩一预分解路径（FIRST-DAY-FIT-1；见
+# docs/FIRST_DAY_FIT_COST_ACCELERATION.md）。仅内部使用、默认关闭。
+# 数学恒等式：Λ = αp·I + (α0−αp)e1e1ᵀ ⇒ A = B + δe1e1ᵀ（B = Sxx+αp·I）；
+# log|A| = log|B| + log(1+δ·e1ᵀB⁻¹e1)（行列式引理）；
+# A⁻¹Sxy = B⁻¹Sxy − δ·(B⁻¹e1)((e1ᵀB⁻¹)Sxy)/(1+δ·e1ᵀB⁻¹e1)（SM）。
+# 预分解 Sxx = Q·diag(λ)·Qᵀ 一次；逐节点 O(P) + O(P²N)。
+# ---------------------------------------------------------------------------
+
+struct SxxRankOneSpec
+    Q::Matrix{Float64}
+    lam::Vector{Float64}
+    v::Vector{Float64}
+    W::Matrix{Float64}
+end
+
+function _rank1_spec(st::SufficientStats)
+    F = eigen(Symmetric(st.Sxx))
+    Q = Matrix(F.vectors)
+    lam = Vector{Float64}(F.values)
+    SxxRankOneSpec(Q, lam, Q[1, :], Q' * st.Sxy)
+end
+
+function _log_evidence_rank1(st::SufficientStats, lam::Vector{Float64},
+                             spec::SxxRankOneSpec)
+    P = size(st.Sxx, 1)
+    N = size(st.Syy, 1)
+    α0 = lam[1]; αp = lam[2]
+    all(==(αp), view(lam, 2:P)) ||
+        error("_log_evidence_rank1: lam must be DC rank-one form [α0, αp…]")
+    δ = α0 - αp
+    d = spec.lam .+ αp
+    all(>(0.0), d) ||
+        error("_log_evidence_rank1: shifted eigenvalue ≤ 0 (numerical)")
+    logdet_B = sum(log, d)
+    # CS 层重排（2026-10-10；不改数学）：手写循环去分配（原 .^2 ./ d 双临时）。
+    e1Be1 = 0.0
+    @inbounds for i in 1:P
+        e1Be1 += spec.v[i]^2 / d[i]
+    end
+    denom = 1.0 + δ * e1Be1
+    (isfinite(denom) && denom > 0.0) ||
+        error("_log_evidence_rank1: SM denominator nonpositive (numerical)")
+    # CS 层重排（2026-10-10；不改数学）：两次 Q 乘合并为单次 GEMM（减少
+    # BLAS 调用次数——小尺寸高频调用开销是 measured 瓶颈嫌疑）；修正项改
+    # 广播（省一个 P×N 外积分配）。第二因子仍为 (B⁻¹e1)ᵀ·Sxy（修复保留）。
+    QZ = spec.Q * hcat(spec.v ./ d, spec.W ./ d)
+    Bie1 = QZ[:, 1]
+    Bis = QZ[:, 2:(N + 1)]
+    w1 = Bie1' * st.Sxy
+    Ais = Bis .- (δ / denom) .* Bie1 .* w1
+    Sraw = st.Syy .- st.Sxy' * Ais
+    Sα = Symmetric((Sraw + Sraw') ./ 2)
+    logdet_lam = sum(log, lam)
+    # R4'''：Sα 的 logdet 改走 eigen-based 鲁棒路径（F1/F2；cholesky(Sα)
+    # 在 n<P 早期行的低 α 端抛 PosDefException）。
+    (N / 2) * logdet_lam - (N / 2) * (logdet_B + log(denom)) -
+        (st.n / 2) * _robust_logdet_psd(Sα)
+end
+
+# 回退包装（阶段 1；fail-soft）：spec === nothing → 原路径；SM 防护断言
+# 触发（文本含 "_log_evidence_rank1"）→ 逐点回退原路径；其它错误（含
+# 原路径自身失败）原样外逸（fail loudly，不改现状语义）。
+function _evidence_eval(st::SufficientStats, lam::Vector{Float64},
+                        spec::Union{Nothing,SxxRankOneSpec})
+    spec === nothing && return log_evidence(st, lam)
+    try
+        _log_evidence_rank1(st, lam, spec)
+    catch err
+        if err isa ErrorException && occursin("_log_evidence_rank1", err.msg)
+            return log_evidence(st, lam)
+        end
+        rethrow()
+    end
+end
+
+# ---------------------------------------------------------------------------
+# R4'''（2026-10-10；F1/F2：PosDefException @ cholesky(Sα)）——鲁棒 logdet + 防御
+# ---------------------------------------------------------------------------
+# 规格：docs/EARLY_ROW_FIT_FAILURE_DIAGNOSIS.md §8（R4' 前提被 F2 推翻后修订）。
+# F2 实测：n=2000、P=911 粗扫描 441/441 全失败、中域 121 点；eigmin(Sα) 在
+# [-2.65e-12, -2.70e-13]（数值噪声级）；n=14044 不崩（train 规模主导）。
+# Sα 理论 PSD（n≫N），负特征值为舍入噪声 → eigen-based 鲁棒 logdet：
+#   λ < -neg_tol（结构性非正定）→ fail loudly；
+#   其余 λ floor 到 ε_floor = _PSD_FLOOR_REL·scale 后 sum(log)
+#   （floor→0 refinement 要求，待 D-066 定稿）。
+# 防御层：按类型捕获 PosDefException（A=Sxx+Λ 等其它分解）→ 该点 -Inf +
+# 诊断；证书点/refval 点非有限 → fail loudly；中域/占比/全失败 → fail loudly；
+# 最终节点构造 PosDef → fail loudly。数学对象不变（Sα 理论 PSD；floor 是
+# 数值治理，参照 EB_COVARIANCE_FLOOR 先例但语义独立）。正常档零改变
+# （eigen-logdet vs cholesky-logdet 差应 ~roundoff 级，验证核对）。
+# 阈值：保守初始值，待 D-066 refinement 定稿；禁止由运行预算/回测选择。
+const _PSD_FLOOR_REL = 1e-12    # ε_floor（λmax 相对）；floor→0 refinement 要求
+const _PSD_NEG_TOL_REL = 1e-10  # 结构性负值判定（|λ| > 此值·scale ⇒ fail loudly）
+const _POSDEF_MID_DOMAIN_WIDTH = 2.0
+const _POSDEF_MAX_FAILURE_RATIO = 0.2
+const _POSDEF_POINT_CAP = 32
+
+# R4''' 核心：eigen-based 鲁棒 log|S|（N×N；N=65 时便宜、确定性）。
+function _robust_logdet_psd(S::Symmetric{Float64,Matrix{Float64}})
+    F = eigen(S)
+    lam = F.values
+    scale = max(maximum(abs, lam), 1.0)
+    floor_abs = _PSD_FLOOR_REL * scale
+    neg_tol = _PSD_NEG_TOL_REL * scale
+    acc = 0.0
+    @inbounds for i in eachindex(lam)
+        li = lam[i]
+        li < -neg_tol &&
+            error("S_alpha structurally non-PSD: lambda_min=$li (< -$neg_tol, scale=$scale) — R4 fail-loud")
+        li < floor_abs && (li = floor_abs)
+        acc += log(li)
+    end
+    acc
+end
+
+# R4''' 诊断载体（不导出；经 fit_full_posterior 的 posdef_diag kw 就地接收）。
+mutable struct PosDefDiagnostics
+    attempts::Int
+    failures::Int
+    points::Vector{Tuple{Float64,Float64}}
+end
+PosDefDiagnostics() = PosDefDiagnostics(0, 0, Tuple{Float64,Float64}[])
+
+# 防御软包装（logf 路径）：PosDef → -Inf + 记录；其余异常原样外逸。
+function _soft_logf(raw_ev::Function, lam::Vector{Float64}, prior_val::Float64,
+                    u0::Float64, up::Float64, diag::PosDefDiagnostics)
+    diag.attempts += 1
+    try
+        return raw_ev(lam) + prior_val
+    catch err
+        err isa PosDefException || rethrow()
+        diag.failures += 1
+        length(diag.points) < _POSDEF_POINT_CAP && push!(diag.points, (u0, up))
+        return -Inf
+    end
+end
+
+# 防御软包装（纯 evidence 路径：levs 等）：点坐标由 lam 反推。
+function _soft_evidence(raw_ev::Function, lam::Vector{Float64}, diag::PosDefDiagnostics)
+    diag.attempts += 1
+    try
+        return raw_ev(lam)
+    catch err
+        err isa PosDefException || rethrow()
+        diag.failures += 1
+        u0 = log(lam[1]); up = log(lam[2])
+        length(diag.points) < _POSDEF_POINT_CAP && push!(diag.points, (u0, up))
+        return -Inf
+    end
+end
+
+# 最终节点构造（输出对象）：PosDef → fail loudly（不得 -Inf）。
+function _soft_fit_node(st::SufficientStats, lam::Vector{Float64}, w::Float64;
+                        rank1::Bool, spec::Union{Nothing,SxxRankOneSpec})
+    try
+        return _fit_node(st, lam, w; rank1 = rank1, spec = spec)
+    catch err
+        err isa PosDefException || rethrow()
+        error("PosDefException at final-node fit (S construction) — R4 fail-loud")
+    end
+end
+
+# 拟合安全断言：中域失败 / 占比超限 → fail loudly（防御层）。
+function _assert_posdef_safe(diag::PosDefDiagnostics, m0::Float64, mp::Float64;
+                             check_u0::Bool = true)
+    for (u0, up) in diag.points
+        hit = check_u0 && abs(u0 - m0) <= _POSDEF_MID_DOMAIN_WIDTH
+        hit |= abs(up - mp) <= _POSDEF_MID_DOMAIN_WIDTH
+        hit && error("PosDefException inside quadrature mid-domain (point=($u0,$up), mode=($m0,$mp)) — R4 fail-loud")
+    end
+    diag.failures / max(diag.attempts, 1) > _POSDEF_MAX_FAILURE_RATIO &&
+        error("PosDefException failure ratio $(diag.failures)/$(diag.attempts) > $_POSDEF_MAX_FAILURE_RATIO — R4 fail-loud")
+    nothing
+end
+
+# RankOneMul（阶段 2；未导出）：A = Sxx+Λ = B + δe1e1ᵀ 的乘法上下文——
+# A·z = Q(d .* (Qᵀz)) + δ·z₁·e1（O(P²)；替代物化 V/V_fact）。
+# 定义位置必须先于 ConditionalFit 的字段类型引用（顺序修复）。
+struct RankOneMul
+    spec::SxxRankOneSpec
+    d::Vector{Float64}
+    δ::Float64
+end
+
+# ---------------------------------------------------------------------------
 # marginal evidence 与 D-035a 先验（RP §4.3 / §5.4 / §6.1）
 # ---------------------------------------------------------------------------
 
 _log1pexp(u::Float64) = u > 30.0 ? u : log1p(exp(u))
 
-# 裁决 7（2026-10-09）弱信息分类参数（数值分类语义；实测标定见
-# adaptive_quadrature_2d 证书段注释——两类 fixture 的实测 gap 分布：
-# 真弱信息 fold gap=1.09（backtest t=271 fold 2）、中等信息 gap 4.1-7.4
-# （原判据全过）、有信号 > 10；阈值 3 分隔弱信息与中/强信息）。
-const _WEAKINFO_GAP = 3.0      # 峰-平台差低于此值 ⇒ 弱信息形态（换先验锚定）
-const _WEAKINFO_RATE = 1.0     # 先验尾衰减率（log-space 每维 1/unit——D-035a 右尾）
-const _WEAKINFO_SAFETY = 8.0   # 先验锚定的安全余量（log 单位）
+# P0-8 裁决（2026-10-10）：删除 _WEAKINFO_GAP / _WEAKINFO_RATE /
+# _WEAKINFO_SAFETY 弱信息特例机器——其阈值由回测 fixture 标定
+# （backtest t=271 fold 2 gap=1.09、中等信息 gap 4.1-7.4），违反开发守则
+# （禁止用回测 fixture 定数值分支）。HalfCauchy-τ 先验下 tail 证书按统一
+# 判据签发（两端自然衰减），无分类分支。
 
 """
     log_evidence(st, lam) -> Float64
@@ -149,24 +336,30 @@ function log_evidence(st::SufficientStats, lam::Vector{Float64})
     A = cholesky(Symmetric(st.Sxx + Diagonal(lam)))
     S = s_alpha(st, lam)
     logdet_lam = sum(log, lam)
-    (N / 2) * logdet_lam - (N / 2) * logdet(A) - (st.n / 2) * logdet(cholesky(S))
+    # R4'''：S 的 logdet 同走鲁棒路径（rank1/reference 一致）。
+    (N / 2) * logdet_lam - (N / 2) * logdet(A) - (st.n / 2) * _robust_logdet_psd(S)
 end
 
 """
     log_prior_d035a(u0, up) -> Float64
 
-**D-035a 修正先验**（Manager 裁决 B，RP §5.4/§6.1）：
+**proper hierarchical prior：τ ~ HalfCauchy(0,1) 对应的 log 坐标密度**
+（Gate-0 P0-8 裁决恢复；函数名保留历史 `d035a` 标识——D-035a 的
+p(α)∝1/[α(1+α)] 已被裁决换回 HalfCauchy-τ）：
 
 ```
-log 坐标被积修正 = −log(1+α₀) − log(1+α_p) = −log(1+e^{u₀}) − log(1+e^{u_p})
+p(α) ∝ 1/[√α·(1+α)]          (τ = α^{−1/2}，τ ~ HalfCauchy(0,1))
+log p_u(u) = (1/2)·u − log(1+e^u) + C     (u = log α)
 ```
 
-（p(α) ∝ 1/[α(1+α)]；1/α 部分与 log 坐标 Jacobian dα = α·du 精确相消
-——RP §6.1 论证，故 log 坐标上只需本修正因子。）依据纯数学 propriety
-（右尾 e^{−u} 衰减截断零模型平台），**非回测选择**；可被 owner/SPEC
-否决回退（届时后验恒 improper，A3 语义）。
+推导：p_u(u) = p(α)·|dα/du| = e^{u/2}/(1+e^u)，故 log p_u = (1/2)u −
+log(1+e^u)。**两端自然衰减**：u→−∞ 时 ≈ e^{u/2}→0（指数衰减）；
+u→+∞ 时 ≈ e^{−u/2}（可积）——proper prior，非经验标定、非回测选择。
+右尾衰减率（每维 1/2 per unit）慢于旧 D-035a（每维 1/unit），但积分
+仍良定；tail 证书按统一判据签发（P0-8 删除 _WEAKINFO_* 特例分支）。
 """
-log_prior_d035a(u0::Float64, up::Float64) = -(_log1pexp(u0) + _log1pexp(up))
+log_prior_d035a(u0::Float64, up::Float64) =
+    (0.5 * u0 - _log1pexp(u0)) + (0.5 * up - _log1pexp(up))
 
 # ---------------------------------------------------------------------------
 # 类型（RP §6.4 / 施工图 §2.4 / 裁决 G7）
@@ -174,8 +367,8 @@ log_prior_d035a(u0::Float64, up::Float64) = -(_log1pexp(u0) + _log1pexp(up))
 
 """
 propriety gate 证书（D-036）：A2（数据层：n ≥ N 且 rank(Syy) = N——
-违反即 error，文本含 "posterior improper"）；A4（先验层：D-035a 修正
-下右尾证书应绿——**若红是实现 bug**，不再是预期红）。
+违反即 error，文本含 "posterior improper"）；A4（先验层：HalfCauchy-τ
+proper prior 下右尾证书应绿——**若红是实现 bug**，不再是预期红）。
 """
 struct ProprietyCertificate
     a2_n_ge_N::Bool
@@ -192,8 +385,8 @@ B̂ = SxyᵀV（N×P）、V = (Sxx+Λ)⁻¹（列精度以 V 承载，V⁻¹ 按
 """
 struct ConditionalFit
     B_hat::Matrix{Float64}        # N×P
-    V::Matrix{Float64}            # P×P = (Sxx+Λ)⁻¹
-    V_fact::Cholesky{Float64,Matrix{Float64}}   # V 的 Cholesky（求解入口）
+    V::Union{Matrix{Float64},Nothing}   # P×P = (Sxx+Λ)⁻¹；rank1=true 时未物化（nothing）
+    V_fact::Union{Cholesky{Float64,Matrix{Float64}},RankOneMul}  # 求解/乘入口（lazy 时 = A·z 上下文）
     S_alpha::Matrix{Float64}      # N×N（matrix-t 行尺度）
     nu::Int                       # ν = n+1−N（精确绑定，裁决 G7）
     weight::Float64               # 节点后验质量 p_k
@@ -242,25 +435,39 @@ end
 
 """
     adaptive_quadrature_2d(logf, u0_range, up_range;
-        tol = 1e-6, max_cells = 2048, tail_rel = 1e-10,
-        init_grid = 4) -> (; nodes, weights, logZ, n_cells, rel_err)
+        tol = 1e-6, max_cells = 8192, tail_rel = 1e-10,
+        init_grid = 4, m_ref = -Inf) -> (; nodes, weights, logZ, n_cells, rel_err)
 
 (log α₀, log α_p) ∈ R² 的**确定性自适应** cell quadrature（RP §6.2-6.3；
 D-038：节点数不是策略参数，密度由误差证书驱动）：
 
 - **初始网格**：`init_grid × init_grid` 均匀 cell 覆盖给定域；
-- **cell 积分**：中点规则（cell 中心 logf × 面积，log 空间减 max 稳定化）；
-- **误差估计**：cell 四顶点被积函数极差 × 面积（局部变差上界）；
+- **cell 积分**：张量积 Gauss-Legendre 2 点规则（每维节点 ±1/√3、权 1；
+  二维张量权积归一 /4；log 空间减 max 稳定化）——per-cell 误差 ~h⁶，
+  光滑被积函数下相对误差指数从 O(1/N)（中点规则）提升到 O(N^{-2}) 起；
+- **误差估计**：张量积 3 点 G-L 对照（节点 0,±√(3/5)、权 8/9,5/9）与
+  2 点主规则之差 × 安全因子 s：`s·|I₃ₓ₃−I₂ₓ₂|`（s 初始 1，D-066 由 E2
+  实验定稿）——紧且不放松收敛判据语义（仍是确定性相对误差证书）；
 - **细分**：误差贡献最大的 cell 沿长边二分；**全局误差证书** =
   Σ cell 误差 ≤ tol·Z 时停止；
 - **确定性**：节点生成不消耗随机数（RP §6.2）；同输入同配置逐位可重放；
 - **预算耗尽**（cell 数 > max_cells 仍未达 tol）→ `error`，文本含
   **"Numerical integration did not converge"**（D-067；禁止「到预算就
-  返回当前值」）；
-- **尾质量证书**：域边界 8 点（4 角 + 4 边中点）的 logf ≤ max_logf +
-  log(tail_rel)——左尾指数衰减（RP §5.2）、右尾 D-035a 后 ~e^{−u}
-  （RP §5.4）；违反即 error（同 D-067 文本——D-035a 修正下若红是
-  实现 bug，不再是预期红，RP §10 #2）。
+  返回当前值」；运行超时的正确行为是 fail / 缩小 fixture，**不是放宽
+  tol**——P0-7 纪律）。`max_cells` 默认 **8192**（Manager 裁决 2026-10-10：
+  与一维路径 `_adaptive_quadrature_1d` 的 4× 预算对称对齐——1D 路径由
+  调用方传 `4*max_cells`，2D 路径直接默认 8192；求值成本已因 u_span=5
+  域面积 4 倍缩小而下降。这是消除 1D/2D 预算不对称，**不是放宽数学
+  tolerance**（P0-7 仍要求 tol=1e-6）；8192 仍不收敛则 fail loudly。
+- **尾质量证书**：域边界 8 点（4 角 + 4 边中点）的 logf ≤ 峰值参考 +
+  log(tail_rel) + log(域面积)——左尾指数衰减（RP §5.2）、右尾
+  HalfCauchy-τ 后 ~e^{−u/2}（可积）；违反即 error（同 D-067 文本——
+  proper prior 下若红是实现 bug，不再是预期红，RP §10 #2）。
+- **峰值参考 m_ref**：调用方应传粗扫描 mode（fit_full_posterior 的
+  mval，与一维版 _adaptive_quadrature_1d 同语义）——内部 init_grid²
+  个网格点在峰尖时可能显著低估峰值，使边界点相对落差不足而误报红；
+  -Inf 时回退到内部 init_grid² 点 max（仅诊断/独立调用用）。m_ref
+  是 D-038 bracket 语义（粗扫描 mode 作参考），不是经验阈值/特例分支。
 
 返回 `(; nodes, weights, logZ, n_cells, rel_err)`：nodes 为 cell 中心、
 weights 为归一化 cell 质量、logZ 为（减 max 稳定化后的）log 积分。
@@ -269,9 +476,10 @@ function adaptive_quadrature_2d(logf::Function,
                                 u0_range::Tuple{Float64,Float64},
                                 up_range::Tuple{Float64,Float64};
                                 tol::Float64 = 1e-6,
-                                max_cells::Int = 2048,
+                                max_cells::Int = 8192,
                                 tail_rel::Float64 = 1e-10,
-                                init_grid::Int = 4)
+                                init_grid::Int = 4,
+                                m_ref::Float64 = -Inf)
     (u0lo, u0hi) = u0_range; (uplo, uphi) = up_range
     u0hi > u0lo || throw(ArgumentError("adaptive_quadrature_2d: empty u0 range"))
     uphi > uplo || throw(ArgumentError("adaptive_quadrature_2d: empty up range"))
@@ -279,49 +487,32 @@ function adaptive_quadrature_2d(logf::Function,
     bpts = [(u0lo, uplo), (u0hi, uplo), (u0lo, uphi), (u0hi, uphi),
             ((u0lo + u0hi) / 2, uplo), ((u0lo + u0hi) / 2, uphi),
             (u0lo, (uplo + uphi) / 2), (u0hi, (uplo + uphi) / 2)]
-    # 内部参考最大值（中心 + 初始网格点）
+    # 峰值参考 refval：调用方传粗扫描 mode（fit_full_posterior 的 mval，
+    # 与一维版 _adaptive_quadrature_1d 同语义）——内部 init_grid² 个点
+    # 在峰尖时可能显著低估峰值，使边界点相对落差不足而误报红（N=4 无
+    # 信号 fixture 实测红）；-Inf 回退到内部点 max（仅诊断/独立调用）。
+    # m_ref 是 D-038 bracket 语义（粗扫描 mode 作参考），非经验阈值。
     inner = [(u0lo + i * (u0hi - u0lo) / (init_grid + 1),
               uplo + j * (uphi - uplo) / (init_grid + 1))
              for i in 1:init_grid, j in 1:init_grid]
-    m_ref = maximum(logf(p[1], p[2]) for p in inner)
-    # 尾质量证书（Wave 3 收尾轮修正 + 裁决 7 弱信息分支）：
-    #
-    # 【有信息形态（峰平台差 ≥ 弱信息分类阈值）】判据不变：
-    #   边界 logf ≤ m_ref + log(tail_rel) + log(域面积)
-    # （Wave 3 的 area 因子——忠实「域外/域内质量比」语义。）
-    #
-    # 【弱信息形态（裁决 7，2026-10-09）】数学事实：α₀ 弱信息时 fold
-    # posterior 在 α₀ 方向 ≈ 先验 1/[α₀(1+α₀)]（log-space 尾衰减
-    # e^{−2u}——两维各 1/unit），积分良定（D-036 propriety 由先验结构
-    # 保证）。原相对判据以 m_ref（内部参照峰）为锚——弱信息时峰平台
-    # 差小，相对语义失真（backtest 多日串联的 fold 日间波动实测触发
-    # 假阳性）。弱信息分支改用**先验尾衰减锚定**：
-    #   边界 logf ≤ 平台值 − 2·(u_max − u_ref) + 安全余量
-    # 其中 u_max − u_ref = 边界到域中心参照的**右尾距离和**
-    # （max(0, u₀−r₀) + max(0, u_p−r_p)——左尾先验不衰减、其衰减由
-    # evidence 的 log|Λ| 线性项结构性承担）；衰减率 _WEAKINFO_RATE
-    #（=1：D-035a 右尾每维 1/unit 的解析值）与安全余量为保守数值
-    # 分类参数（实测标定：真弱信息 fold gap=1.09 走此分支且全过、
-    # 中等信息 gap 4.1-7.4 走原判据全过——阈值 3 分隔两类）。
-    # **真的不衰减（边界 ≥ 平台）仍然红**、错误文本不变——这不是
-    # tail_rel 放松：有信息形态判据完全不变，只对弱信息形态换锚定
-    # 基准。
+    inner_vals = [logf(p[1], p[2]) for p in inner]
+    all(isfinite, inner_vals) ||
+        error("PosDefException at quadrature refval point — R4 fail-loud")
+    refval = max(isfinite(m_ref) ? m_ref : -Inf, maximum(inner_vals))
+    # 尾质量证书（P0-8 裁决后统一判据）：边界 8 点（4 角 + 4 边中点）的
+    # logf ≤ refval + log(tail_rel) + log(域面积)——忠实「域外/域内质量
+    # 比」语义。HalfCauchy-τ 先验下两端自然衰减（左尾 ~e^{u/2}、右尾
+    # ~e^{−u/2}），证书应绿；红是实现 bug（不再有弱信息特例分支——不
+    # 以回测 fixture 定数值分支，开发守则）。
     area = (u0hi - u0lo) * (uphi - uplo)
-    plateau = maximum(logf(p[1], p[2]) for p in bpts)
-    weak_info = (m_ref - plateau) < _WEAKINFO_GAP
-    r0 = (u0lo + u0hi) / 2
-    rp = (uplo + uphi) / 2
-    if !weak_info
-        tail_ok = all(logf(p[1], p[2]) <= m_ref + log(tail_rel) + log(area)
-                      for p in bpts)
-    else
-        tail_ok = all(logf(p[1], p[2]) <=
-                      plateau - _WEAKINFO_RATE * (max(0.0, p[1] - r0) + max(0.0, p[2] - rp)) +
-                      _WEAKINFO_SAFETY
-                      for p in bpts)
-    end
-    tail_ok || error("Numerical integration did not converge: alpha tail mass certificate failed (D-035a prior; red = implementation bug, not expected red)")
-    # cell 表示：矩形 + 顶点/中心 logf（顶点缓存避免重复求值）
+    # R4''' 证书点防护：非有限（防御软包装吞后的 -Inf）→ fail loudly。
+    bvals = [logf(p[1], p[2]) for p in bpts]
+    all(isfinite, bvals) ||
+        error("PosDefException at quadrature certificate point — R4 fail-loud")
+    tail_ok = all(bvals[i] <= refval + log(tail_rel) + log(area)
+                  for i in eachindex(bpts))
+    tail_ok || error("Numerical integration did not converge: alpha tail mass certificate failed (HalfCauchy-tau prior; red = implementation bug, not expected red)")
+    # cell 表示：矩形 + G-L 节点 logf 缓存（节点坐标缓存避免重复求值）
     vcache = Dict{Tuple{Float64,Float64},Float64}()
     fv(u0, up) = get!(() -> logf(u0, up), vcache, (u0, up))
     cells = Vector{Any}()
@@ -332,34 +523,87 @@ function adaptive_quadrature_2d(logf::Function,
         c = uplo + (j - 1) * dup; d = uplo + j * dup
         push!(cells, (a, b, c, d))
     end
-    m = maximum(fv((a + b) / 2, (c + d) / 2) for (a, b, c, d) in cells)
-    # cell 误差代理：中点-梯形差（Simpson 型；Wave 3 收尾轮同步一维修
-    # 正到二维——原「顶点极差」对线性函数不为零、对光滑峰保守 ~1/h
-    # 倍，1024 cells 预算下 rel 停在 0.33 结构性不收敛。四角梯形均值与
-    # 中心中点之差 × 面积：对双线性函数恰为零、对光滑函数与中点规则
-    # 真误差同阶——紧且不放松收敛判据语义（仍是确定性相对误差证书）。
+    # --- m 基准修复（真数据首日溢出，2026-10-10）---
+    # 旧实现 m 只取初始 cell 中心 max——中点规则时代 m 与采样点同点自洽
+    # （exp(fv−m) ≤ 1 恒成立）；G-L 节点偏离中心（±1/√3、±√(3/5)）在陡峭
+    # logf（真数据大 P 实测节点超中心 +502.7）下使 exp(fv−m) 溢出 → Inf。
+    # 修复：m 覆盖 cell_val/cell_err 实际求值的全部节点（cell_peak = 2 点
+    # 4 节点 ∪ 3 点 9 节点的 max）；细分中若新节点超 m，循环内经 cell_peak
+    # 检查后更新 m 并全量刷新（见细分段）。m 是纯归一化基准：logZ =
+    # log(total) + m 补偿、rel 为公因子比值——数学对象与容差语义不变。
+    function cell_peak(cell)
+        a, b, c, d = cell
+        mx = (a + b) / 2; hx = (b - a) / 2
+        my = (c + d) / 2; hy = (d - c) / 2
+        g2 = 1.0 / sqrt(3.0)
+        g3 = sqrt(3.0 / 5.0)
+        max(fv(mx - hx * g2, my - hy * g2), fv(mx - hx * g2, my + hy * g2),
+            fv(mx + hx * g2, my - hy * g2), fv(mx + hx * g2, my + hy * g2),
+            fv(mx - hx * g3, my - hy * g3), fv(mx - hx * g3, my),
+            fv(mx - hx * g3, my + hy * g3),
+            fv(mx, my - hy * g3), fv(mx, my), fv(mx, my + hy * g3),
+            fv(mx + hx * g3, my - hy * g3), fv(mx + hx * g3, my),
+            fv(mx + hx * g3, my + hy * g3))
+    end
+    m = maximum(cell_peak(c) for c in cells)
+    isfinite(m) ||
+        error("PosDefException: all quadrature cell nodes failed — R4 fail-loud")
+    # --- 局部规则升级（方案 a；设计文档 §4）---
+    # 2 点 G-L 主规则（每维 ±1/√3、权 1）per-cell 误差 ~h⁶；3 点对照
+    # （0,±√(3/5)、权 8/9,5/9）提供 `s·|I₃ₓ₃−I₂ₓ₂|` 误差代理——光滑
+    # 函数下与真误差同阶（E2 验证保守性），相对误差指数从 O(1/N) 提升
+    # 到 O(N^{-2}) 起。s 初始 1（D-066 候选，E2 定稿）；判据仍是确定性
+    # 相对误差证书。
     function cell_err(cell)
         a, b, c, d = cell
-        area = (b - a) * (d - c)
-        g1, g2, g3, g4 = (exp(fv(a, c) - m), exp(fv(b, c) - m),
-                          exp(fv(a, d) - m), exp(fv(b, d) - m))
-        gm = exp(fv((a + b) / 2, (c + d) / 2) - m)
-        abs((g1 + g2 + g3 + g4) / 4 - gm) * area
+        mx = (a + b) / 2; hx = (b - a) / 2
+        my = (c + d) / 2; hy = (d - c) / 2
+        g2 = 1.0 / sqrt(3.0)
+        i2 = (exp(fv(mx - hx * g2, my - hy * g2) - m) +
+              exp(fv(mx - hx * g2, my + hy * g2) - m) +
+              exp(fv(mx + hx * g2, my - hy * g2) - m) +
+              exp(fv(mx + hx * g2, my + hy * g2) - m)) / 4
+        g3 = sqrt(3.0 / 5.0)
+        wl = 5.0 / 9.0; wh = 8.0 / 9.0
+        xs = (mx - hx * g3, mx, mx + hx * g3)
+        ys = (my - hy * g3, my, my + hy * g3)
+        acc = 0.0
+        for j in 1:3, i in 1:3
+            wi = i == 2 ? wh : wl
+            wj = j == 2 ? wh : wl
+            acc += wi * wj * exp(fv(xs[i], ys[j]) - m)
+        end
+        i3 = acc / 4
+        s = 1.0
+        s * abs(i3 - i2) * ((b - a) * (d - c))
     end
     function cell_val(cell)
         a, b, c, d = cell
-        exp(fv((a + b) / 2, (c + d) / 2) - m) * (b - a) * (d - c)
+        mx = (a + b) / 2; hx = (b - a) / 2
+        my = (c + d) / 2; hy = (d - c) / 2
+        g = 1.0 / sqrt(3.0)
+        (exp(fv(mx - hx * g, my - hy * g) - m) +
+         exp(fv(mx - hx * g, my + hy * g) - m) +
+         exp(fv(mx + hx * g, my - hy * g) - m) +
+         exp(fv(mx + hx * g, my + hy * g) - m)) * (b - a) * (d - c) / 4
     end
-    Z = sum(cell_val, cells)
-    err_total = sum(cell_err, cells)
+    # （i）循环内重复计算消除（Manager 裁决 2026-10-10；测量证据：A3 栈
+    # 卡点 sum + cell_err 重复调用、1929 cells 的 O(cells²) 全量重算）：
+    # 每 cell (val, err) 只算一次并维护数组；细分后仅更新被拆两 cell 与
+    # 两个全局和（O(1)）；max-err 扫描读已存值、不再重复 cell_err。
+    # 细分顺序语义不变（同一 max-err 定义、tie 取 index 最小）；结果仅有
+    # 求和路径的 roundoff 级差异（增量 vs 全量，验收对照）；证书/容差不变。
+    vals = [cell_val(c) for c in cells]
+    errs = [cell_err(c) for c in cells]
+    Z = sum(vals)
+    err_total = sum(errs)
     rel = Z > 0 ? err_total / Z : Inf
     while rel > tol && length(cells) < max_cells
-        # 误差最大 cell（tie 取 index 最小——确定性）
-        idx = 1; emax = cell_err(cells[1])
-        for k in 2:length(cells)
-            e = cell_err(cells[k])
-            if e > emax
-                emax = e; idx = k
+        # 误差最大 cell（tie 取 index 最小——确定性；读已存 errs，不重算）
+        idx = 1; emax = errs[1]
+        for k in 2:length(errs)
+            if errs[k] > emax
+                emax = errs[k]; idx = k
             end
         end
         a, b, c, d = cells[idx]
@@ -373,8 +617,25 @@ function adaptive_quadrature_2d(logf::Function,
             cells[idx] = (a, b, c, mid)
             push!(cells, (a, b, mid, d))
         end
-        Z = sum(cell_val, cells)
-        err_total = sum(cell_err, cells)
+        # m 覆盖性维护：新 cell 的 G-L 节点可能超过当前 m——先检查；若
+        # 超过则以新 m 全量刷新 vals/errs（基准变化使旧归一值失效；O(N)，
+        # fv 节点缓存命中；仅在 m 增长时发生）；否则保持原增量路径（O(1)）。
+        pm = max(cell_peak(cells[idx]), cell_peak(cells[end]))
+        if pm > m
+            m = pm
+            push!(vals, 0.0); push!(errs, 0.0)   # 与新 cells 同步长度
+            for k in eachindex(cells)
+                vals[k] = cell_val(cells[k]); errs[k] = cell_err(cells[k])
+            end
+            Z = sum(vals); err_total = sum(errs)
+        else
+            v1 = cell_val(cells[idx]); e1 = cell_err(cells[idx])
+            v2 = cell_val(cells[end]); e2 = cell_err(cells[end])
+            Z += v1 + v2 - vals[idx]
+            err_total += e1 + e2 - errs[idx]
+            vals[idx] = v1; errs[idx] = e1
+            push!(vals, v2); push!(errs, e2)
+        end
         rel = Z > 0 ? err_total / Z : Inf
     end
     (rel <= tol) || error("Numerical integration did not converge: budget exhausted at $(length(cells)) cells (relative error estimate $rel > tol $tol) — D-067: no silent return of the last grid")
@@ -391,16 +652,16 @@ end
                             init_grid, m_ref) -> (; nodes, weights, logZ, …)
 
 一维（log α_p）deterministic adaptive cell quadrature——与
-`adaptive_quadrature_2d` 同款逻辑（中点 cell / 顶点极差误差 / 最大误差
-cell 二分 / 预算耗尽 fail loudly，D-067 文本 / 确定性不消耗 RNG）。
+`adaptive_quadrature_2d` 同款逻辑（中点 cell / Simpson 型中点-梯形差
+误差估计 / 最大误差 cell 二分 / 预算耗尽 fail loudly，D-067 文本 /
+确定性不消耗 RNG）。
 
-**存在理由（Wave 3 实测钉死）**：无 DC 形态（P = 14N，Λ = α_p·I）下
-evidence 与 u₀ 无关，而 D-035a 先验的 u₀ 左尾在 log 坐标是常数密度
-（RP §6.1：1/α₀ 与 Jacobian dα₀ = α₀du₀ 精确相消）——**(u₀, u_p)
-二维积分在 u₀ 方向不衰减**（域边界 u₀ 处 logf ≈ 峰值），tail 证书与
-积分对象本身结构性错误。正确对象是**一维 u_p**（α₀ 不在模型，不积分；
-u₀ 占位 0.0，prior 的 u₀ 部分为常数 −log2，不影响 u_p 后验形状）。
-DC 形态（P = 1+14N）仍走二维 `adaptive_quadrature_2d`（D-033 双 group）。
+**存在理由**：无 DC 形态（P = 14N，Λ = α_p·I）下 α₀ 不在模型（不参与
+Λ_α），u₀ 不是积分变量。u₀ 方向的先验密度在 HalfCauchy-τ 下两端衰减、
+积分为常数（归一化后 =1），故二维积分与一维 u_p 积分**数学等价**；
+一维路径避免对无关维度做无谓求值（效率，非数学必需）。u₀ 占位 0.0，
+prior 的 u₀ 部分贡献常数（= −log2），不影响 u_p 后验形状。DC 形态
+（P = 1+14N）仍走二维 `adaptive_quadrature_2d`（D-033 双 group）。
 
 `m_ref`：尾证书参照（调用方传入粗扫描 mode 值——比内部网格点估计更
 接近真峰；-Inf 时用内部 init_grid 点的 max）。
@@ -418,23 +679,17 @@ function _adaptive_quadrature_1d(logf1::Function,
         m_ref = maximum(logf1(uplo + i * (uphi - uplo) / (init_grid + 1))
                         for i in 1:init_grid)
     end
-    # 尾质量证书（同二维版修正 + 裁决 7 弱信息分支同步：有信息形态
-    # +log(域宽) 因子不变；弱信息形态（峰-平台差 < _WEAKINFO_GAP）改
-    # 用先验尾衰减锚定——边界 ≤ 平台 − 2·(u_max − u_ref) + 安全余量，
-    # 一维的右尾距离 = max(0, u − 域中心)；见 adaptive_quadrature_2d
-    # 证书段注释的数学依据）
-    plateau1 = max(logf1(uplo), logf1(uphi))
-    if (m_ref - plateau1) >= _WEAKINFO_GAP
-        tail_ok1 = all(logf1(p) <= m_ref + log(tail_rel) + log(uphi - uplo)
-                       for p in (uplo, uphi))
-    else
-        rc = (uplo + uphi) / 2
-        tail_ok1 = all(logf1(p) <= plateau1 - _WEAKINFO_RATE * max(0.0, p - rc) +
-                       _WEAKINFO_SAFETY
-                       for p in (uplo, uphi))
-    end
+    # 尾质量证书（P0-8 裁决后统一判据，与二维版同步）：域边界端点 logf ≤
+    # m_ref + log(tail_rel) + log(域宽)；HalfCauchy-τ 先验下应绿，红是
+    # 实现 bug（无弱信息特例分支）。
+    # R4''' 证书点防护（1d，与 2D 同步）：非有限 → fail loudly。
+    tv1 = (logf1(uplo), logf1(uphi))
+    all(isfinite, tv1) ||
+        error("PosDefException at quadrature certificate point (1d) — R4 fail-loud")
+    tail_ok1 = all(tv1[i] <= m_ref + log(tail_rel) + log(uphi - uplo)
+                   for i in 1:2)
     tail_ok1 ||
-        error("Numerical integration did not converge: alpha tail mass certificate failed (1d, D-035a prior)")
+        error("Numerical integration did not converge: alpha tail mass certificate failed (1d, HalfCauchy-tau prior)")
     vcache = Dict{Float64,Float64}()
     fv(x) = get!(() -> logf1(x), vcache, x)
     cells = Vector{Tuple{Float64,Float64}}()
@@ -443,6 +698,8 @@ function _adaptive_quadrature_1d(logf1::Function,
         push!(cells, (uplo + (i - 1) * du, uplo + i * du))
     end
     m = maximum(fv((a + b) / 2) for (a, b) in cells)
+    isfinite(m) ||
+        error("PosDefException: all quadrature cell nodes failed (1d) — R4 fail-loud")
     # cell 误差代理：中点-梯形差（Simpson 型）。Wave 3 实测：原「顶点
     # 极差」估计对线性函数不为零——对光滑峰过保守 ~1/h 倍，2048 cells
     # 预算下 rel 停在 2.6e-3（结构性不收敛，D-067 预算耗尽）。中点-
@@ -489,8 +746,32 @@ end
 # 主入口：fit_full_posterior
 # ---------------------------------------------------------------------------
 
-function _fit_node(st::SufficientStats, lam::Vector{Float64}, w::Float64)
+function _fit_node(st::SufficientStats, lam::Vector{Float64}, w::Float64;
+                   rank1::Bool = false,
+                   spec::Union{Nothing,SxxRankOneSpec} = nothing)
     P = size(st.Sxx, 1)
+    N = size(st.Syy, 1)
+    if rank1 && spec !== nothing && all(==(lam[2]), view(lam, 2:P))
+        # 阶段 2 lazy 路径（FIRST-DAY-FIT-1）：全程经 spec、无 cholesky；
+        # A⁻¹Sxy 用 SM（阶段 1 同式）、A·z 由 RankOneMul 承担。O(P²N)。
+        α0 = lam[1]; αp = lam[2]; δ = α0 - αp
+        d = spec.lam .+ αp
+        if all(>(0.0), d)
+            e1Be1 = sum(spec.v .^ 2 ./ d)
+            denom = 1.0 + δ * e1Be1
+            if isfinite(denom) && denom > 0.0
+                Bis = spec.Q * (spec.W ./ d)
+                Bie1 = spec.Q * (spec.v ./ d)
+                Ais = Bis .- ((δ / denom) .* Bie1) * (Bie1' * st.Sxy)
+                Sraw = st.Syy .- st.Sxy' * Ais
+                S = Symmetric((Sraw + Sraw') ./ 2)
+                nu2 = st.n + 1 - N
+                return ConditionalFit(Matrix(Ais'), nothing, RankOneMul(spec, d, δ),
+                                      Matrix(S), nu2, w)
+            end
+        end
+        # 数值防护失败：落到物化路径（fail-soft；不改数学）
+    end
     A = cholesky(Symmetric(st.Sxx + Diagonal(lam)))
     V = A \ Matrix(I, P, P)                 # (Sxx+Λ)⁻¹（对称正定）
     V = Matrix(Symmetric((V + V') ./ 2))
@@ -503,7 +784,7 @@ end
 
 """
     fit_full_posterior(X, Y; prior = :d035a, tol = 1e-6, max_cells = 2048,
-                       alpha_fixed = nothing, u_span = 10.0)
+                       alpha_fixed = nothing, u_span = 5.0)
         -> ResponsePosterior
 
 完整 response 后验（Step 8 主入口）：
@@ -513,9 +794,10 @@ end
    error，文本含 **"posterior improper"**（数据层条件，负测试对象）；
 3. Λ_α 双 group（D-033）：`P == 1+14N`（DC 形态）时 diag(α₀, α_p,…)、
    否则全 α_p（数学层允许任意 P；生产维度契约由上游持有）；
-4. quadrature（RP §6）：log 坐标被积 = `log_evidence + log_prior_d035a`；
-   初始域 = 粗扫描 mode ± u_span（mode 仅作初始 bracket/域中心——
-   D-038：不得定义 posterior）；尾证书 + 预算耗尽 fail loudly（D-067）；
+4. quadrature（RP §6）：log 坐标被积 = `log_evidence + log_prior_d035a`
+   （HalfCauchy-τ proper prior）；初始域 = 粗扫描 mode ± u_span（mode
+   仅作初始 bracket/域中心——D-038：不得定义 posterior）；尾证书 +
+   预算耗尽 fail loudly（D-067）；
 5. 每节点 `_fit_node`（B̂、V、S(α)、ν 绑定）。
 
 `alpha_fixed`（退化入口，测试/诊断用——**先验退化极限** RP §10 #6 的
@@ -523,6 +805,35 @@ end
 （无 DC 形态），跳过 quadrature、单节点 p=[1]（点质量先验）。生产路径
 （`alpha_fixed === nothing`）走 quadrature——**不得**以固定 α 冒充完整
 后验（D-034/D-038）。
+
+**numerical contract 纪律（P0-7）**：`tol` 默认即严格 reference 口径
+（1e-6——D-066 初始候选，留待 refinement 定稿，**禁止由运行预算决定**）。
+预算耗尽 fail loudly（D-067 文本 "Numerical integration did not converge"）
+——运行超时的正确行为是 fail / 缩小 fixture，不是放宽 tolerance。
+
+**max_cells 语义（Manager 裁决 2026-10-10）**：二维路径（DC 形态）不再
+透传本参数——`adaptive_quadrature_2d` 用其自身默认 **8192**（与一维路径
+对称，消除 1D/2D 预算不对称）；一维路径（无 DC 形态）用 `4*max_cells`
+（本参数默认 2048 ⇒ 一维预算 8192）。两路径预算同为 8192 cells。
+
+**u_span 选择（2026-10-10 静态推导）**：默认 `u_span = 5`（从 10 缩小）。
+理由：(1) tail certificate 判据 `logf(boundary) ≤ refval + log(tail_rel)
++ log(area)` 中 `tail_rel=exp(−u_span)`、`area=(2·u_span)²`，使边中点判据
+允许平台-峰差 Δ ≤ 0.5·u_span + log(4·u_span²) − u_span；u_span=5 时
+Δ ≤ 2.895（覆盖实测纯噪声 Δ≈2.2 与无信号 Δ≈0），u_span=4 时 Δ ≤ 1.84
+（对 Δ=2.2 红，不安全）——故 5 是静态推导支持的最小安全值。(2) 域缩小
+（[-5,5]² vs [-10,10]²，面积 4 倍）减少低密度区 cell 浪费、改善收敛。
+**注意**：这是数值域参数（D-066 初始候选），不是放宽 tolerance——tail
+certificate 仍保护先验尾部不被截断（域端点质量可忽略由证书保证）。
+收敛的**完整**解决（DC 形态下 α₀/α_p 尺度各向异性 + u₀ 方向平台结构）
+属 Gate-1 坐标变换/初始网格范畴，本步只做安全域缩小。
+
+**R4'''（2026-10-10；F1/F2：PosDefException @ cholesky(Sα)）**：Sα 的 logdet
+改走 eigen-based 鲁棒路径（负噪声特征值 floor 到 ε_floor=_PSD_FLOOR_REL·scale；
+结构性负值 fail loudly）；防御层按类型捕获 PosDefException → 该点 logf=-Inf
++ 诊断；证书点/refval 点非有限 → fail loudly；中域/占比/全失败 → fail loudly。
+阈值 _PSD_* / _POSDEF_* 为保守初始值（待 D-066 定稿）；tol/门禁/max_cells 原样。
+可选 posdef_diag kw 接收诊断。正常档零改变（eigen vs cholesky ~roundoff 级）。
 """
 function fit_full_posterior(X::AbstractMatrix{Float64},
                             Y::AbstractMatrix{Float64};
@@ -530,7 +841,11 @@ function fit_full_posterior(X::AbstractMatrix{Float64},
                             tol::Float64 = 1e-6,
                             max_cells::Int = 2048,
                             alpha_fixed = nothing,
-                            u_span::Float64 = 10.0)
+                            u_span::Float64 = 5.0,
+                            rank1::Bool = false,
+                            # R4'''（F1/F2）：可选诊断出口（不导出；传入的
+                            # mutable 对象被就地填充）。不传时内部照常做安全断言。
+                            posdef_diag::Union{Nothing,PosDefDiagnostics} = nothing)
     prior in (:d035a, :point_mass) ||
         throw(ArgumentError("fit_full_posterior: prior must be :d035a or :point_mass (got $prior)"))
     st = sufficient_stats(X, Y)
@@ -563,7 +878,17 @@ function fit_full_posterior(X::AbstractMatrix{Float64},
     end
     # --- 生产路径：D-035a quadrature（RP §6）---
     prior == :d035a || throw(ArgumentError("fit_full_posterior: prior=:point_mass requires alpha_fixed"))
-    logf(u0, up) = log_evidence(st, lambda_diag(P, u0, up, has_a0)) + log_prior_d035a(u0, up)
+    # 阶段 1（FIRST-DAY-FIT-1；默认关闭）：rank1=true 且 DC 形态时，对每点
+    # log_evidence 走 Λ 秩一预分解路径（SM/行列式引理）；数值防护失败
+    # （非正特征移位/SM 分母非正）逐点回退原路径（fail-soft，不改数学）。
+    _spec = (rank1 && has_a0) ? _rank1_spec(st) : nothing
+    # R4'''（F1/F2）：防御性软包装——PosDef → 该点 logf = -Inf + 记录；
+    # 核心 Sα 路径已由 _robust_logdet_psd 承担（eigen + floor），见上。
+    diag = posdef_diag === nothing ? PosDefDiagnostics() : posdef_diag
+    _raw_ev(lam_::Vector{Float64}) = _evidence_eval(st, lam_, _spec)
+    _ev(lam_::Vector{Float64}) = _soft_evidence(_raw_ev, lam_, diag)
+    logf(u0, up) = _soft_logf(_raw_ev, lambda_diag(P, u0, up, has_a0),
+                              log_prior_d035a(u0, up), u0, up, diag)
     # 粗扫描 mode：仅作初始域中心（D-038 bracket 语义，不定义 posterior）
     grid = range(-12.0, 12.0; length = 21)
     m0, mp, mval = 0.0, 0.0, -Inf
@@ -573,24 +898,29 @@ function fit_full_posterior(X::AbstractMatrix{Float64},
             mval = v; m0 = u0; mp = up
         end
     end
+    isfinite(mval) ||
+        error("PosDefException: all coarse-scan points failed — R4 fail-loud")
     if has_a0
         # DC 形态（P=1+14N）：(u₀, u_p) 二维 quadrature（D-033 双 group）
+        # max_cells 不显式传（默认 8192——Manager 裁决 2026-10-10 与 1D
+        # 路径对称；fit_full_posterior 的 max_cells 参数仍透传给一维路径
+        # 的 4*max_cells，二维路径用默认值，避免调用方误传旧 2048）。
         quad = adaptive_quadrature_2d(logf, (m0 - u_span, m0 + u_span),
                                       (mp - u_span, mp + u_span);
-                                      tol = tol, max_cells = max_cells,
-                                      tail_rel = exp(-u_span))
+                                      tol = tol,
+                                      tail_rel = exp(-u_span),
+                                      m_ref = mval)   # 粗扫描 mode 作峰值参考
         nodes = quad.nodes
         weights = quad.weights
         logZ = quad.logZ
     else
-        # 无 DC 形态（P=14N）：α₀ 不在模型（Λ = α_p·I）——evidence 与
-        # u₀ 无关、u₀ 左尾先验 log 坐标密度为常数（RP §6.1 相消论证）
-        # ⇒ 二维积分在 u₀ 方向不衰减（Wave 3 实测：域边界 u₀ 处
-        # logf ≈ 峰值，tail 证书结构性失败）。正确对象 = 一维 u_p
-        # quadrature（α₀ 不积分；u₀ 占位 0.0，prior 的 u₀ 部分为常数
-        # −log2，不影响 u_p 后验形状）。
-        logf1(up) = log_evidence(st, lambda_diag(P, 0.0, up, false)) +
-                    log_prior_d035a(0.0, up)
+        # 无 DC 形态（P=14N）：α₀ 不在模型（Λ = α_p·I），u₀ 不是积分变量。
+        # u₀ 方向的 HalfCauchy-τ 先验密度两端衰减、积分为常数（归一化后
+        # =1），二维积分与一维 u_p 积分数学等价——一维路径只避免对无关
+        # 维度做无谓求值。u₀ 占位 0.0，prior 的 u₀ 部分贡献常数
+        # （= −log2），不影响 u_p 后验形状。
+        logf1(up) = _soft_logf(_raw_ev, lambda_diag(P, 0.0, up, false),
+                                log_prior_d035a(0.0, up), 0.0, up, diag)
         # 一维 cell 预算按维度匹配放宽 4×（Wave 3 实测：紧误差估计器下
         # tol=1e-6 需 ~2048+ cells，rel=1.89e-6 差 1.9 倍撞顶）。一维
         # cell 的求值成本 ~ 二维同数的 1/2048——8192 一维 cells 的总
@@ -604,9 +934,11 @@ function fit_full_posterior(X::AbstractMatrix{Float64},
         logZ = quad1.logZ
         (m0, mval) = (0.0, mval)   # u₀ 占位（nodes 已携带）
     end
-    conds = [_fit_node(st, lambda_diag(P, u0, up, has_a0), weights[k])
+    conds = [_soft_fit_node(st, lambda_diag(P, u0, up, has_a0), weights[k];
+                            rank1 = rank1, spec = _spec)
              for (k, (u0, up)) in enumerate(nodes)]
-    levs = [log_evidence(st, lambda_diag(P, u0, up, has_a0)) for (u0, up) in nodes]
+    levs = [_ev(lambda_diag(P, u0, up, has_a0)) for (u0, up) in nodes]
+    _assert_posdef_safe(diag, m0, mp; check_u0 = has_a0)   # R4'''：防御断言
     ResponsePosterior(n, N, P, has_a0, :d035a,
         nodes, weights, levs, logZ,
         ProprietyCertificate(true, true, true, true), conds,
@@ -662,8 +994,16 @@ function predict_mu(post::ResponsePosterior, x_t::AbstractVector{Float64})
        between = between, within_computed = within_computed)
 end
 
-# V·z 的求解入口（V_fact = cholesky(V)；V 对称正定）
-V_solve(c::ConditionalFit, z::Vector{Float64}) = c.V_fact \ z
+
+function _mul_A(rm::RankOneMul, z::Vector{Float64})
+    y = rm.spec.Q * (rm.d .* (rm.spec.Q' * z))
+    y[1] += rm.δ * z[1]
+    y
+end
+
+# V·z 的求解入口（默认 = V_fact \ z = A·z；lazy = RankOneMul 的 A·z）
+V_solve(c::ConditionalFit, z::Vector{Float64}) =
+    c.V_fact isa RankOneMul ? _mul_A(c.V_fact, z) : (c.V_fact \ z)
 
 """
     draw_mu(posterior, x_t, rng) -> Vector{Float64}

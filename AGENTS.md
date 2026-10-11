@@ -1,3 +1,941 @@
+验收结论先给：
+
+\[
+\boxed{\textbf{当前版本不通过 Gate 0 验收。}}
+\]
+
+但和上一个版本不同，这次不是方向错了。**主体架构已经走对了，值得保留；现在是几个关键数学合同还没真正闭合。** 我没有运行任何测试、回测或 benchmark。按开发守则，静态已经发现确定问题，此时继续跑反而不合规。
+
+另外，本次 Repomix 明确排除了 `AGENTS.md`、`docs/` 和 `dev/evidence`，所以我能验收的是**源码实现**，不能替你确认最新规范文档是否已经全部从 Draft 升为 Final。repomix-output
+
+## 一、已经通过静态验收的骨架
+
+这几块我认为可以保留，不要返工。
+
+| 对象 | 结论 |
+|---|---|
+| observation / model admission / trade eligibility / executable 分离 | **PASS** |
+| `Bars.bar` 类观测事实与策略资格分离 | **PASS** |
+| benchmark universe 外生化 | **PASS** |
+| cash numeraire Kelly | **PASS** |
+| 不加 max-weight / fractional Kelly | **PASS** |
+| DC / zero-frequency basis | **PASS** |
+| fixed gauge + full cross-response | **PASS** |
+| per-band trace hard constraint 从新线删除 | **PASS** |
+| covariance / response 参数做解析边缘化的方向 | **PASS** |
+| vector innovation 主体结构 | **PASS，细节有 P0 问题** |
+| standardized empirical shape 思路 | **PASS，support 有 P0 问题** |
+| adaptive RQMC + fail-loud 框架 | **PASS，certificate 实现有 P0 bug** |
+| EW daily / EW buy-hold / cash 三 benchmark | **PASS** |
+
+新 `MarketFacts/Eligibility` 的语义拆分做得相当干净：`observed` 只表示真实市场观测，`trade_eligible` 和 `executable` 独立，benchmark 也不再消费模型 active set。repomix-output(20261009-234027) Benchmark 的签名本身已经构造性隔离模型对象。repomix-output(20261009-234027)
+
+Cash Kelly 也确实不是“fractional Kelly 换皮”，而是真正把 \(R_{\rm cash}=1\) 作为显式资产加入 log-growth feasible set。repomix-output(20261009-234027)
+
+所以不要推倒 `src/gate0/`。
+
+---
+
+# 二、P0-1：最重要的裁决没有落实——现在仍然是 3-fold OOF，不是 prequential
+
+这是第一个硬阻断。
+
+当前 `single_day_decision` 仍然暴露：
+
+```julia
+F_folds::Int = 3
+```
+
+repomix-output(20261009-234027)
+
+实际决策链也明确执行：
+
+\[
+\text{fold\_grid}
+\rightarrow
+\text{fit\_fold\_posteriors}
+\rightarrow
+\text{oof\_residual\_rows\_full}
+\rightarrow
+\text{innovation\_state}.
+\]
+
+repomix-output(20261009-234027)
+
+而 `oof.jl` 本身仍然被定义为 “OOF full-mode folds”，训练集是 full minus held-out fold。repomix-output(20261009-234027)
+
+这不是我们裁决的：
+
+\[
+\boxed{
+\epsilon_{t+1}
+=
+r_{t+1}
+-
+E[r_{t+1}\mid\mathcal H_t]
+}
+\]
+
+因为一个历史日期 \(s\) 的 OOF 模型可以使用：
+
+\[
+s+1,s+2,\ldots,t
+\]
+
+这些在 \(s\) 当时尚不存在的数据。
+
+它对**今天的 backtest 没有 future leakage**，但它不是：
+
+> 历史当时真正发生的 forecast surprise。
+
+这对 non-Markov innovation law 是本质区别。
+
+### 裁决
+
+`F_folds` 必须退出 production theory。
+
+改成：
+
+```text
+H_t
+→ predict r_{t+1}
+→ observe r_{t+1}
+→ epsilon_{t+1}
+→ append residual history
+```
+
+`oof.jl` 保留成 legacy/reference diagnostic，不删除。
+
+---
+
+# 三、P0-2：\(d\) 仍然是旧的 7 点固定网格
+
+代码自己已经承认这是“实现期定稿占位”。
+
+当前默认：
+
+\[
+d\in
+\{0.05,0.1,0.2,0.4,0.6,0.8,1.0\}.
+\]
+
+repomix-output(20261009-234027)
+
+而 `innovation_state` 不传参数时就直接使用这个固定网格。repomix-output(20261009-234027)
+
+这只解决了一个问题：
+
+\[
+q_g\propto e^{\ell(d_g)}\Delta d_g
+\]
+
+不会因为网格间距不均而偷偷改变 prior mass。
+
+但没有解决另一个问题：
+
+\[
+\boxed{\text{7 个节点够不够？}}
+\]
+
+我们已经裁决：
+
+\[
+d\in(0,1],\qquad d\sim U(0,1)
+\]
+
+是理论对象；节点只是 numerical quadrature。
+
+所以现在仍然缺：
+
+\[
+Q_M(d)
+\rightarrow
+Q_{2M}(d)
+\]
+
+的 refinement certificate。
+
+### 裁决
+
+删除 production 意义上的 `default_d_grid()`。
+
+它可以保留为 initial mesh。
+
+生产必须是 adaptive 1D deterministic quadrature。
+
+---
+
+# 四、P0-3：当前 vector innovation 把“没有证据”解释成了“风险严格为零”
+
+这一条我认为很危险。
+
+当前 Moore–Penrose 协议明确规定：
+
+> covariance 的零特征方向不注入任何随机噪声，variance 就取 0。
+
+repomix-output(20261009-234027)
+
+与此同时，`resolve_risk_domain` 认为只要：
+
+\[
+|J|\ge2
+\]
+
+就已经“覆盖充足”。repomix-output(20261009-234027)
+
+假设：
+
+\[
+N_R=40,\qquad |J|=5.
+\]
+
+经验 covariance 的 rank 最大只有 5。
+
+于是至少 35 个方向会被当前代码解释为：
+
+\[
+\boxed{\operatorname{Var}=0}.
+\]
+
+但真实含义只是：
+
+\[
+\boxed{\text{没有足够样本识别这些方向}}
+\]
+
+而不是：
+
+\[
+\boxed{\text{未来绝不会沿这些方向波动}}.
+\]
+
+这正是我们本轮最怕重新制造出来的东西：
+
+> **伪确定性。**
+
+Kelly 会非常喜欢这种“有均值但没有风险”的方向。
+
+### 最干净的纠偏
+
+Gate-0 reference 不必马上造复杂 covariance shrinkage。
+
+直接要求 joint residual span 可识别：
+
+\[
+\boxed{
+\operatorname{rank}
+\{\epsilon_s^{(R)}:s\in J_t\}
+=N_R.
+}
+\]
+
+由于 fractional kernel 对历史行是正权重，只要 residual span 满秩：
+
+\[
+V_t(d)\succ0
+\]
+
+对所有 \(d\in(0,1]\) 都成立。
+
+不满秩：
+
+- 该 risk domain 尚未 ready；
+- 收缩 free universe；
+- 或全 cash；
+- locked 导致不可收缩则维持持仓/fail closed。
+
+**绝不能把 sample null space 宣布成 physical zero-risk space。**
+
+Moore–Penrose 可以保留作诊断，不应成为 production 风险语义。
+
+---
+
+# 五、P0-4：locked + adaptive 现在仍然会偷偷退回 fixed-S
+
+源码自己承认：
+
+> adaptive 请求一旦有 locked position，就自动回落到 `:reference` 固定 S 路径。
+
+repomix-output(20261009-234027)
+
+问题更有意思的是：`quadrature.jl` 其实已经把原来的 locked/free 切列 bug 修了。
+
+也就是说现在是：
+
+> **底层已经修好了，driver 还保留着旧伤口时代的 fallback。**
+
+这正违反我们的开发守则：
+
+\[
+\boxed{\text{前层修好，临时 fallback 必须删除}}
+\]
+
+目前任何有 locked 仓位的日子：
+
+\[
+\text{adaptive}
+\rightarrow
+\text{fixed } S_{\rm reference}.
+\]
+
+于是“生产决策不存在 fixed S 捷径”的声明仍然是假的。
+
+### 修法
+
+直接：
+
+```julia
+adaptive_scenario_kelly(...; locked = locked_w)
+```
+
+删除：
+
+```julia
+quadrature_locked_fallback
+```
+
+整条 production fallback。
+
+但先别急，因为底层 locked certificate 还有一个真 bug。
+
+---
+
+# 六、P0-5：locked 在 quadrature 的 Certificate B 里被计算了两遍
+
+这是确定代码 bug，不需要测试确认。
+
+当前 audit：
+
+```julia
+base_a = locked_wealth_gate0(X_a, locked)
+
+wealth_f = X_a * w_2M + wc_2M + base_a
+wealth_c = X_a * w_M  + wc_M  + base_a
+```
+
+repomix-output(20261009-234027)
+
+但：
+
+\[
+w_{2M}
+\]
+
+和：
+
+\[
+w_M
+\]
+
+已经是 **full R-domain weights**，其中 locked 权重已经被填回去了。
+
+所以：
+
+\[
+X_aw
+\]
+
+已经包含 locked wealth。
+
+再加一次：
+
+\[
+base_a
+\]
+
+就是：
+
+\[
+\boxed{\text{locked risk double counted}}
+\]
+
+正确写法只能二选一。
+
+要么：
+
+\[
+wealth=X_{\rm full}w_{\rm full}+w_c.
+\]
+
+要么：
+
+\[
+wealth=X_{\rm free}w_{\rm free}+w_c+base_{\rm locked}.
+\]
+
+不能两种表示一起用。
+
+`solve_layer` 的 free-column Kelly 本身已经采用第二种，是对的。
+
+Certificate B 要保持同一种表示。
+
+另外全 locked 分支和 driver 的 utility-margin 诊断里也有同样形态，要一起静态搜完再改。
+
+---
+
+# 七、P0-6：Certificate B 可以“大幅变差却通过”
+
+当前：
+
+\[
+B
+=
+I_{\rm audit}(w_{2M})
+-
+I_{\rm audit}(w_M)
+\]
+
+然后条件是：
+
+```julia
+B <= utility_tol
+```
+
+repomix-output(20261009-234027)
+
+这意味着：
+
+\[
+B=-0.1
+\]
+
+当然满足：
+
+\[
+-0.1<10^{-5}.
+\]
+
+也就是说：
+
+> fine solution 在独立 audit 样本上比 coarse solution **差很多**，照样通过。
+
+代码把它解释成：
+
+> coarse 没有落后 fine，所以 okay。
+
+我不同意。
+
+我们要验证的是：
+
+\[
+\boxed{\text{numerical refinement 后答案稳定}}
+\]
+
+不是：
+
+> 新解没明显打赢旧解就算收敛。
+
+### 最稳妥的三证书
+
+恢复：
+
+\[
+A=\|w_{2M}-w_M\|_1.
+\]
+
+然后在 **optimization fine rule** 上：
+
+\[
+B_{\rm opt}
+=
+I_{2M}(w_{2M})
+-
+I_{2M}(w_M)
+\ge0.
+\]
+
+要求：
+
+\[
+B_{\rm opt}\le\epsilon_U.
+\]
+
+独立 audit replicate 是很好的新增措施，但应作为：
+
+\[
+B_{\rm audit}
+=
+\left|
+I_{\rm audit}(w_{2M})
+-
+I_{\rm audit}(w_M)
+\right|.
+\]
+
+要求：
+
+\[
+B_{\rm audit}\le\epsilon_{U,audit}.
+\]
+
+再加：
+
+\[
+C=\text{fine solver KKT certificate}.
+\]
+
+也就是最好升级成 **A+Bopt+Baudit+C**。
+
+---
+
+# 八、P0-7：为了塞进运行时间，直接把数学容差放宽了
+
+这条违反开发宪法，非常明确。
+
+driver 注释直接说：
+
+- `1e-6 / 2048` 太慢；
+- `5e-3 / 4096` 一条 full chain 大约 8 秒；
+- 8 次会超过 50 秒；
+- 所以用了：
+  \[
+  posterior\_tol=2\times10^{-2}
+  \]
+  和 1024 cells。
+
+repomix-output(20261009-234027)
+
+这是：
+
+\[
+\boxed{
+\text{为了测试/运行预算}
+\Rightarrow
+\text{放松数学精度}
+}
+\]
+
+正是我们明确禁止的。
+
+60 秒纪律应该迫使你：
+
+> 缩小实验。
+
+不能迫使你：
+
+> 放宽 posterior。
+
+同样，当前默认还有：
+
+\[
+\epsilon_w=10^{-3},
+\qquad
+\epsilon_U=10^{-5},
+\qquad
+kelly\_tol=10^{-5}.
+\]
+
+这些都比我们上一轮 Gate-0 裁决的起始 reference 口径更松。
+
+### 裁决
+
+恢复严格 reference numerical contract。
+
+运行超时：
+
+\[
+\boxed{\text{fail / 缩小 fixture}}
+\]
+
+而不是：
+
+\[
+\boxed{\text{放宽 tolerance}}
+\]
+
+---
+
+# 九、P0-8：posterior 的 prior 被换了，而且是一个 improper prior
+
+我们上次裁的是：
+
+\[
+\tau\sim HalfCauchy(0,1),
+\qquad
+\alpha=\tau^{-2}.
+\]
+
+当前实现换成：
+
+\[
+\boxed{
+p(\alpha)\propto
+\frac1{\alpha(1+\alpha)}
+}
+\]
+
+代码自己明确这么写。repomix-output(20261009-234027)
+
+这个 prior 本身不是 proper：
+
+\[
+\int_0^\epsilon
+\frac{d\alpha}{\alpha(1+\alpha)}
+=
+\infty.
+\]
+
+换成：
+
+\[
+\tau=\alpha^{-1/2}
+\]
+
+得到：
+
+\[
+p(\tau)\propto
+\frac{\tau}{1+\tau^2},
+\]
+
+尾部：
+
+\[
+p(\tau)\sim\frac1\tau,
+\]
+
+仍不可积。
+
+这不意味着 posterior 必然 improper——likelihood 有可能把左尾压下来——但它已经不是我们裁过的 proper hierarchical prior。
+
+更糟的是，为了让 tail certificate 工作，又加了：
+
+```julia
+_WEAKINFO_GAP = 3
+_WEAKINFO_SAFETY = 8
+```
+
+而且源码明确说这个 3 是根据：
+
+> backtest t=271 fold 2 gap=1.09、中等信息 gap=4.1–7.4
+
+标出来的。repomix-output(20261009-234027)
+
+这已经长成了我们最不希望看到的东西：
+
+\[
+\boxed{
+\text{一个特例分支}
++
+\text{一个经验阈值}
++
+\text{一个安全余量}
+}
+\]
+
+### 建议不要继续修这个 prior 的 tail machinery
+
+直接恢复 proper prior：
+
+\[
+\tau\sim HalfCauchy(0,1).
+\]
+
+对应：
+
+\[
+p(\alpha)
+\propto
+\frac1{\sqrt{\alpha}(1+\alpha)}.
+\]
+
+若：
+
+\[
+u=\log\alpha,
+\]
+
+则 quadrature 中的 log density 是：
+
+\[
+\boxed{
+\log p_u(u)
+=
+\frac12u-\log(1+e^u)+C
+}
+\]
+
+两端都自然衰减。
+
+这样：
+
+- `_WEAKINFO_GAP` 删除；
+- `_WEAKINFO_SAFETY` 删除；
+- 特殊 weak-information tail 分支删除；
+- posterior propriety 逻辑反而更干净。
+
+这才符合 KISS。
+
+---
+
+# 十、P0-9：Cash Kelly 仍没有我们裁决过的 canonical tie-break
+
+Cash feasible set 做对了。
+
+但当：
+
+\[
+U(w_1)\approx U(w_2)
+\]
+
+甚至完全相等时，现在仍然主要由 Clarabel / numerical support 决定返回哪一个最优点。
+
+我们裁过的规则是：
+
+\[
+\boxed{
+\text{objective 数值不可区分}
+\Rightarrow
+\text{最大 cash}
+\Rightarrow
+\text{最小 risky }L_2
+}
+\]
+
+目前 Gate0 cash Kelly 中没有这个二阶段 canonicalization。
+
+这里尤其重要，因为本次事故就是：
+
+> 很小的横截面 advantage 被推到 simplex vertex。
+
+正确实现不是 regularization，而是：
+
+先求：
+
+\[
+U^*.
+\]
+
+再定义数值等价最优集：
+
+\[
+\mathcal W_\epsilon
+=
+\{w:U(w)\ge U^*-\epsilon_{\rm tie}\}.
+\]
+
+第二阶段：
+
+\[
+\max_{w\in\mathcal W_\epsilon}w_c.
+\]
+
+第三阶段在相同最大 cash 下：
+
+\[
+\min\|w_{\rm risky}\|_2^2.
+\]
+
+最后才 deterministic lexicographic。
+
+这不会改变经济目标，只选 optimum set 的 canonical representative。
+
+---
+
+# 十一、P1：`model_admitted` 仍然过早，而 risk readiness 被推迟到决策层补洞
+
+当前一个资产只要产生第一条有效 return，就永久 `model_admitted=true`。repomix-output(20261009-234027)
+
+然后真正到了 innovation 层，`resolve_risk_domain` 才发现联合历史不够，再临时剔 free asset；而且只要求：
+
+\[
+|J|\ge2.
+\]
+
+这是职责倒置。
+
+更干净的是：
+
+\[
+\text{observed}
+\rightarrow
+\text{response-ready}
+\rightarrow
+\text{innovation-ready}
+\rightarrow
+\text{trade eligible}.
+\]
+
+不一定要重新加入“252 天”。
+
+但 **model readiness 必须由数学对象是否可定义决定**。
+
+尤其 vector covariance 至少要具有足够 joint support。
+
+这项可以跟 P0-3 一起重构。
+
+---
+
+# 十二、新 Gate0 现在还不是 repository 的真正 production path
+
+这本身不是当前开发阶段的错误——影子新线隔离施工其实是对的。
+
+但它意味着：
+
+\[
+\boxed{\text{现在最多只能验收 Gate0 candidate，不能宣称 production 已切换。}}
+\]
+
+当前 `src/KTrader.jl` 仍然只 include 老的：
+
+- `predict.jl`
+- `incremental.jl`
+- `kelly.jl`
+- `backtest.jl`
+- …
+
+没有 include `src/gate0/KTraderGate0.jl`。repomix-output(20261009-234027)
+
+而正式 `bin/backtest.jl` 仍然：
+
+```julia
+SCENARIOS=300
+ADAPTIVE_SCENARIOS=false
+F_FOLDS=3
+```
+
+走老的 `KTrader.backtest_v1`。repomix-output(20261009-234027)
+
+**现在先不要切。**
+
+P0 全修完、Gate0 static+tiny tests 通过以后，最后再切唯一入口。
+
+否则会把未验收线提前 production 化。
+
+---
+
+# 十三、还有一个理论层问题，我建议现在就写进账本
+
+现在所谓 “full posterior” 实际是：
+
+\[
+\text{response posterior}
+\]
+
+完整了一大截。
+
+但整个系统仍然不是一个完整 joint posterior。
+
+当前流程实际上是：
+
+\[
+\Pi(B,\Sigma,\alpha\mid X,Y)
+\]
+
+先拟合，然后取某种 OOF residual，再单独估：
+
+\[
+q(d\mid \hat\epsilon),
+\]
+
+最后假设：
+
+\[
+\mu\perp\epsilon
+\]
+
+组装 predictive law。
+
+代码也明确把 response posterior 和 innovation 分成两个独立层，再相加。它是一个**模块化 posterior predictive**，而不是：
+
+\[
+\Pi(B,\Sigma,\alpha,d,\text{innovation law}\mid H)
+\]
+
+的统一联合积分。
+
+这不一定要立刻推倒。
+
+但必须二选一说清楚：
+
+> 要么正式承认这是 modular / cut posterior；
+
+> 要么以后把 innovation likelihood 真正纳入 response posterior。
+
+目前不要再简单叫：
+
+> “系统完整 full posterior”。
+
+`posterior.jl` 可以叫 full **response** posterior，这个没问题。
+
+---
+
+# 十四、我给当前版本的 Gate 表
+
+| 项目 | 状态 |
+|---|---|
+| 四 mask / data semantics | ✅ PASS |
+| benchmark externality | ✅ PASS |
+| fixed gauge / unified modes | ✅ PASS |
+| DC zero-frequency basis | ✅ PASS |
+| trace hard constraint removal | ✅ PASS |
+| cash Kelly feasible set | ✅ PASS |
+| response hyperparameter 不再 EB 点估计 | ✅ 大方向 PASS |
+| response prior | ❌ BLOCK |
+| strict prequential residual | ❌ BLOCK |
+| vector innovation | ⚠️ 结构 PASS / support FAIL |
+| continuous \(d\) | ❌ BLOCK |
+| standardized shape | ⚠️ PARTIAL |
+| adaptive RQMC | ⚠️ 框架 PASS / certificate FAIL |
+| locked adaptive | ❌ BLOCK |
+| fixed-S production removal | ❌ BLOCK |
+| canonical Kelly tie-break | ❌ BLOCK |
+| numerical tolerances | ❌ BLOCK |
+| production entry migration | ⏸️ 现在不应做 |
+| 5/20/60/501-day backtest | 🚫 禁止 |
+
+因此：
+
+\[
+\boxed{
+G_0=\text{OPEN / BLOCKED}
+}
+\]
+
+而不是：
+
+\[
+G_0=\text{almost closed}.
+\]
+
+---
+
+# 十五、下一步只做这一个批次，不准散开
+
+我建议工程师严格按这个顺序施工：
+
+1. **先修纯确定 bug**：locked double-count、Certificate B、删除 stale locked fallback、修 locked diagnostics。这里不改统计理论。
+2. **恢复已裁决的统计合同**：删除 production F-fold，建立 prequential residual history；删除 fixed 7-point \(d\)，改 adaptive continuous \(d\)；innovation support 不满秩不得当成零风险。
+3. **恢复 posterior 合同**：`d035a` 换回 proper Half-Cauchy-\(\tau\) prior，删掉 `_WEAKINFO_*` 特例机器；不要再用 backtest fixture 定数值分支。
+4. **恢复 numerical contract**：Kelly/response/quadrature 的 tolerance 由 refinement 决定，不由 50 秒预算决定；实现 canonical tie-break。
+5. **再次纯静态验收。** 这一步通过以前仍然不跑测试。
+6. 静态通过以后，才依次运行 tiny analytic → dense N=3 → single-day；仍不碰 20/60/501 日。
+7. 最后才把 `KTraderGate0` 升格成唯一当前入口，旧 2.0 留作历史 release。
+
+最值得肯定的一点是：**现在已经不需要再发明新模型了。** 当前主要工作是把几处没有贯彻到底的裁决真正贯彻到底。
+
+而最危险的三个地方，我会按这个优先级盯死：
+
+\[
+\boxed{
+\text{sample null space = zero risk}
+}
+\]
+
+\[
+\boxed{
+\text{OOF ≠ prequential}
+}
+\]
+
+\[
+\boxed{
+\text{numerical budget 不能反过来修改数学 tolerance}
+}
+\]
+
+这三个修完，再加 locked/certificate 的确定 bug 修掉，这版才值得进入真正的 Gate-0 数值验收。
+
 # KTrader / Path Kelly — 所有需要的保姆级裁决
 
 **文档状态：Normative Decision Book / Gate-0 裁决书**  
@@ -11423,3 +12361,107 @@ D-002 保护的是**已发布文件的字节与 hash**，不是路径字符串�
 - 活动树自述与验证命令：`README.md`（含「仓库结构」一节）。
 - 归档区说明与检索示例：`archive/README.md`。
 - 规范本体：本文件（`AGENTS.md`）。
+
+---
+
+# 第13任：Gate-0 文档校准批次登记（2026-10-10）
+
+**性质：文档校准、注释修正与补断言登记。截至本时点（2026-10-10）。本节仅追加；以上全部历史段一字未改，不改任何裁决、证据或数学对象。**
+
+(1) **posterior 求积规则升级（t=327 根因转移）**：2D 后验求积升级为张量 G-L（2 点主规则 + 3 点对照误差代理）自适应 cell 规则——收敛指数 2.014、1929 cells 达 1e-6（旧规则 8192 仍 8.2e-4）、代理保守比 ratio≥2（合成高斯）。设计文档 `docs/ADJUDICATION_T327_POSTERIOR_QUAD.md`；证据 `archive/evidence/gate0_merged_verify_20261010/`（A1/A2）。t=327 单日 posterior 层过（生产直调 3.09s/1929 cells；full fit 4.66s）；kelly 层成为第二阻塞——完整链因 prequential 成本（~200s/日）超单命令预算未直接观察。
+
+(2) **ruler 短历史回退修订**：`n_use<2` 回退由 s(τ)≡1.0 改为该资产自身 τ=1 增量 RMS 平坦外推（H=0）；设计文档 `docs/RULER_SHORT_HISTORY_FALLBACK.md`；合并验证 modes 110/110（102+8 新回归）。
+
+(3) **testset (8)「T4 recovery (prequential)」运行状态**：ruler 修复生效（s1=0.05、gross 全 finite）；恢复日 t=271 撞 kelly SLOW_PROGRESS 未转绿（15 断言未执行）。证据 `archive/evidence/gate0_t4_recovery_20261010/`（首跑根因闭环：s1=1.0 → 预测爆炸）与 `archive/evidence/gate0_merged_verify_20261010/` B2。
+
+(4) **合并验证计数（截至本时点）**：模块 1-11 = 849/849；backtest 场景 1-7 = 49/49；全量口径 **913 = 898 已绿 + 15 未执行（场景 8，kelly SLOW_PROGRESS）**（= 890 + 8（modes 新回归）+ 15（场景 8））。证据 `archive/evidence/gate0_merged_verify_20261010/summary.md`；890 为上一轮全绿口径（`archive/evidence/gate0_review_20261010/` 与 `gate0_review_20261010_rerun/`）。
+
+(5) **下一层已登记工作（同批进行中）**：kelly 证书驱动自适应（t=327/t=271 第二阻塞）；prequential 成本数学加速（求值 ×2.6/cell × 67 行 ≈ 200s/日；属数学加速/增量化层，非容差问题——P0-7 纪律不变）。
+
+(6) **本批文档与注释修正**（同批交付，静态同步；未运行）：`docs/GATE0_EXIT_CHECKLIST.md`（P0-8/`_WEAKINFO` 删除同步、t=327 事实链、rerun/merged_verify 引用、890→913 口径）；`src/gate0/backtest.jl` L244-245 陈旧回落注释修正（P0-4 收口后无回落；审计未达标项 #1）；`test/gate0/driver_tests.jl:102` 注释 kelly_tol 旧值修正（1e-5 → 实际 1e-6，P0-7 收口；审计未达标项 #3）；`test/gate0/posterior_tests.jl` 新增 P0-8 表达式级断言 11 条（**未运行**——posterior_tests 计数预期 40 → 51，待 DevOps 验证）；`docs/T4_MULTIDAY_SEMANTICS_ADJUDICATION9.md` 补运行验证节（首跑/复跑两阶段、kelly 阻塞）；`docs/ADJUDICATION_T327_POSTERIOR_QUAD.md` 全量回归口径行补合并验证注记（890 为写作时口径）。
+
+**口径（截至本时点）**：21 REQUIRED 登记 ≠ 21 numeric 全跑；full suite/多日/GPU/吞吐暂停；每命令 ≤60s/RSS2048；913 口径含 15 未执行（场景 8），且未含本批新增 11 条断言（posterior_tests 最后已观测计数为 40）。历史红与旧记录保留。
+
+---
+
+# 第14任：Gate-0 纠偏收尾与最终验证登记（2026-10-10）
+
+**性质：最终登记。截至本时点（2026-10-10）。本节仅追加；以上全部历史段一字未改。本轮（自 G-L 求积升级起）的全部修复已合入并经受控运行验证——最终口径：`test/gate0/` 全量 **984 断言全绿**。**
+
+(1) **修复清单**：
+- 张量 G-L 2D 后验求积（收敛指数 2.014、1929 cells 达 1e-6；设计文档 `docs/ADJUDICATION_T327_POSTERIOR_QUAD.md`）；
+- ruler 短历史回退（τ=1 RMS 平坦外推；`docs/RULER_SHORT_HISTORY_FALLBACK.md`）；
+- posterior m 基准修复（cell_peak 覆盖，真数据 NaN 消除）；
+- kelly 条件行缩放（span>4.5e15 阈值；`docs/KELLY_NUMERICAL_ROW_SCALING.md`）+ polish 防护恢复 + (i)/(ii) 测试重写（D-091 转绿）；
+- SM 秩一（阶段 1+2）：单点 15.6→2.5ms@BLAS1；`_fit_node`/`levs` lazy（`docs/FIRST_DAY_FIT_COST_ACCELERATION.md`）；
+- prequential 加速（O(1) 增量 + 行级并行；`docs/PREQUENTIAL_COST_ACCELERATION.md`）；
+- T4 testset (8) 转绿（15/15）。
+
+(2) **最终口径（984 全绿）**：模块 1–12 + backtest 场景 1–8 = 82（market）+110（modes）+78（response）+60（posterior）+25（oof）+49（prequential）+243（innovation）+56（predictive）+91（kelly_cash）+55（quadrature）+71（driver）+64（backtest）= **984**；9 条 scoped 命令全 rc=0；26 文件字节一致。证据：`archive/evidence/gate0_final_verify_20261010/`。
+
+(3) **证据目录清单**：`archive/evidence/gate0_merged_verify{,2,3,4,5,6,7,8}*`、`gate0_kelly_adjudicate_*`、`gate0_innovation_attribution_*`、`gate0_reallimit_firstday_*`、`gate0_t4_recovery_*`、`gate0_f6_unblock_*`、`gate0_final_verify_*`、`gate0_review_*`。
+
+(4) **已知边界（如实）**：
+- 首日 full-fit 性能：自适应 cells 规模仍是成本项（单点已达标；D-083 视角——reference 不追求速度）；
+- BLAS 线程配置：默认 6 线程对小 GEMM 约 3× 负优化，待裁决；
+- quadrature 负载敏感性：同字节重跑裁定为准；
+- span≈1e17+ 与人工双方向 fixture：已知边界；
+- 60-day：为批量负载口径，非单命令目标。
+
+(5) **入口切换状态**：`bin/backtest.jl` 已是 KTraderGate0 唯一当前入口（2026-10-10 切换收口；旧线工具保留为历史）；同批其头部运行成本注记 L27-28 已由 898/913 旧口径同步为最终 984 口径。
+
+**口径（截至本时点）**：历史红与旧记录保留；既有护栏与授权边界以最新授权记录为准，本节不新增变更。
+
+---
+
+# 第15任：Gate-0 A 门闭合与批量调度登记（2026-10-10）
+
+**性质：运行事实与证据登记。来源为对 `archive/evidence/gate0_multiday_run_20261010/` 的静态交叉核对（summary ↔ log ↔ batch_out 产物）；本任未运行任何命令、未改任何 src/test。截至本时点（2026-10-10）。本节仅追加；以上全部历史段一字未改。核心事实：过门配置（`GATE0_MU_QMC=true` + `GATE0_CHISQ_QMC=true` + `GATE0_MAX_SCENARIOS=131072`）下 t=330、t=331 两个决策日的 A 判据（weight_tol=1e-4）相继完整过门——A 判据首次在整条工作线上通过；60-day 循环的未完成部分因此转为 b2b 段（kelly@131072）性能。**
+
+(1) **A 门闭合（两日过门，三项证书 + norm_err=0）**：
+- t=330：A=**6.258507100653787e-5**、B_opt=4.657116081663304e-10、B_audit=1.0790154555406772e-6、C（feasibility=0.0、kkt=3.093204896714301e-10、gap=3.093205691584444e-10）、norm_err=0.0——`batch_out/batch_t330_solve3.txt`、`FG_t330_b3.log`；
+- t=331：A=**5.969594281540758e-5**、B_opt=4.319699598021032e-10、B_audit=3.786304003106089e-7、C（feasibility=0.0、kkt=1.046170734933954e-9、gap=1.0461707056208525e-9）、norm_err=0.0——`batch_out/batch_t331_solve3.txt`、`FG_t331_b3.log`；
+- 与 CQ 探针（`Z1Q_combos.jl chisq 131072 65536`；`CQ_131072.log`/`CQ_131072b.log`，两次运行逐位一致；第一条 rc=124 但 CONVERGED 输出完整、第二条 rc=0）逐位对拍成立；env 接线在位：`bin/backtest.jl:132/138/142` + `src/gate0/driver.jl:279/483` + `src/gate0/backtest.jl:261/284`。
+
+(2) **深段通道诊断（32768→65536 层、t=330 输入；DS/DB/DB131/ZQ）**：
+- NODE 深段 A 振荡于 [1.053e-4, 7.193e-4, 3.094e-4]（8192+ 各层：3.694e-4 → 1.053e-4 → 7.193e-4 → 3.094e-4），无单调趋势——1.05e-4 是谷相、非收敛谷底（`DB_offline_32768/65536/131072b.log`）；
+- 通道固定对照（baseline 7.193e-4）：z1 固定（u_z1=0.5）→ 9.477e-11（**塌缩约 7 个数量级；深段主导、属建模内容不可固定**）；chisq 固定（g=ν）→ 2.358e-4（↓3.05×；QMC 化开关 2.618e-4、↓2.75×、**无偏可用**）；node 固定（u_node=0.5）→ 1.634e-3（**↑2.27× 恶化——与浅段相反**：浅段 1024 层 node 固定降 34.7×）——`DS_baseline.log`/`DS_chisq2.log`/`DS_z1.log`/`DS_node.log`、`A_channels_summary.md`；
+- 负边际登记：JOINT（node 与 z1 共享 2 维 net）实时链 A@512 恶化 3.0×（2.174e-2 vs NODE 7.269e-3；`JQ_summary.md`）；NEST-SYS-1 链在 S=256 层求解敏感崩（双候选不过；`NS_summary.md`）；z1_vdc 深段求解敏感崩（raw=Inf、scaled=1.356；浅段 A 亦变差；`ZQ_summary.md`）——三者均非 A 门改善方向。
+
+(3) **批量调度（BATCH-2STAGE-1）**：新增 dev 工具 `dev/batch_t_capture.jl`（段 A：prep 捕获）、`dev/batch_t_solve.jl`（整段 B）、`dev/batch_t_solve3.jl`（三段 B1'/B2'/B3' 与细粒度六段 capture/b1a/b1b/b2a/b2b/b3）、runbook `dev/batch_two_stage.md`。
+- t=330 六段全通（capture 27s、b1a 10s、b1b 28s、b2a 11s、b2b 37s、b3 10s）——A 逐位对拍成立；
+- t=331 六段全通（capture 28s、b1a 10s、b1b 39s、b2a 10s、b2b 45s 一次超时后重试成功、b3 10s）——过门；两日活动均过门；
+- b2b（kelly@131072）逐日上升：**37s → 45s → 48–50s**；t=332 b2b 四次尝试（48/48/48/50s、deadline 58/58/58/60）全部超时——**「每日六段」窗口在 t=332 失守**（capture/b1a/b1b/b2a 为 28/10/34/10s 均通过），t=332 未完成、333+ 未执行。
+
+(4) **其它已落地修复（简列）**：M2 status 出口证书化（SLOW_PROGRESS 解保留 → 证书 + polish 验收；S=512 输入由 raw_polished 2.05e-9 救回；`M2_summary.md`、`FV2_summary.md`）；设计 A（双路径取优，kelly_cash 10/10）；polish 200（P1；10 vs 200 iters 6/6）；TIE-FAST-1（全 cash 快速路径，13/13）；条件行缩放（row-scaling 6/6+6/6、conditional scaling 2/2）；R4'''（数值层 441/441 不再 PosDefException；数据层转由 propriety gate 拦截；`R4_verify_summary.md`）；b′（μ 通道 QMC，testset 18/18、默认关闭）；NODE-QMC-1（6/6）；chisq-QMC 开关（12/12）；z1-vdc 开关（实现与测试在位、driver/backtest 生产入口未透传——判定不可用，`ZQ_summary.md`）。
+
+(5) **测试面**：kelly_cash **18 testset** 全绿（含 TIE-FAST-1 13/13；rc=0、20s、897MiB；`FG_kelly_cash.log`）；quadrature 全绿 **13 testset（DB 批次）→ 14 testset（ZQ 批次，新增 Z1-VDC-1 & CHISQ-QMC-1 12/12）**（`DB_quadrature.log`、`ZQ_quadrature.log`）。TIE-FAST-1 曾 1 红（`wA == wA0 && cA == cA0` 与实现 <1e-12 精确零阈值的 fixture 错配；`B3_kelly_cash.log`、`TF1_diag.log`、`B3_summary.md`），已归因修复。
+
+(6) **未决**：b2b 性能（kelly@131072 的求解 + polish + tie-break；60 日循环的最后一里）；t=333+ 推进（待 b2b）；D-066——weight_tol=1e-4 的独立复核（深段噪声底与门同量级；不得由回测选择）；大 N_R 的 X 缓存成本登记（`batch_two_stage.md`：X_2M 缓存 N_R=1 时 ~1MB、随 N_R 增长）。
+
+**口径（截至本时点）**：A 门闭合 = 过门配置下两日 A 判据通过，不等于 60-day 全绿（阻塞=b2b 窗口）；21 REQUIRED 登记 ≠ 21 numeric 全跑；full suite/多日/GPU/吞吐暂停；每命令 ≤60s/RSS2048；历史红与旧记录保留。
+
+---
+
+# 第16任：批量调度拆分链与十一日推进（补记）（2026-10-11）
+
+**性质：运行事实与证据登记。来源为对 `archive/evidence/gate0_multiday_run_20261010/` 的 S1–S7 系列（summary ↔ log ↔ `batch_out/batch_t33X_solve3.txt` 产物）的静态交叉核对；本任未运行任何命令、未改任何 src/test。截至本时点（2026-10-11）。本节仅追加；以上全部历史段一字未改。核心事实：b2b（kelly@131072）出口链经三级拆分（B2B-SPLIT-1/2/3）并逐点等价锁定后，调度粒度推进到七/八/九段；t=330–339 十日中八过一超一卡。**
+
+(1) **SPLIT 链（逐点等价，kelly_cash 锁定）**：
+- B2B-SPLIT-1（b2b → `_cash_kelly_prelude`/`_cash_kelly_finish`）：FB 诊断（`FB_summary.md`、`FB_t330.log`、`FB_t332_main.log`）——主求解 T_main=10.9s@330、23.6s@332（进窗）；出口链 ~26s@330、>24s@332（出窗）。拆分后 t=332/333 七段全通（b2b1 34s/22s、b2b2 39s/38s）。
+- B2B-SPLIT-2（finish → `_cash_kelly_finish_main`/`_cash_kelly_finish_tiebreak`）：S4 分解（`S4_summary.md`、`S4_raw/scaled/tb.log`，t=338）——raw_polish 0.7s、scaled_solve 16.7s、**tie_break 24.1s 且返回 nothing（纯成本、零产出）**；338 由 b2b2 28s + b2b3 42s 两段进窗并过门（`S5_t338_b2b2b/b2b3.log`）。
+- B2B-SPLIT-3（prelude → `_cash_kelly_prelude_prep`/`_cash_kelly_prelude_solve`）：prep 段 9s（`S7_t339_b2b1a2.log`）；solve 段在 339 出窗（见 (3)）。
+- 多粒度梯度：整段 → 三段（B1'/B2'/B3'）→ 六段 → 七段（SPLIT-1）→ 八段（SPLIT-2）→ 九段（SPLIT-3）。
+- kelly_cash 终态全绿（`S7_kelly_cash2.log`；19 testset；**B2B-SPLIT-1 26/26**、TIE-FAST-1 13/13；rc=0、20s、907MiB）；演进：SPLIT-1 首轮 1 Error（degenerate budget 用例——prelude 与 cash_kelly 一致地抛，测试用例缺陷；`S1_kelly_cash.log`）→ S5 四轮修复后 23/23（`S5_kelly_cash5.log`；其间唯一 src 改动为恢复 early 短路直通语义，其余为 test fixture 修复）→ S7 终态 26/26（新增 SPLIT-3 全链 testset）。
+
+(2) **A 序列（t=330–339 十日；八过一超一卡）**：6.2585e-5 / 5.9696e-5 / 6.2509e-5 / 3.3967e-5 / 5.3052e-6 / 9.3344e-5（335 贴边距门 6.7%）/ **1.3550e-4（336 超门 35.5%）** / 9.4808e-5（337 第三次重试成功）/ 4.6677e-5（338，SPLIT-2 后过门）——八过；339 卡 solve（未产出 A；计划窗口的下一日 t=340 未执行）。证据：`batch_out/batch_t330..338_solve3.txt`（九日 A 与三项证书逐位核对）、`S1/S2/S3/S5_summary.md`。
+
+(3) **段成本与瓶颈（高成本日收敛到求解侧）**：
+- 七段形态（330–337）：最大段为 b2b2（34–49s 区间；337 以 49s 第三次成功）；338 八段（b2b2 28s + b2b3 42s）；339 九段（prep 9s、b2b1b solve >48s）。
+- **339 卡点**：SPLIT-3 的 `_cash_kelly_prelude_solve`（kelly.jl:640）三次 48/48/50s 全切（deadline 58/58/60；`S7_t339_b2b1b{,2,3}.log`）；S6 的 prelude 整段亦三次 48/48/50s 全切（`S6_t339_b2b1{,b,c}.log`）——单次主求解为原子段、不可再拆。
+- **deep@262144 出窗**：336 加深中 b2b2（main@262144）11s 进窗、b2b3（tiebreak@262144）124×2（50s+ 切）——A(131072→262144) 未取得、加深验证被阻断（`S3_summary.md`、`S5_t336d_b2b3{,b}.log`）。
+- 退出码口径：`dev/batch_t_solve3.jl`（38 b2b1 / 39 b2b2 / 40 b2b3 / 50 b2b1a / 51 b2b1b；46/47/48/52/53 落盘码）、`dev/batch_two_stage.md`。
+
+(4) **未决**：solve 性能（Clarabel 内部；单次求解在 339 出窗）；tie-break 门控（SPEC 审视——P0-9 规范化在预算受限时的地位）；窗口口径（owner 域）；t=340+ 推进（待上述）。
+
+**口径（截至本时点）**：A 序列为 330–338 九日 + 339 卡点（合计十日；八过一超一卡）；kelly_cash 全绿以 `S7_kelly_cash2.log` 为准；60-day 全绿仍未取得（阻塞=solve 段/tie-break）；21 REQUIRED 登记 ≠ 21 numeric 全跑；full suite/多日/GPU/吞吐暂停；每命令 ≤60s/RSS2048；历史红与旧记录保留。

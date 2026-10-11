@@ -223,7 +223,7 @@ t_start:(t_end-1)——
 1. `single_day_decision(mf, el, held; t = t, seed = seed, mode = mode,
    kwargs...)`（因果截断在 driver 内部——**构造性**保证 ≤t；本循环不
    另做截断，因果性单点拥有；kwargs 透传 driver 的数值参数
-   `S_reference / diag_S / F_folds / min_scenarios / max_scenarios /
+   `S_reference / diag_S / min_scenarios / max_scenarios /
    weight_tol / utility_tol / kelly_tol`——数值配置语义，D-066）；
 2. marking gross `gross_j = adj[t+1,j]/adj[t,j]`（`_marking_gross`——持仓
    列必须有合法 marking，fail loudly）；
@@ -241,8 +241,9 @@ t_start:(t_end-1)——
 - driver 的其余 fail-loudly（propriety 红、数据非法、积分预算耗尽等）
   **原样传导**——本循环只消费 T4/all_cash 的决策语义，不吞任何错误。
 
-`mode` 默认 `:adaptive`（生产路径；locked 非零日自动回落 `:reference`
-——driver 的接口摩擦语义原样延续，逐日 diagnostics 可见）。
+`mode` 默认 `:adaptive`（生产路径；locked 非零日的 adaptive 请求由
+driver/quadrature 直接经 locked 通道求解——P0-4 收口，不存在「有 locked
+即回落 `:reference` 固定 S」的 production fallback，逐日 diagnostics 可见）。
 
 返回 `Gate0BacktestResult`（逐日记录 + 账户净值 + 三 benchmark 曲线 +
 rebalance gap——D-072/D-073）。
@@ -253,6 +254,11 @@ function run_gate0_backtest(mf::MarketFacts, el::Eligibility;
                                 zeros(size(mf.observed, 2)),
                             mode::Symbol = :adaptive,
                             seed::UInt64 = _DRIVER_DEFAULT_SEED,
+                            # b′（μ 通道部分 QMC）：透传 driver；默认 false
+                            # 逐位不变（E3 判据已成立；60-day 前置待验证）。
+                            mu_qmc::Bool = false,
+                            # CHISQ-QMC（A 门过门配置，CQ_*）：透传 driver；默认 false。
+                            mu_chisq_qmc::Bool = false,
                             kwargs...)
     T, N = size(mf.observed)
     (1 <= t_start < t_end <= T) ||
@@ -274,7 +280,8 @@ function run_gate0_backtest(mf::MarketFacts, el::Eligibility;
         held_before = copy(held)
         # 步骤 1-2：决策（因果截断在 driver 内；T4/all_cash 语义转译于此）
         dec = single_day_decision(mf, el, held; t = t, seed = seed,
-                                  mode = mode, kwargs...)
+                                  mode = mode, mu_qmc = mu_qmc,
+                                  mu_chisq_qmc = mu_chisq_qmc, kwargs...)
         # 步骤 3：marking gross + 财富因子（D-017：locked 照漂不当 cash）
         gross = _marking_gross(mf, t, dec.w_universe)
         wealth = dot(dec.w_universe, gross) + dec.w_cash

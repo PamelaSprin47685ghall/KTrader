@@ -1,5 +1,39 @@
 # Changelog
 
+## Gate-0 纠偏工作线：P0 修复、数值治理与 A 门闭合（2026-10-10 至 2026-10-11）
+
+依据 AGENTS.md 第 13–16 任段与 docs/GATE0_EXIT_CHECKLIST.md 的 2026-10-11
+状态同步；以下为本工作线新增记录（下方历史条目未做改动）。
+
+- **Gate-0 重开与 P0 修复**：2.0.0 数学地位撤销、Gate 0 重开（2026-10-09，
+  见下方条目）；九项 P0（P0-1 strict prequential / P0-2 连续 d / P0-3 innovation
+  满秩 / P0-4 locked 无回落 / P0-5 locked 组装统一 / P0-6 四证书 / P0-7 严格
+  数值合同 / P0-8 proper HalfCauchy-τ（`_WEAKINFO` 删除）/ P0-9 canonical
+  tie-break）逐项落地；静态核对表 dev/gate0_static_audit_2026.md。
+- **求积与几何修复**：2D 后验求积升级为张量 G-L 自适应规则（收敛指数 2.014、
+  1929 cells 达 1e-6；docs/ADJUDICATION_T327_POSTERIOR_QUAD.md）；ruler 短历史
+  回退改为 τ=1 RMS 平坦外推（docs/RULER_SHORT_HISTORY_FALLBACK.md）。
+- **kelly 数值治理链**：条件行缩放（span>4.5e15 阈值；
+  docs/KELLY_NUMERICAL_ROW_SCALING.md）、polish 轮数修复、M2 出口证书化、
+  设计 A 双路径取优、TIE-FAST-1 全 cash 快速路径、prequential 成本加速
+  （docs/PREQUENTIAL_COST_ACCELERATION.md）。
+- **A 门闭合**：过门配置（GATE0_MU_QMC=true + GATE0_CHISQ_QMC=true +
+  GATE0_MAX_SCENARIOS=131072）下 t=330–346 十六日十二过四超（未收敛日
+  336/340/343/344；fail-loud）；首次过门 t=330/331。证据
+  archive/evidence/gate0_multiday_run_20261010/（AGENTS.md 第 15/16 任段）。
+- **SPLIT 链与批量调度**：b2b 出口链三级拆分 B2B-SPLIT-1/2/3（逐点等价；
+  kelly_cash 26/26）；九段批量调度稳定（零重试、最大段 40s）。
+- **未收敛日决策包**：b/c/d 三路径整理并交 owner/SPEC
+  （docs/KELLY_NUMERICAL_ROW_SCALING.md §9.13；d 已由 S10 诊断否定——本链
+  n=1 无零列）。
+
+测试口径：test/gate0/ 全量 984 项全绿（2026-10-10 口径；
+archive/evidence/gate0_final_verify_20261010/）；其后 kelly_cash 新增
+B2B-SPLIT-1 testset（终态 26/26）；受影响模块（quadrature/driver/backtest
+场景 1–8/kelly_cash）已于 2026-10-11 字节受控回归通过
+（`archive/evidence/gate0_regress_20261011/`）；其余组引用既有全绿
+（`archive/evidence/gate0_final_verify_20261010/`）。
+
 ## 树结构调整：脚手架归入 archive/（2026-10-10）
 
 依据用户当日指令（记录于 AGENTS.md 第 12 任段）：全部开发用脚手架正规化

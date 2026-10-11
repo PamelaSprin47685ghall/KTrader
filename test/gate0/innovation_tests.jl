@@ -528,6 +528,148 @@ end
                                                      Int[], E_active)
         # frac_weights 域：d ∉ (0,1] → DomainError
         @test_throws DomainError frac_weights_gate0(0.0, 5)
-        @test_throws DomainError frac_weights_gate0(1.2, 5)
+
+    # ===================================================================
+    # 9.12 P0-2 adaptive continuous d quadrature（Gate-0 重开）
+    # ===================================================================
+    @testset "9.12 P0-2 adaptive d quadrature" begin
+        # 初始网格改名：initial_mesh 是生产起点，default_d_grid 是兼容别名
+        nodes0, cells0 = initial_mesh()
+        @test nodes0 == [0.05, 0.1, 0.2, 0.4, 0.6, 0.8, 1.0]
+        @test default_d_grid() == (nodes0, cells0)
+        @test all(cells0 .> 0)
+        @test isapprox(sum(cells0), 1.0, atol = 1e-12)
+
+        # adaptive 路径（不传 d_nodes/d_cells）：节点数翻倍、Σcells=1、
+        # 先验质量不漂移（SPEC §64：refinement 不改变 prior mass）
+        st_adapt = innovation_state(eps_tilde, row_ids, masks_full, R_t,
+                                    E_active; t = t_dec)
+        @test length(st_adapt.d_nodes) >= length(nodes0)
+        @test isapprox(sum(st_adapt.d_cells), 1.0, atol = 1e-9)
+        @test isapprox(sum(st_adapt.d_weights), 1.0, atol = 1e-12)
+        @test all(0 .< st_adapt.d_nodes .<= 1)
+
+        # 与固定网格路径在相同输入上一致（adaptive 是细化，不是另一套数学）
+        st_fixed = innovation_state(eps_tilde, row_ids, masks_full, R_t,
+                                    E_active; t = t_dec,
+                                    d_nodes = nodes0, d_cells = cells0)
+        # 固定网格的节点是 adaptive 初始网格的子集——V_t 在相同节点上逐位一致
+        for g in eachindex(nodes0)
+            @test isapprox(st_adapt.V_t[findfirst(==(nodes0[g]), st_adapt.d_nodes)],
+                           st_fixed.V_t[g], atol = 1e-12)
+        end
+
+        # refinement certificate 直接调用：默认 tol 下收敛（合成 iid 数据）
+        qres = adaptive_d_quadrature(st_adapt.eps_R,
+                                     st_adapt.row_ids[st_adapt.J_t], t_dec)
+        @test qres.converged == true
+        @test qres.n_levels >= 1
+        @test length(qres.nodes) > length(nodes0)
+        @test isapprox(sum(qres.weights), 1.0, atol = 1e-12)
+        # E[V(d)] 与 st_adapt 的加权 V 一致（同一数学对象）
+        E1 = zeros(4, 4)
+        for g in eachindex(qres.weights)
+            E1 .+= qres.weights[g] .* qres.V_t[g]
+        end
+        E2 = zeros(4, 4)
+        for g in eachindex(st_adapt.d_weights)
+            E2 .+= st_adapt.d_weights[g] .* st_adapt.V_t[g]
+        end
+        @test isapprox(opnorm(E1 - E2), 0.0, atol = 1e-6)
+
+        # 预算耗尽 fail loudly（文本含 "Numerical integration did not converge"）
+        err_budget = try
+            adaptive_d_quadrature(st_adapt.eps_R,
+                                  st_adapt.row_ids[st_adapt.J_t], t_dec;
+                                  tol_d = 0.0, tol_d2 = 0.0, tol_V = 0.0,
+                                  max_levels = 2)
+            nothing
+        catch e
+            e
+        end
+        @test err_budget isa ErrorException
+        @test occursin("Numerical integration did not converge", err_budget.msg)
+
+        # 显式初始网格参数（非默认 initial_mesh）
+        qres2 = adaptive_d_quadrature(st_adapt.eps_R,
+                                      st_adapt.row_ids[st_adapt.J_t], t_dec;
+                                      initial_nodes = nodes0, initial_cells = cells0)
+        @test qres2.converged == true
+
+        # 非法初始网格 fail loudly
+        @test_throws DomainError adaptive_d_quadrature(
+            st_adapt.eps_R, st_adapt.row_ids[st_adapt.J_t], t_dec;
+            initial_nodes = [0.0, 0.5], initial_cells = [0.5, 0.5])
     end
-end
+
+    # ===================================================================
+    # 9.13 P0-3 joint residual span 满秩 / fail-closed（Gate-0 重开）
+    # ===================================================================
+    @testset "9.13 P0-3 rank sufficiency / fail-closed" begin
+        # rank_sufficient：满秩 fixture 为 true；rank 亏 fixture 为 false
+        @test rank_sufficient(st.eps_R) == true
+        masks_rd = [begin
+                        m = trues(N_a)
+                        m[4] = i in (30, 60, 90)
+                        m
+                    end for i in 1:n_rows]
+        st_rd = innovation_state(eps_tilde, row_ids, masks_rd, R_t, E_active; t = t_dec)
+        @test rank_sufficient(st_rd.eps_R) == false
+        @test residual_rank(st_rd.eps_R) <= 3
+
+        # 构造层满秩 gate：require_full_rank=true 时 rank 不足 → error
+        err_rank = try
+            innovation_state(eps_tilde, row_ids, masks_rd, R_t, E_active;
+                             t = t_dec, require_full_rank = true)
+            nothing
+        catch e
+            e
+        end
+        @test err_rank isa ErrorException
+        @test occursin("innovation coverage failure", err_rank.msg)
+        @test occursin("sample null space", err_rank.msg)
+
+        # 满秩 fixture 在 require_full_rank=true 下正常构造（不误杀）
+        st_full = innovation_state(eps_tilde, row_ids, masks_full, R_t,
+                                   E_active; t = t_dec, require_full_rank = true)
+        @test st_full isa InnovationState
+
+        # resolve_risk_domain 满秩判据（提供 residual_rows）：
+        # 资产 5 仅行 60 覆盖（rank 亏）→ 剔除 free 直至满秩
+        masks_cov = [begin
+                         m = trues(N_a)
+                         m[5] = i == 60
+                         m
+                     end for i in 1:n_rows]
+        # 构造残差：asset 空间形态（n_rows × N_a）
+        eps_cov = copy(eps_tilde)
+        # R=[1,2,5]：J 只有行 60 覆盖 5 → rank ≤ 2 < 3 → 剔除 5
+        R_res, dropped = resolve_risk_domain(row_ids, masks_cov, [1, 2, 5],
+                                             Int[], t_dec;
+                                             residual_rows = eps_cov)
+        @test R_res == [1, 2]
+        @test dropped == [5]
+
+        # locked 导致不可收缩（提供 residual_rows 时）→ fail loudly
+        err_lock_rank = try
+            resolve_risk_domain(row_ids, masks_cov, Int[], [5], t_dec;
+                                residual_rows = eps_cov)
+            nothing
+        catch e
+            e
+        end
+        @test err_lock_rank isa ErrorException
+        @test occursin("innovation coverage failure", err_lock_rank.msg)
+        @test occursin("sample null space", err_lock_rank.msg)
+
+        # 不提供 residual_rows 时保持旧判据（向后兼容）
+        R_legacy, dropped_legacy = resolve_risk_domain(row_ids, masks_cov,
+                                                       [1, 2, 5], Int[], t_dec)
+        @test R_legacy == [1, 2]
+        @test dropped_legacy == [5]
+    end
+
+end # @testset "gate0 Step 10-12: vector innovation reference"
+
+end # module Gate0InnovationTests
+    

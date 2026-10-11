@@ -1,5 +1,10 @@
 # Usage: julia --project=. bin/report.jl     (reads data/, writes nothing)
 # What the model believes at the last decision date, and the weights it implies.
+#
+# 历史 release 工具（2.0-RC legacy line，2026-10-10 入口切换后标注）：
+# 本脚本驱动旧线 `fit_v1` / `V1Model`（2.0.0 历史线的模型报告面）。Gate-0
+# 当前唯一入口是 bin/backtest.jl（KTraderGate0）；Gate-0 尚无对应的单模型
+# 报告面，迁移待后续 Gate。保留不删除（D-002/§46）。
 # The V1.0 response posterior is a full Matrix-Normal operator, not per-(band, mode)
 # scalars; the legacy (rho, theta) table is not its statistic. This reports the
 # actual V1.0 quantities: EB alphas, trace diagnostics, predictive moments, and

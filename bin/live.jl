@@ -1,4 +1,10 @@
 # Usage: TRADIER_ACCOUNT_ID=.. TRADIER_TOKEN=.. julia --project=. bin/live.jl [--live]
+#
+# 历史 release 工具（2.0-RC legacy line，2026-10-10 入口切换后标注）：
+# 本脚本是旧线执行入口（LiveState / live_step! / path_kelly_v1）；Gate-0
+# 当前无 live 集成（迁移待后续 Gate 与执行层评审）。Gate-0 当前唯一入口
+# 是 bin/backtest.jl（KTraderGate0）。保留不删除（D-002/§46）；本脚本
+# 未经本次切换验证，不得作为当前入口引用。
 # Env: REBALANCE_INTERVAL_S (60), LIQUIDATE_RATE (0.25: share of each non-universe position sold per pass,
 # of its quantity at the day's first pass; the account is dedicated to KTrader), TRADIER_BASE_URL.
 # Intraday: every INTERVAL seconds, last price = preview close -> path_kelly -> rebalance!.

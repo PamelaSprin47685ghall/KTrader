@@ -52,8 +52,9 @@ using Random, LinearAlgebra
 export InnovationState, innovation_state, SupportCertificate,
     DConditionedShapePool, draw_innovation, z_pool_rows, z_row_at, V_at,
     shape_moments, quasi_loglik, joint_row_indices, coverage_report,
-    resolve_risk_domain, default_d_grid, frac_weights_gate0,
-    mp_sqrt_factors
+    resolve_risk_domain, default_d_grid, initial_mesh,
+    adaptive_d_quadrature, residual_rank, rank_sufficient,
+    frac_weights_gate0, mp_sqrt_factors
 
 # ---------------------------------------------------------------------------
 # kernel：统一 fractional family（D-046 / VI §2.1）
@@ -347,11 +348,11 @@ function quasi_loglik(eps_R::AbstractMatrix{Float64},
 end
 
 """
-    default_d_grid() -> (nodes::Vector{Float64}, cells::Vector{Float64})
+    initial_mesh() -> (nodes::Vector{Float64}, cells::Vector{Float64})
 
-d 的数值 quadrature 默认网格（**实现期定稿占位**——裁决 C4/T7：节点与
-收敛判据留实现阶段按 D-066 流程定稿：synthetic 解析对照、tolerance 减半
-收敛、与 Sharpe/PnL 无关；**禁止以回测选择**）。
+P0-2 初始网格（**不是生产固定网格**——生产 adaptive 路径的起点；节点与
+收敛判据按 D-066 流程定稿：synthetic 解析对照、tolerance 减半收敛、与
+Sharpe/PnL 无关；**禁止以回测选择**）。
 
 - `nodes`：`[0.05, 0.1, 0.2, 0.4, 0.6, 0.8, 1.0]`——旧线 `DGRID_V1`
   （src/predict.jl:10）的节点值复制语义；D-047：DGRID_V1 **不是理论对
@@ -361,7 +362,7 @@ d 的数值 quadrature 默认网格（**实现期定稿占位**——裁决 C4/T
   (0,1]、ΣΔ = 1（浮点容差内）。**先验质量不漂移**（SPEC §64）：离散
   权重 q_g ∝ exp(ℓ(d_g))·Δ_g（VI §3.3）。
 """
-function default_d_grid()
+function initial_mesh()
     nodes = [0.05, 0.1, 0.2, 0.4, 0.6, 0.8, 1.0]
     n = length(nodes)
     edges = Vector{Float64}(undef, n + 1)
@@ -373,6 +374,164 @@ function default_d_grid()
     cells = diff(edges)
     return (nodes, cells)
 end
+
+"""兼容别名（P0-2：保留供测试/历史对照；生产 adaptive 路径用
+`initial_mesh` 作为起点）。"""
+default_d_grid() = initial_mesh()
+
+"""
+    adaptive_d_quadrature(eps_R, u_J, t;
+                          initial_nodes = nothing, initial_cells = nothing,
+                          tol_d = 1e-4, tol_d2 = 1e-4, tol_V = 1e-6,
+                          max_levels = 12, cls_floor = nothing) -> NamedTuple
+
+d ∈ (0,1]、d ~ U(0,1) 的 **adaptive 1D deterministic quadrature**
+（P0-2；D-047/D-062/D-064）：从初始网格（默认 `initial_mesh()`）出发，
+按 **cell 中点细分**（节点数近似翻倍：M → 2M−1），计算 d 的
+quasi-posterior `q_g ∝ exp(ℓ(d_g))·Δ_g`（ℓ = Gaussian covariance
+quasi-likelihood，D-57；η ≡ 1，D-58），直到 refinement certificate 通过，
+或预算耗尽 fail loudly。
+
+**refinement certificate（相邻两级 M → 2M）**：
+- `|E_{2M}[d] − E_M[d]| ≤ tol_d`；
+- `|E_{2M}[d²] − E_M[d²]| ≤ tol_d2`；
+- `‖E_{2M}[V(d)] − E_M[V(d)]‖_F ≤ tol_V·max(1, ‖E_M[V(d)]‖_F)`。
+矩在 quasi-posterior 权重上计算（E[f(d)] = Σ_g q_g f(d_g)）——posterior
+矩与后续决策量的变化都受证书约束（D-064 A/B 的 d 层对应物）。
+
+**先验质量不漂移（SPEC §64）**：cell 细分只把旧 cell 的 mass 拆给新子
+cell（边界 = 旧节点与新中点），ΣΔ = 1 恒成立；q_g ∝ exp(ℓ)·Δ_g 保持
+d ~ U(0,1) 的测度语义——refinement 不改变 prior mass。
+
+**fail loudly（SPEC §56 / D-067）**：达到 `max_levels` 仍不收敛 →
+error（文本含 "Numerical integration did not converge"）。严禁返回最后
+一层权重冒充收敛。
+
+返回 `(; nodes, cells, weights, V_t, converged, n_levels)`：
+- `nodes`/`cells`：最终节点与 cell mass（Σcells ≈ 1）；
+- `weights`：q(d|H) 离散权重（Σ = 1，η≡1，D-58）；
+- `V_t`：per-node V_t(d)（与 nodes 同序）；
+- `converged`/`n_levels`：证书通过与否与 refinement 轮数。
+"""
+function adaptive_d_quadrature(eps_R::AbstractMatrix{Float64},
+                               u_J::AbstractVector{<:Integer},
+                               t::Integer;
+                               initial_nodes::Union{Nothing,AbstractVector{<:Real}} = nothing,
+                               initial_cells::Union{Nothing,AbstractVector{<:Real}} = nothing,
+                               tol_d::Real = 1e-4,
+                               tol_d2::Real = 1e-4,
+                               tol_V::Real = 1e-6,
+                               max_levels::Integer = 12,
+                               cls_floor::Union{Nothing,Real} = nothing)
+    mesh = initial_mesh()
+    nodes0 = initial_nodes === nothing ? mesh[1] : Float64.(collect(initial_nodes))
+    cells0 = initial_cells === nothing ? mesh[2] : Float64.(collect(initial_cells))
+    length(nodes0) == length(cells0) ||
+        throw(DimensionMismatch("adaptive_d_quadrature: initial_nodes（$(length(nodes0))）与 initial_cells（$(length(cells0))）长度不符"))
+    isempty(nodes0) && error("adaptive_d_quadrature: 初始网格非空")
+    for g in eachindex(nodes0)
+        (isfinite(nodes0[g]) && nodes0[g] > 0.0 && nodes0[g] <= 1.0) ||
+            throw(DomainError(nodes0[g], "adaptive_d_quadrature: 初始节点必须落在 (0,1]（D-47 先验支撑）"))
+        (isfinite(cells0[g]) && cells0[g] > 0.0) ||
+            throw(DomainError(cells0[g], "adaptive_d_quadrature: 初始 cell mass 必须为正（SPEC §64：先验质量不漂移）"))
+    end
+    isapprox(sum(cells0), 1.0; atol = 1e-9) ||
+        error("adaptive_d_quadrature: 初始 cell mass 总和 $(sum(cells0)) ≠ 1（覆盖 (0,1]，VI §3.3）")
+
+    # 计算一层的节点/权重/V_t（direct sums，reference 纪律 D-085）
+    function level(nodes::Vector{Float64}, cells::Vector{Float64})
+        V_list = [V_direct(eps_R, u_J, nodes[g], t) for g in eachindex(nodes)]
+        lls = [quasi_loglik(eps_R, u_J, nodes[g]; cls_floor = cls_floor)
+               for g in eachindex(nodes)]
+        log_w = lls .+ log.(cells)
+        mx = maximum(log_w)
+        w_un = exp.(log_w .- mx)
+        weights = w_un ./ sum(w_un)
+        return (; nodes = nodes, cells = cells, weights = weights, V_t = V_list)
+    end
+
+    # cell 中点细分：新节点 = 旧节点 ∪ 每个 cell 中点（M → 2M−1）
+    function refine(nodes::Vector{Float64}, cells::Vector{Float64})
+        n = length(nodes)
+        nnodes = Vector{Float64}(undef, 2n - 1)
+        nnodes[1:2:end] .= nodes
+        for i in 1:n-1
+            nnodes[2i] = (nodes[i] + nodes[i + 1]) / 2
+        end
+        edges = Vector{Float64}(undef, 2n)
+        edges[1] = 0.0
+        for i in 1:2n-2
+            edges[i + 1] = (nnodes[i] + nnodes[i + 1]) / 2
+        end
+        edges[2n] = 1.0
+        ncells = diff(edges)
+        return (nnodes, ncells)
+    end
+
+    nodes, cells = nodes0, cells0
+    cur = level(nodes, cells)
+    for lvl in 1:Int(max_levels)
+        nnodes, ncells = refine(nodes, cells)
+        nxt = level(nnodes, ncells)
+        E1_d = sum(cur.weights .* cur.nodes)
+        E2_d = sum(nxt.weights .* nxt.nodes)
+        E1_d2 = sum(cur.weights .* cur.nodes .^ 2)
+        E2_d2 = sum(nxt.weights .* nxt.nodes .^ 2)
+        E1_V = zeros(size(cur.V_t[1]))
+        E2_V = zeros(size(nxt.V_t[1]))
+        for g in eachindex(cur.weights)
+            E1_V .+= cur.weights[g] .* cur.V_t[g]
+        end
+        for g in eachindex(nxt.weights)
+            E2_V .+= nxt.weights[g] .* nxt.V_t[g]
+        end
+        ok = abs(E2_d - E1_d) <= Float64(tol_d) &&
+              abs(E2_d2 - E1_d2) <= Float64(tol_d2) &&
+              opnorm(E2_V - E1_V) <= Float64(tol_V) * max(1.0, opnorm(E1_V))
+        if ok
+            return (; nodes = nnodes, cells = ncells, weights = nxt.weights,
+                    V_t = nxt.V_t, converged = true, n_levels = lvl)
+        end
+        nodes, cells, cur = nnodes, ncells, nxt
+    end
+    error("Numerical integration did not converge: d quasi-posterior refinement 达 max_levels=$(max_levels)（末层节点数 $(length(nodes))）仍不满足证书（P0-2/D-067：预算耗尽必须 fail loudly，不得返回最后一层权重冒充收敛）")
+end
+
+"""
+    residual_rank(eps_R; cls_floor = nothing) -> Int
+
+joint residual span 的数值秩（P0-3）：`rank{ε_s^(R) : s ∈ J}`。对
+eps_R（|J|×N_R，asset 坐标或 R 域 mode 坐标均可——正交 mode 变换不改变
+秩）做 SVD，σ > fl 计数；fl 与 `mp_sqrt_factors` 同口径：
+`N_R·sqrt(eps)·max(σmax, floatmin)`（浮点分类，非理论参数）。
+
+**语义（P0-3）**：fractional kernel 对历史行是正权重，只要
+`rank == N_R`，`V_t(d) ≻ 0` 对所有 d ∈ (0,1] 都成立；rank < N_R 时
+存在 sample null space——**不得宣布为 physical zero-risk space**（真实
+含义是「没有足够样本识别这些方向」）。Moore-Penrose 协议
+（`mp_sqrt_factors`）保留作诊断，production ready 判定用本函数。
+"""
+function residual_rank(eps_R::AbstractMatrix{Float64};
+                       cls_floor::Union{Nothing,Real} = nothing)
+    nJ, N_R = size(eps_R)
+    N_R >= 1 || throw(ArgumentError("residual_rank: N_R ≥ 1"))
+    σ = svdvals(eps_R)
+    σmax = isempty(σ) ? 0.0 : σ[1]
+    fl = cls_floor === nothing ?
+        N_R * sqrt(eps(Float64)) * max(σmax, floatmin(Float64)) : Float64(cls_floor)
+    fl >= 0.0 || throw(DomainError(fl, "residual_rank: cls_floor 必须非负（浮点分类阈值）"))
+    return count(>(fl), σ)
+end
+
+"""
+    rank_sufficient(eps_R; cls_floor = nothing) -> Bool
+
+joint residual span 满秩判定（P0-3）：`rank{ε_s^(R) : s ∈ J} == N_R`。
+满秩 ⇒ V_t(d) ≻ 0 ∀ d ∈ (0,1]（fractional kernel 正权重）。
+"""
+rank_sufficient(eps_R::AbstractMatrix{Float64};
+                cls_floor::Union{Nothing,Real} = nothing) =
+    residual_rank(eps_R; cls_floor = cls_floor) == size(eps_R, 2)
 
 # ---------------------------------------------------------------------------
 # per-d standardized shape pool（D-052/D-053/D-055；VI §5/§6）
@@ -488,15 +647,29 @@ N_R = |R_t|；裁决 A1/D-045a）。
 - `J_t`：joint 合法行索引（输入行空间；单一行集概念——裁决 C2）；
 - `L_t`：ℓ/z 行在 J 空间的位置（= 2:|J|；V_{s−1} 可定义行）；
 - `d_nodes`/`d_cells`/`d_weights`：数值 quadrature 节点 / cell mass /
-  q(d|H) 离散权重（q_g ∝ exp(ℓ_d)·Δ_g，η≡1）；
+  q(d|H) 离散权重（q_g ∝ exp(ℓ_d)·Δ_g，η≡1）；adaptive 路径下为
+  `adaptive_d_quadrature` 的收敛结果（P0-2），固定路径下为显式传入值。
 - `V_t`：per-node V_t(d)（N_R×N_R，构造性 PSD）；
 - `support_cert`：决策日 support 诊断（秩引理实证/null 方向）；
 - `z_pool`：per-d shape pool（DConditionedShapePool）。
 
-**已删除对象（D-059/D-047/D-054，VI §10 差异表）**：`v_forecasts`/
-`v_bootstrap`（vector law 自含绝对尺度——V_t 自身就是绝对 scale，锚定
-通道整体删除）；`own_res_rows`（own-row cell stitching 被禁）；
-DGRID_V1 的理论对象身份（只是数值节点候选）。
+构造 keyword（非 struct 字段）：
+- `cls_floor`：浮点谱分类阈值（默认 mp_sqrt_factors 的自动值；仅分类，
+  floor→0 refinement 接口）。
+- `require_full_rank`：joint residual span 满秩 gate（P0-3）。`true`
+  时 `rank{ε_s^(R) : s ∈ J} == N_R` 不满足即 error（文本含
+  "innovation coverage failure"——sample null space 不得宣布为
+  physical zero-risk space）。默认 `false` 保留 Moore-Penrose 诊断
+  语义（null 方向不逆不注噪；诊断对象仍可构造）。
+
+**构造流程（fail-loudly，SPEC §56）**：行集判定 J → propriety 断言
+（|J_t| ≥ 1 且 |L| ≥ 1——错误文本含 "innovation coverage failure"，
+裁决 C3；|J|=1 时 V 可定义但 ℓ 无信息，同样 error，不得静默返回均匀先
+验冒装有信息的 quasi-posterior——VI §3.4）→ R 子向量提取与 E_{R_t}
+mode 变换（eps_R = ε̃[J,R]·E_R；**禁止从 active 域 mode 残差取子向量**
+——裁决 A3）→ 有限性断言（VI §1.2 契约 5）→ per-node V_t/ℓ_d →
+d_weights = softmax(ℓ + log cells)（先验质量不漂移，SPEC §64）→
+support 证书 → z_pool 冻结。
 """
 struct InnovationState
     R_t::Vector{Int}
@@ -516,46 +689,6 @@ struct InnovationState
     z_pool::DConditionedShapePool
 end
 
-"""
-    innovation_state(residual_rows, row_ids, row_masks, R_t, E_active;
-                     t = nothing, d_nodes = nothing, d_cells = nothing,
-                     cls_floor = nothing) -> InnovationState
-
-R 域实例化主入口（施工图 Step 10；裁决 A/A3）。
-
-**输入契约**（接口锚，VI §0/裁决 D1）：
-- `residual_rows::n_rows×N_a`：asset 空间 OOF 残差行 ε̃_s（response 层
-  Step 8/9 输出契约形态——**含 b₀ 扣除**：ε̃ = E_active·[y − (b₀+Gx)]，
-  ŷ 为 fold 完整后验均值。**b₀/OOF 语义由调用方保证，本层不验证、不
-  重算**）。非 J 行的 R 坐标允许 NaN（缺失由 mask 表达——VI §1.2 契约
-  4/5）；J 行的 R 子向量必须 finite（违反即 error）。
-- `row_ids`：行目标日 u_s，**严格递增**（VI §1.2 契约 3：行序 = 目标
-  日序；违反 error）。
-- `row_masks`：每行 O_s（长度 N_a 的 Bool 向量）。
-- `R_t`：决策日 risk 域（free ∪ locked 的资产索引集；判定来源
-  src/gate0/market.jl 的 free/locked——裁决 G3）。内部 sort(unique)。
-- `E_active`：active 域基（ε̃ 的列坐标基，response 层输出契约）——本层
-  仅做维度一致性校验（size = (N_a, N_a)），**不参与 V/z 的数值计算**
-  （R 域对象自洽；mode 变换用内部构造的 E_{R_t}）。
-
-**keyword**：
-- `t`：决策日（因果边界）。默认 `maximum(row_ids)`——**调用方契约**：
-  传入行必须全部 u_s ≤ t（response 层 OOF 输出即决策日因果前缀）。
-- `d_nodes`/`d_cells`：数值 quadrature 节点与 cell mass（默认
-  `default_d_grid()`——实现期定稿占位，D-066 流程）。校验：节点 ∈
-  (0,1]、cells > 0、Σcells ≈ 1、长度相等。
-- `cls_floor`：浮点谱分类阈值（默认 mp_sqrt_factors 的自动值；仅分类，
-  floor→0 refinement 接口）。
-
-**构造流程（fail-loudly，SPEC §56）**：行集判定 J → propriety 断言
-（|J_t| ≥ 1 且 |L| ≥ 1——错误文本含 "innovation coverage failure"，
-裁决 C3；|J|=1 时 V 可定义但 ℓ 无信息，同样 error，不得静默返回均匀先
-验冒装有信息的 quasi-posterior——VI §3.4）→ R 子向量提取与 E_{R_t}
-mode 变换（eps_R = ε̃[J,R]·E_R；**禁止从 active 域 mode 残差取子向量**
-——裁决 A3）→ 有限性断言（VI §1.2 契约 5）→ per-node V_t/ℓ_d →
-d_weights = softmax(ℓ + log cells)（先验质量不漂移，SPEC §64）→
-support 证书 → z_pool 冻结。
-"""
 function innovation_state(residual_rows::AbstractMatrix{Float64},
                           row_ids::AbstractVector{<:Integer},
                           row_masks::AbstractVector{<:AbstractVector{Bool}},
@@ -564,7 +697,8 @@ function innovation_state(residual_rows::AbstractMatrix{Float64},
                           t::Union{Nothing,Integer} = nothing,
                           d_nodes::Union{Nothing,AbstractVector{<:Real}} = nothing,
                           d_cells::Union{Nothing,AbstractVector{<:Real}} = nothing,
-                          cls_floor::Union{Nothing,Real} = nothing)
+                          cls_floor::Union{Nothing,Real} = nothing,
+                          require_full_rank::Bool = false)
     # --- 维度与输入校验（fail loudly） ---
     n_rows, N_a = size(residual_rows)
     n_rows >= 1 || error("innovation_state: residual_rows 至少一行（实际 $(size(residual_rows))）")
@@ -594,26 +728,28 @@ function innovation_state(residual_rows::AbstractMatrix{Float64},
     tdec >= ids[1] ||
         error("innovation_state: 决策日 t=$(tdec) 早于首行目标日 $(ids[1])——J 必为空")
 
-    # --- d 网格校验 ---
-    if d_nodes === nothing || d_cells === nothing
+    # --- d 网格：adaptive（P0-2）或显式固定网格 ---
+    use_adaptive_d = d_nodes === nothing || d_cells === nothing
+    if use_adaptive_d
         (d_nodes === nothing && d_cells === nothing) ||
             error("innovation_state: d_nodes 与 d_cells 必须同时提供或同时缺省")
-        nodes, cells = default_d_grid()
+        nodes = Float64[]
+        cells = Float64[]
     else
         nodes = Float64.(collect(d_nodes))
         cells = Float64.(collect(d_cells))
+        length(nodes) == length(cells) ||
+            throw(DimensionMismatch("innovation_state: d_nodes（$(length(nodes))）与 d_cells（$(length(cells))）长度不符"))
+        isempty(nodes) && error("innovation_state: d 网格非空")
+        for g in eachindex(nodes)
+            (isfinite(nodes[g]) && nodes[g] > 0.0 && nodes[g] <= 1.0) ||
+                throw(DomainError(nodes[g], "innovation_state: d 节点必须落在 (0,1]（D-47 先验支撑）"))
+            (isfinite(cells[g]) && cells[g] > 0.0) ||
+                throw(DomainError(cells[g], "innovation_state: d cell mass 必须为正（SPEC §64：先验质量不漂移）"))
+        end
+        isapprox(sum(cells), 1.0; atol = 1e-9) ||
+            error("innovation_state: cell mass 总和 $(sum(cells)) ≠ 1（覆盖 (0,1]，VI §3.3）")
     end
-    length(nodes) == length(cells) ||
-        throw(DimensionMismatch("innovation_state: d_nodes（$(length(nodes))）与 d_cells（$(length(cells))）长度不符"))
-    isempty(nodes) && error("innovation_state: d 网格非空")
-    for g in eachindex(nodes)
-        (isfinite(nodes[g]) && nodes[g] > 0.0 && nodes[g] <= 1.0) ||
-            throw(DomainError(nodes[g], "innovation_state: d 节点必须落在 (0,1]（D-47 先验支撑）"))
-        (isfinite(cells[g]) && cells[g] > 0.0) ||
-            throw(DomainError(cells[g], "innovation_state: d cell mass 必须为正（SPEC §64：先验质量不漂移）"))
-    end
-    isapprox(sum(cells), 1.0; atol = 1e-9) ||
-        error("innovation_state: cell mass 总和 $(sum(cells)) ≠ 1（覆盖 (0,1]，VI §3.3）")
 
     # --- 行集判定（单一行集，裁决 C2）与 propriety 断言 ---
     J = joint_row_indices(ids, masks, R, tdec)
@@ -628,16 +764,30 @@ function innovation_state(residual_rows::AbstractMatrix{Float64},
     eps_R = Matrix(residual_rows[J, R]) * E_R
     all(isfinite, eps_R) ||
         error("innovation_state: J 行的 R 子向量含非有限值（VI §1.2 契约 5：被消费的 ε 分量必须有限；非 J 行的缺失由 mask 表达，NaN 合法——J 行不合法）")
+    # --- joint residual span 满秩 gate（P0-3） ---
+    if require_full_rank
+        rk = residual_rank(eps_R; cls_floor = cls_floor)
+        rk == N_R ||
+            error("innovation coverage failure: joint residual span rank $(rk) < N_R = $(N_R)——sample null space 不得宣布为 physical zero-risk space（P0-3）；请先经 resolve_risk_domain 收缩 free universe；locked 导致不可收缩则维持持仓 / fail closed")
+    end
 
-    # --- per-node V_t / ℓ_d / d_weights ---
+    # --- per-node V_t / ℓ_d / d_weights（adaptive 或固定） ---
     u_J = ids[J]
-    V_list = [V_direct(eps_R, u_J, nodes[g], tdec) for g in eachindex(nodes)]
-    lls = [quasi_loglik(eps_R, u_J, nodes[g]; cls_floor = cls_floor)
-           for g in eachindex(nodes)]
-    log_w = lls .+ log.(cells)
-    mx = maximum(log_w)
-    w_un = exp.(log_w .- mx)
-    d_weights = w_un ./ sum(w_un)          # η ≡ 1（D-58：禁 temperature）
+    if use_adaptive_d
+        qres = adaptive_d_quadrature(eps_R, u_J, tdec; cls_floor = cls_floor)
+        nodes = qres.nodes
+        cells = qres.cells
+        d_weights = qres.weights
+        V_list = qres.V_t
+    else
+        V_list = [V_direct(eps_R, u_J, nodes[g], tdec) for g in eachindex(nodes)]
+        lls = [quasi_loglik(eps_R, u_J, nodes[g]; cls_floor = cls_floor)
+               for g in eachindex(nodes)]
+        log_w = lls .+ log.(cells)
+        mx = maximum(log_w)
+        w_un = exp.(log_w .- mx)
+        d_weights = w_un ./ sum(w_un)          # η ≡ 1（D-58：禁 temperature）
+    end
 
     # --- support 证书（秩引理实证 / null 方向）---
     ranks = Int[]; lmax = Float64[]; lminp = Float64[]; nulls = Int[]
@@ -773,15 +923,27 @@ end
 - **free 剔尽且 locked 为空**：返回**空 R_t**（调用方按「无可生成风险
   的资产——资金全留 cash」处理；`innovation_state` 对空 R error）。
 
-判定「足」= |J| ≥ 2（V 可定义且 ℓ 有信息的合并判据——VI §3.4 两断
-言；|J| ≥ 1 但 = 1 时 ℓ 无信息，同属不足）。free/locked 语义由
-src/gate0/market.jl 的 free/locked 判定提供（裁决 G3：Step 1/2 前置）。
+判定「足」：
+- 基础判据 = |J| ≥ 2（V 可定义且 ℓ 有信息的合并判据——VI §3.4 两断
+  言；|J| ≥ 1 但 = 1 时 ℓ 无信息，同属不足）；
+- **满秩判据（P0-3，可选）**：提供 `residual_rows` 时，「足」还要求
+  `rank{ε_s^(R) : s ∈ J} = |R|`（fractional kernel 正权重 ⇒ V_t(d) ≻ 0
+  对所有 d ∈ (0,1] 成立）。不满秩 = 该 risk domain 尚未 ready——sample
+  null space 不得宣布为 physical zero-risk space；剔除 free 直至满秩，
+  locked 导致不可收缩则 fail loudly（文本含 "innovation coverage
+  failure"）。不提供 `residual_rows` 时保持基础判据（向后兼容——driver
+  在 OOF 之前调用 resolve，拿不到残差；innovation_state 的
+  `require_full_rank` 是构造层最后防线）。
+free/locked 语义由 src/gate0/market.jl 的 free/locked 判定提供（裁决
+G3：Step 1/2 前置）。
 """
 function resolve_risk_domain(row_ids::AbstractVector{<:Integer},
                              row_masks::AbstractVector{<:AbstractVector{Bool}},
                              free_assets::AbstractVector{<:Integer},
                              locked_assets::AbstractVector{<:Integer},
-                             t::Integer)
+                             t::Integer;
+                             residual_rows::Union{Nothing,AbstractMatrix{Float64}} = nothing,
+                             cls_floor::Union{Nothing,Real} = nothing)
     N_a = length(row_masks[1])
     for v in (free_assets, locked_assets), j in v
         (1 <= j <= N_a) ||
@@ -797,8 +959,21 @@ function resolve_risk_domain(row_ids::AbstractVector{<:Integer},
     # innovation_state 对空 R error，由调用方处理）。
     njoint(R::Vector{Int}) = isempty(R) ? count(<=(t), row_ids) :
         length(joint_row_indices(row_ids, row_masks, R, t))
+    # 满秩判据（P0-3）：提供 residual_rows 时，risk 域 ready 要求
+    # rank{ε_s^(R) : s ∈ J} = |R|（fractional kernel 正权重 ⇒ V_t(d) ≻ 0
+    # ∀ d ∈ (0,1]）。不提供时保持 |J| ≥ 2 基础判据（向后兼容——driver
+    # 在 OOF 之前调用 resolve，拿不到残差）。
+    rank_ok(R::Vector{Int}) = begin
+        isempty(R) && return true
+        J = joint_row_indices(row_ids, row_masks, R, t)
+        isempty(J) && return false
+        epsR = residual_rows[J, R]
+        residual_rank(epsR; cls_floor = cls_floor) == length(R)
+    end
+    sufficient(R::Vector{Int}) = njoint(R) >= 2 &&
+        (residual_rows === nothing || rank_ok(R))
     R = sort(union(cur_free, locked))
-    while !isempty(cur_free) && njoint(R) < 2
+    while !isempty(cur_free) && !sufficient(R)
         # 剔除因果覆盖行数最少的 free 资产（tie → 索引序，确定性）
         counts = [count(i -> (row_ids[i] <= t && row_masks[i][j]), 1:length(row_ids))
                   for j in cur_free]
@@ -808,8 +983,10 @@ function resolve_risk_domain(row_ids::AbstractVector{<:Integer},
         deleteat!(cur_free, jpos)
         R = sort(union(cur_free, locked))
     end
-    if njoint(R) < 2
-        error("innovation coverage failure: 剔除 free（$(dropped)）后行集仍不足——覆盖缺口由 locked 资产（$(locked)）引起，或 free 剔尽仍不足（D-056/裁决 C3：fail loudly，回测驱动器当日维持持仓，不拼残差、不 zero-fill）")
+    if !sufficient(R)
+        reason = residual_rows === nothing ? "行集仍不足" :
+            "行集不足或 joint residual span 不满秩（rank < |R|——sample null space 不得宣布为 physical zero-risk space，P0-3）"
+        error("innovation coverage failure: 剔除 free（$(dropped)）后 $(reason)——覆盖缺口由 locked 资产（$(locked)）引起，或 free 剔尽仍不足（D-056/裁决 C3：fail loudly，回测驱动器当日维持持仓，不拼残差、不 zero-fill）")
     end
     return (R, sort!(dropped))
 end

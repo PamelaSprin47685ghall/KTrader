@@ -23,6 +23,28 @@
 > innovation 仍使用经验 / quasi-likelihood 结构期间，禁止称 fully Bayesian
 > generative posterior predictive（D-042）。Gate-0 Exit 十八项清单的逐项核对见
 > [docs/GATE0_EXIT_CHECKLIST.md](docs/GATE0_EXIT_CHECKLIST.md)。
+>
+> **当前入口切换（2026-10-10，Gate-0 验收结论第 7 步）**：KTraderGate0 升格为
+> 唯一当前入口——`bin/backtest.jl` 是当前生产回测入口，参数面统一为
+> `GATE0_*`（不保留旧线回测参数）。旧 2.0 线（`src/KTrader`）冻结为历史
+> release：其对比/报告/执行工具（`bin/bench.jl`、`bin/report.jl`、
+> `bin/live.jl`）保留为历史线工具，不再是当前入口。Gate-0 是 slow
+> reference：单线程、无 incremental；多日窗口是批量负载，默认末 20 天，
+> 60/501 天阶梯归 D-088/D-089 分批调度；kelly 收敛鲁棒性缺口已修复
+> （2026-10-10：条件行缩放 + polish 防护），最终受控验证 984/984 全绿
+> （archive/evidence/gate0_final_verify_20261010/）；其后运行状态见下段。
+
+> **Gate-0 现状与 A 门闭合（2026-10-11）**：Gate 0 已于 2026-10-10 宣告关闭
+> （十八项核对见 [docs/GATE0_EXIT_CHECKLIST.md](docs/GATE0_EXIT_CHECKLIST.md)；
+> 全量测试 984/984 全绿，archive/evidence/gate0_final_verify_20261010/）。
+> 当前线 = KTraderGate0 + 过门配置：`GATE0_MU_QMC=true`、
+> `GATE0_CHISQ_QMC=true`、`GATE0_MAX_SCENARIOS=131072`。该配置下
+> t=330–346 十六日十二过四超（未收敛日 336/340/343/344，fail-loud 不产出
+> 认证权重；通过率 75%，未收敛日约 25%）。未收敛日处理决策包（范围门控 /
+> weight_tol D-066 复核 / 活跃集低维化）见
+> [docs/KELLY_NUMERICAL_ROW_SCALING.md](docs/KELLY_NUMERICAL_ROW_SCALING.md)
+> §9.13——归属 owner/SPEC。批量调度九段稳定；证据
+> archive/evidence/gate0_multiday_run_20261010/（AGENTS.md 第 15/16 任段）。
 
 价格历史 → 因果多尺度特征 → 独立 OOF 后验 → 收益场景 → 原始对数 Kelly → 执行。
 
@@ -30,9 +52,9 @@
 
 | 目录 | 角色 |
 |---|---|
-| `src/` | 生产数学：`KTrader`（2.0-RC 现行工作线）+ `src/gate0/`（Gate-0 纠偏新线 `KTraderGate0`） |
+| `src/` | `KTraderGate0`（`src/gate0/`，当前 Gate-0 线，由唯一当前入口 `bin/backtest.jl` 驱动）+ `KTrader`（2.0-RC 历史 release 线，冻结） |
 | `test/` | 标准测试入口 `test/runtests.jl` + 契约注册表 + `test/fixtures/` |
-| `bin/` | 可执行入口：`backtest / bench / report / fetch / live / scoped_run.sh / verify_release`；`ceiling_probes.jl` 为受门禁的 dev 命名空间入口 |
+| `bin/` | 当前入口：`backtest`（KTraderGate0）；历史线工具：`bench / report / live`；数据层：`fetch`；工具：`scoped_run.sh / verify_release`；`ceiling_probes.jl` 为受门禁的 dev 命名空间入口 |
 | `docs/` | 规范与审计文档（六份分析 + Gate-0 四份） |
 | `release/` | 发布打包与校验工具（`package_source.py` / `verify_tests.jl` / `smoke.jl`） |
 | `dev/` | 开发侧活动资产：探针命名空间 `probes.jl`、M1 重放链路、验收驱动、GPU 原语，以及发布凭据链 `dev/evidence/{cpu20_acceptance, earlier_closure, final_2_0_0, release_freeze}_20261009/` |
@@ -56,18 +78,52 @@ Gate-0 裁决撤销，当前状态见文首声明。）
 
 ```sh
 julia --project=. -e 'using Pkg; Pkg.instantiate()'
-julia --startup-file=no --project=. bin/verify_release.jl
 julia --startup-file=no --project=. -e 'using KTrader; println(Base.pkgversion(KTrader))'
 ```
 
-版本应为 `2.0.0`。校验器核对已验收的 CPU 源码、测试、锁定依赖和验收凭据，
-并验证此次版本号变更是唯一 Project 元数据变化。它不跑拟合、不加载 GPU，
-也不把哈希校验冒充新的数值测试。
+`using KTrader` 的版本号 `2.0.0` 属于历史 release 线包身份；当前 Gate-0
+工作线经 `bin/backtest.jl` 与 `test/gate0/runtests.jl` 使用（见「使用」）。
 
-## 使用
+`bin/verify_release.jl` 校验的是 2.0.0 历史发布物身份（acceptance /
+qualification 凭据与基线工程字节）。在 Gate-0 工作树上它预期会在逐文件
+hash 处拦截（工作树已含 `src/gate0/` 等新增/变更文件）——这是历史快照
+校验器的预期行为，不是当前开发线的验收工具，也不把哈希校验冒充新的
+数值测试。
+
+## 使用（当前入口：Gate-0）
 
 `data/close.csv`、`data/adj.csv` 使用 `date` 列加资产列；未观察价格用 `NaN`。
 行情、账户信息和已拟合模型不随源码包发布。
+
+当前生产回测入口是 `bin/backtest.jl`，驱动独立模块 `KTraderGate0`
+（`src/gate0/`；两线互不 include，数据桥只经旧线数据层取裸矩阵）。默认
+末 20 天短窗口、`GATE0_MODE=adaptive`（生产路径）、严格 posterior 口径。
+参数面全部为 `GATE0_*`，完整清单见脚本头注释：
+
+```sh
+# 默认：末 20 天窗口，adaptive 生产路径
+julia --startup-file=no --project=. bin/backtest.jl
+# 最小 smoke（5 天窗口；t_start 必须 ≥ WARMUP+1 = 257，示例按数据调整）
+GATE0_T_START=14001 GATE0_T_END=14006 julia --startup-file=no --project=. bin/backtest.jl
+# reference 固定 S 对照（D-062 合法用途，非生产默认）
+GATE0_MODE=reference GATE0_S_REFERENCE=64 julia --startup-file=no --project=. bin/backtest.jl
+```
+
+Gate-0 是 slow reference（D-082/D-083）：单线程、无 incremental、无缓存；
+每个决策日重跑完整链条，因此**多日窗口是批量负载**。入口将 BLAS 设为单
+线程（`BLAS.set_num_threads(1)`——gate0 负载实测最优配置：单点
+8.36ms→2.52ms，见 archive/evidence/gate0_merged_verify8_20261010/）。
+60/501 天阶梯与完整两年在单命令 60s 护栏之外，归 owner 分批调度
+（D-088/D-089）；不得把短窗口计时外推为长回测耗时。Gate-0 测试线最终
+受控验证 984/984 全绿（kelly 缺口已修复）；其后 kelly_cash 增 B2B-SPLIT-1
+testset（26/26），受影响模块（quadrature/driver/backtest 1–8/kelly_cash）
+已受控回归通过（archive/evidence/gate0_regress_20261011/）；其余组引用
+既有全绿（archive/evidence/gate0_final_verify_20261010/）。过门配置多日批量
+运行（t=330–346）见文首声明。
+
+### 历史 release（2.0.0 / 2.0-RC 旧线）
+
+旧线 API（历史 release 语义；旧测试与验收凭据仍冻结守护该线）：
 
 ```julia
 using KTrader, Random, LinearAlgebra
@@ -82,22 +138,21 @@ weights = KTrader.scenario_weights(
     scenarios, model.active_indices, bars.bar[end, :], nothing)
 ```
 
-完整回测命令：
-
-```sh
-DATE_TASKS=1 BLAS_THREADS=6 ENGINE=batch SCENARIOS=300 \
-  julia -t 1 --project=. bin/backtest.jl 2026-09-22
-```
-
-起始日期由本地数据决定；不要把短窗口计时外推为长回测耗时。本版本的已验证
-资源配置是一日期任务／BLAS6／默认 GC。双任务曾接近 2 GiB 护栏，未作为
-稳定内存配置推荐，也没有修改原 CLI 默认值。
+旧线工具入口：`bin/bench.jl`（引擎对比）、`bin/report.jl`（模型报告）、
+`bin/live.jl`（执行）——均为历史线工具，不属于当前 Gate-0 入口；
+`bin/fetch.jl` 为双线共用的数据层工具。历史发布物校验见
+`bin/verify_release.jl`。
 
 ## 数学与实现边界
 
-`prepare_reference → PreparedProblem → solve` 是主路径。增量准备最终也进入
-同一个求解器；资源预算只选择准备路径，不改变结果。full 和每个 OOF 折
-独立拟合。所有返回仍须原 alpha、协方差和 Kelly 证书通过，失败即报错。
+以下为 2.0-RC 历史线的边界描述（当前 Gate-0 线的主路径是
+`MarketFacts/Eligibility → single_day_decision → run_gate0_backtest`，
+见「使用」）。
+
+`prepare_reference → PreparedProblem → solve` 是历史线主路径。增量准备
+最终也进入同一个求解器；资源预算只选择准备路径，不改变结果。full 和
+每个 OOF 折独立拟合。所有返回仍须原 alpha、协方差和 Kelly 证书通过，
+失败即报错。
 
 2.0 优化了拟合内几何和工作数组复用、按需梯度、同 alpha 证书计算、稀疏
 观察掩码遍历、增量列拷贝和 Kelly 矩阵布局。没有缩历史、截秩、减折或
@@ -109,9 +164,20 @@ predict / incremental / kelly / backtest / broker / live`。生产模块不加�
 
 ## 验证与已知限制
 
-已验收 CPU 源码的 41 个标准文件、22 个分组全部通过；两个不重叠的 N65
-八日窗口已验证。较早窗口的独立逐日模型和两次进程输出比较，仓位 L1 和
-收益差异均为 0。详细证据与边界见 [CPU 2.0 交付](RELEASE_CPU_2_0.md)。
+**当前 Gate-0 线**：测试入口为 `test/gate0/runtests.jl`（12 模块，按
+`GATE0_MODULES` 分组调度；默认 backtest 场景 1 为 5-day end-to-end）。
+最近一次全量受控运行报告 984/984 全绿（kelly 收敛鲁棒性缺口已修复；
+archive/evidence/gate0_final_verify_20261010/）；其后 kelly_cash 增 B2B-SPLIT-1
+testset（终态 26/26）；受影响模块（quadrature/driver/backtest 1–8/kelly_cash）已受控
+回归通过（archive/evidence/gate0_regress_20261011/）；其余组引用既有全绿
+（archive/evidence/gate0_final_verify_20261010/）。完整多日阶梯（60/501 天）
+与全量 backtest 场景超出单命令 60s 护栏，需单独分批调度（D-088/D-089）；
+过门配置多日批量（330–346）与未收敛日（约 25%）现状见文首声明。
+
+**历史线（2.0-RC）**：已验收 CPU 源码的 41 个标准文件、22 个分组全部
+通过；两个不重叠的 N65 八日窗口已验证。较早窗口的独立逐日模型和两次
+进程输出比较，仓位 L1 和收益差异均为 0。详细证据与边界见
+[CPU 2.0 交付](RELEASE_CPU_2_0.md)。
 
 测试入口和有界执行示例：
 
@@ -130,7 +196,7 @@ bash bin/scoped_run.sh 45 /tmp/ktrader-architecture.log --rss-guard=2048 \
 
 [RELEASE.toml](RELEASE.toml) 固定 Final 版本与验收来源（时间线标注：此为
 发布时点口径；status 已按 Gate-0 裁决改为 2.0-RC-G0，[acceptance] 历史
-验收凭据按 D-002 原样保留）；
+验收凭据按 D-002 原样保留；另记 `current_entry` 指向当前 Gate-0 入口）；
 [CHANGELOG.md](CHANGELOG.md) 汇总变化；[ROADMAP_2_1.md](ROADMAP_2_1.md) 记录 GPU 范围。
 源码归档包含完整测试和必要开发测试库，不包含行情、拟合快照、GPU 二进制
 或逐轮开发历史。仓库中的原始证据保留，旧 README 位于

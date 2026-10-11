@@ -1,5 +1,12 @@
 #!/usr/bin/env julia
 # Compare engines on the same full-history panel. No broker or external requests.
+#
+# 历史 release 工具（2.0-RC legacy line，2026-10-10 入口切换后标注）：
+# 本脚本对比旧线 `backtest_v1` 的 batch / incremental 引擎，属于 2.0.0
+# 历史线的性能工具。Gate-0 当前唯一入口是 bin/backtest.jl（KTraderGate0
+# slow reference，无引擎对比面；其运行成本见该脚本头注释）。保留不删除
+# （D-002/§46），不再作为当前入口维护；旧参数面（ENGINE / SCENARIOS /
+# F_FOLDS / ADAPTIVE_SCENARIOS 等）仅在本历史线内有效。
 using KTrader, Dates, Statistics, Random, LinearAlgebra, Printf
 
 function report_execution(trace)
