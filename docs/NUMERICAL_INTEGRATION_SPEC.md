@@ -6,6 +6,8 @@
 
 ---
 
+> **时点/适用对象注记（追加，2026-10-10）**：本文对账/盘点对象 = 旧线 2.0-RC（`src/` 旧实现；本文适用对象 `generate_scenarios_v1` / `adaptive_scenario_weights` / `kelly_*` 即旧线实现）；文中「当前生产」语句属 Gate-0 重开时时点。新线闭合见 `docs/GATE0_EXIT_CHECKLIST.md` 与 AGENTS.md 第13–18任段。
+
 ## 0. 目标对象与两类误差
 
 决策目标（AGENTS.md:1201-1203）：

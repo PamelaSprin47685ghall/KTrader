@@ -240,6 +240,9 @@ eigmin(Sα) ∈ [−2.65e−12, −2.70e−13]（1e−13 量级、**数值噪声
    fit 完成或行级 NaN；(ii) 正常档 zero-change 回归（eigen 替换的数值差核对）；
    (iii) 结构性负值负控 fail loudly；(iv) floor→0 refinement（ε_floor 减半时
    下游权重/残差稳定）；(v) 全量 test/gate0 回归。
+   **落地注记（2026-10-11 同步）**：R4''' 已实施并受控验证——数值层 441/441
+   不再 PosDefException；数据层转由 propriety gate 拦截（AGENTS.md 第 15 任
+   段）。本清单保留为设计时点记录。
 
 ---
 

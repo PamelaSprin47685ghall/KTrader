@@ -17,12 +17,19 @@
   docs/KELLY_NUMERICAL_ROW_SCALING.md）、polish 轮数修复、M2 出口证书化、
   设计 A 双路径取优、TIE-FAST-1 全 cash 快速路径、prequential 成本加速
   （docs/PREQUENTIAL_COST_ACCELERATION.md）。
-- **A 门闭合**：过门配置（GATE0_MU_QMC=true + GATE0_CHISQ_QMC=true +
+- **A 门闭合**（当时口径——第 15/16 任时点；其后 60-day 全期为 330–389、
+  37 标准过门 + 23 超限、23 个超限日加深可达——见 AGENTS.md 第 17 任段）：
+  过门配置（GATE0_MU_QMC=true + GATE0_CHISQ_QMC=true +
   GATE0_MAX_SCENARIOS=131072）下 t=330–346 十六日十二过四超（未收敛日
   336/340/343/344；fail-loud）；首次过门 t=330/331。证据
   archive/evidence/gate0_multiday_run_20261010/（AGENTS.md 第 15/16 任段）。
 - **SPLIT 链与批量调度**：b2b 出口链三级拆分 B2B-SPLIT-1/2/3（逐点等价；
   kelly_cash 26/26）；九段批量调度稳定（零重试、最大段 40s）。
+- **kelly 求解核心重写（LOGSUM-SIMPLEX-IPM-1）**：原始对数障碍内点法接入
+  `_cash_kelly_solve`（`:auto` 先 IPM、认证即返、未认证回退 Clarabel 原路径）；
+  tie-break m=2 一维二分专用化；返回契约、证书口径、fail-loud 不变；kelly_cash
+  终态 25 testset / 238 断言全绿（AGENTS.md 第 17/18 任段；
+  docs/KELLY_LOGSUM_SOLVER_DESIGN.md）。
 - **未收敛日决策包**：b/c/d 三路径整理并交 owner/SPEC
   （docs/KELLY_NUMERICAL_ROW_SCALING.md §9.13；d 已由 S10 诊断否定——本链
   n=1 无零列）。

@@ -6,6 +6,8 @@
 
 ---
 
+> **时点/适用对象注记（追加，2026-10-10）**：本文对账/盘点对象 = 旧线 2.0-RC（`src/` 旧实现）；文中「当前生产」语句属 Gate-0 重开时时点。新线闭合见 `docs/GATE0_EXIT_CHECKLIST.md` 与 AGENTS.md 第13–18任段。
+
 ## 0. 证据方法与边界
 
 - [事实] 本次已读：src/data.jl、src/prepare.jl、src/predict.jl、src/response.jl、src/residual_oracle.jl、src/kelly.jl、src/backtest.jl 全文；src/geometry.jl（常量与 ruler 段）、src/numerics.jl（PriceHistoryCache 段）、src/broker.jl（tradable/liquidation/rebalance 段）、universe.txt 全文；若干 dev 脚本与测试的相关段。

@@ -1,6 +1,7 @@
 # 真数据首日 full-fit 成本——数学加速设计（FIRST-DAY-FIT-1）
 
 **状态：只读调查 + 设计（2026-10-10）；未实现、未运行。登记供 Manager/SPEC 裁决。**
+**实施注记（2026-10-11 同步）：阶段 1+2 均已实施并落地——SM 秩一（单点 15.6→2.5ms@BLAS1）与 `_fit_node`/`levs` lazy（AGENTS.md 第 14 任段）。本文正文保留为设计时点记录。**
 **层级：数学加速（D-007 第二层）。不改数学/证书/容差；不碰 kelly.jl（并行工作线）。**
 **证据：`archive/evidence/gate0_merged_verify3_20261010/A2_fit_timing.log`（read-only 复核）。**
 
@@ -117,6 +118,8 @@ A(α) = (Sxx + αp·I) + (α0−αp)·e1e1ᵀ = B + δ·e1e1ᵀ
 ---
 
 ## 7. 未决点（待 Manager 裁决）
+
+> 实施注记（2026-10-11 同步）：第 1/2 项已实施（阶段 1+2 落地，AGENTS.md 第 14 任段）；第 3/4/5 项的数值边界以实施后的受控验证记录为准。
 
 1. **阶段 1 是否本批实施**（推荐是）；实现范围仅 `posterior.jl` 的 `log_evidence` 分支 +
    `fit_full_posterior` 的载体构造。

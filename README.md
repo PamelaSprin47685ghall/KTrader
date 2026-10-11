@@ -13,12 +13,14 @@
 > TRACE_NEUTRALITY_DERIVATION.md、POSTERIOR_DEFINITION.md、
 > INNOVATION_LAW.md、NUMERICAL_INTEGRATION_SPEC.md。
 >
-> 在 Gate 0 关闭前，本 README 其余以发布时点口径写成的表述（含「正式版本」
-> 等）一律按历史时间线理解；裁决书 D-096 的禁用名称清单同时生效。
+> Gate 0 已于 2026-10-10 关闭（见下文「Gate-0 现状与 A 门闭合」段）；本 README
+> 其余以发布时点口径写成的表述（含「正式版本」等）一律按历史时间线理解；
+> 裁决书 D-096 的禁用名称清单同时生效。
 
 > **Gate-0 纠偏新线名称与现状（2026-10-10，裁决书 D-042）**：纠偏新线 KTraderGate0
-> 已落地十一个模块、Step 1-15；测试证据目录为 archive/evidence/gate0_wave2/3/4/ 各
-> summary.md。新线的正式名称是「modular posterior predictive」——即 Bayesian
+> 已落地十一个模块、Step 1-15（最终 12 模块、全量测试 984/984 全绿——F5 前时点
+> 口径；最终证据目录 archive/evidence/gate0_final_verify_20261010/，wave2/3/4 为
+> 分阶段证据）。新线的正式名称是「modular posterior predictive」——即 Bayesian
 > response posterior + cross-fitted semiparametric innovation predictive。在
 > innovation 仍使用经验 / quasi-likelihood 结构期间，禁止称 fully Bayesian
 > generative posterior predictive（D-042）。Gate-0 Exit 十八项清单的逐项核对见
@@ -38,13 +40,18 @@
 > （十八项核对见 [docs/GATE0_EXIT_CHECKLIST.md](docs/GATE0_EXIT_CHECKLIST.md)；
 > 全量测试 984/984 全绿，archive/evidence/gate0_final_verify_20261010/）。
 > 当前线 = KTraderGate0 + 过门配置：`GATE0_MU_QMC=true`、
-> `GATE0_CHISQ_QMC=true`、`GATE0_MAX_SCENARIOS=131072`。该配置下
-> t=330–346 十六日十二过四超（未收敛日 336/340/343/344，fail-loud 不产出
-> 认证权重；通过率 75%，未收敛日约 25%）。未收敛日处理决策包（范围门控 /
-> weight_tol D-066 复核 / 活跃集低维化）见
-> [docs/KELLY_NUMERICAL_ROW_SCALING.md](docs/KELLY_NUMERICAL_ROW_SCALING.md)
-> §9.13——归属 owner/SPEC。批量调度九段稳定；证据
-> archive/evidence/gate0_multiday_run_20261010/（AGENTS.md 第 15/16 任段）。
+> `GATE0_CHISQ_QMC=true`、`GATE0_MAX_SCENARIOS=131072`。t=330–389 六十个决策日
+> 已全线完成（batch 链；调度形态演进为末尾 4 条分批/天）：**37 标准过门 + 23 超限**；
+> 23 个超限日全部证得加深可达（21 天 @262144、2 天 354/385 @524288；1048576
+> 无需用于任何一天；certified、nest_maxdiff=0）。kelly 求解核心已重写为
+> log-sum simplex IPM（主求解 0.159s、tie-break 0.178s；
+> 证据 archive/evidence/gate0_kelly_rewrite_20261011/）。
+> 入口边界：`bin/backtest.jl` 大面板自适应单命令超窗，60-day 为批量负载口径
+> （非单命令目标）。过门判据式（唯一口径）与阈值层级见
+> [docs/GATE0_EXIT_CHECKLIST.md](docs/GATE0_EXIT_CHECKLIST.md)；未收敛日处理
+> 决策包（§9.13，2026-10-11 更新：路径 iv 已证）见
+> [docs/KELLY_NUMERICAL_ROW_SCALING.md](docs/KELLY_NUMERICAL_ROW_SCALING.md)。
+> 证据 archive/evidence/gate0_multiday_run_20261010/（AGENTS.md 第 17 任段）。
 
 价格历史 → 因果多尺度特征 → 独立 OOF 后验 → 收益场景 → 原始对数 Kelly → 执行。
 
@@ -55,7 +62,7 @@
 | `src/` | `KTraderGate0`（`src/gate0/`，当前 Gate-0 线，由唯一当前入口 `bin/backtest.jl` 驱动）+ `KTrader`（2.0-RC 历史 release 线，冻结） |
 | `test/` | 标准测试入口 `test/runtests.jl` + 契约注册表 + `test/fixtures/` |
 | `bin/` | 当前入口：`backtest`（KTraderGate0）；历史线工具：`bench / report / live`；数据层：`fetch`；工具：`scoped_run.sh / verify_release`；`ceiling_probes.jl` 为受门禁的 dev 命名空间入口 |
-| `docs/` | 规范与审计文档（六份分析 + Gate-0 四份） |
+| `docs/` | 规范与审计文档（Gate-0 裁决分析、设计、审计与状态同步；当前 24 份 .md，2026-10-11 时点） |
 | `release/` | 发布打包与校验工具（`package_source.py` / `verify_tests.jl` / `smoke.jl`） |
 | `dev/` | 开发侧活动资产：探针命名空间 `probes.jl`、M1 重放链路、验收驱动、GPU 原语，以及发布凭据链 `dev/evidence/{cpu20_acceptance, earlier_closure, final_2_0_0, release_freeze}_20261009/` |
 | `archive/` | 已离场的轮次日志、一次性脚本、研究线与注记（被 git 忽略；见 [archive/README.md](archive/README.md)） |
@@ -119,7 +126,7 @@ Gate-0 是 slow reference（D-082/D-083）：单线程、无 incremental、无�
 testset（26/26），受影响模块（quadrature/driver/backtest 1–8/kelly_cash）
 已受控回归通过（archive/evidence/gate0_regress_20261011/）；其余组引用
 既有全绿（archive/evidence/gate0_final_verify_20261010/）。过门配置多日批量
-运行（t=330–346）见文首声明。
+运行（t=330–389）见文首声明。
 
 ### 历史 release（2.0.0 / 2.0-RC 旧线）
 
@@ -167,12 +174,16 @@ predict / incremental / kelly / backtest / broker / live`。生产模块不加�
 **当前 Gate-0 线**：测试入口为 `test/gate0/runtests.jl`（12 模块，按
 `GATE0_MODULES` 分组调度；默认 backtest 场景 1 为 5-day end-to-end）。
 最近一次全量受控运行报告 984/984 全绿（kelly 收敛鲁棒性缺口已修复；
-archive/evidence/gate0_final_verify_20261010/）；其后 kelly_cash 增 B2B-SPLIT-1
-testset（终态 26/26）；受影响模块（quadrature/driver/backtest 1–8/kelly_cash）已受控
+archive/evidence/gate0_final_verify_20261010/——984 为 F5 前时点口径）；其后 kelly_cash
+增 B2B-SPLIT-1 testset（其断言 26/26，TIE-FAST-1 13/13），再经 IPM 重写与 F5 锚定，
+kelly_cash 终态 25 testset / 238 断言全绿（AGENTS.md 第 17/18 任段）；总口径复核完成
+（2026-10-11）：当前口径 **62 testset / 1204 断言**全绿（证据
+`archive/evidence/gate0_assertion_recount_20261011/`；净增 +220 = posterior +21 /
+kelly_cash +147 / quadrature +43 / backtest +9）；受影响模块（quadrature/driver/backtest 1–8/kelly_cash）已受控
 回归通过（archive/evidence/gate0_regress_20261011/）；其余组引用既有全绿
 （archive/evidence/gate0_final_verify_20261010/）。完整多日阶梯（60/501 天）
 与全量 backtest 场景超出单命令 60s 护栏，需单独分批调度（D-088/D-089）；
-过门配置多日批量（330–346）与未收敛日（约 25%）现状见文首声明。
+过门配置多日批量（t=330–389）与超限日 23 天现状见文首声明。
 
 **历史线（2.0-RC）**：已验收 CPU 源码的 41 个标准文件、22 个分组全部
 通过；两个不重叠的 N65 八日窗口已验证。较早窗口的独立逐日模型和两次

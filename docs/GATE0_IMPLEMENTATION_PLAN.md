@@ -17,6 +17,8 @@
 - 「新线」= 本文规划的 Gate-0 reference 纠偏实现。
 - 编号澄清：裁决书内 **D-046** 是「fractional kernel 继续统一」的 innovation 裁决；旧资产保留清单出自裁决书 **§46**（章节号，非裁决号）。**D-035a** 是终审裁决新增的 α 先验尾部修正（p(α) ∝ 1/[α(1+α)]，见 2.4 节）；**D-045a** 是 V_t 的 R 域实例化（见 2.5 节）。
 
+> **P0-8 后续注记（2026-10-10）**：D-035a 的 α 先验形式（`p(α) ∝ 1/[α(1+α)]`）已被 P0-8 裁决替换——当前先验为 `τ ~ HalfCauchy(0,1)`，即 `p(α) ∝ 1/(√α(1+α))`、log 密度 `(1/2)u − log(1+e^u)`（u = log α；两端自然衰减）；D-035a 不再有效。本文件内所有引用 D-035a 形式之处（2.4 节、5.1 覆盖矩阵、10.2 节等）均有各自的 P0-8 后续注记；各处 propriety 论证保留、仅注明适用对象。指向：AGENTS.md 第13/14任 P0-8 裁决与 `src/gate0/posterior.jl` 文件头。
+
 ---
 
 ## 1. 总路线决策：独立 reference 模块线
@@ -57,7 +59,7 @@ src/gate0/                     # 新 reference 线（单线程、无 incremental
 test/gate0/                    # 新 constitutional suite（Step 16；独立测试入口，裁决 H1）
 ```
 
-- **模块形态（裁决 H1）**：独立顶层 `module KTraderGate0` + `src/gate0/` 目录线；旧 `src/` 冻结；**主 module 与新线互不 include**；新线测试独立入口（`test/gate0/`）。文件切分按上表九文件（裁决 H2，按原建议）。
+- **模块形态（裁决 H1）**：独立顶层 `module KTraderGate0` + `src/gate0/` 目录线；旧 `src/` 冻结；**主 module 与新线互不 include**；新线测试独立入口（`test/gate0/`）。文件切分按上表九文件（裁决 H2，按原建议）；实现期文件切分以实际 `src/gate0/` 为准（实际 12 文件，见 `docs/GATE0_EXIT_CHECKLIST.md` 附录 A；本表为设计时点的模块职责切分）。
 - **几何原语边界（裁决 H7）**：`ruler`（src/geometry.jl:26）、`path_basis_1d`（src/response.jl:2-16）、`relative_gauge`、`center_of_mass`（src/geometry.jl:20）、TAUS/BANDS/WARMUP（src/geometry.jl:11-14）是确定性数据变换（D-024：ruler/gauge 非 posterior 对象），以**纯函数复制**方式进入 `src/gate0/`（源码内标注来源 `file:line`）、**不跨 module 依赖**旧线。理由：H1 的互不 include 前提下，跨 module 依赖（`using KTrader`）会重新耦合两线；复制的是无 posterior 语义的确定性变换，单一真源由「来源标注 + Step 3 静态审查逐函数确认纯函数性」承担。带旧数学耦合者（`fit_response_operator`、`condition_trace_neutrality`、`optimize_conditioned_eb` 等）一律不进新线。§2.3/Step 3 等处的「复用」字样一律按本条读作「纯函数复制 + 来源标注」。
 - **数据桥（H1 互不 include 的直接推论）**：`MarketFacts` 的构造函数接受裸矩阵参数（dates/symbols/close/adj/observed），**不引用旧 `Bars` 类型**；与旧 `Bars` 的字段对应转换在调用方完成。旧 `Bars` 零改动。
 - 旧线处置：`src/` 其余文件不动、不优化、不删除（裁决书 §46 + D-084，见第 6 节）。
@@ -185,6 +187,8 @@ end
 | `propriety` | posterior proper 判定证书；不满足时**不得 clamp、不得改 EB、不得套 inverse-Wishart 超参**，必须 fail loudly。**D-035a 修正已裁决（裁决 B/G4）：p(α) ∝ 1/[α(1+α)]，纯数学 propriety 依据（推导 §5.3-§5.4：1/α 在无界支撑上右尾发散于零模型平台 × log-uniform 测度），非回测选择；修正先验下右尾收敛，Step 8 propriety gate 应绿，若红是实现 bug**（A2 数据层条件 n≥N 且 S(α)≻0 仍是 fail loudly 负测试） | D-036 + 裁决 B/G4 |
 | `predictive` | 决策时线性形式 $Gx_{now}$ 的边缘矩：$\mu_{t+1}$ 的 mean/cov，含超参混合。**t 分布自由度 ν=n+1−N 精确绑定（裁决 G7：显式拒绝 n−N 版本——那是「含新观测噪声」的 predictive，被 D-040/D-041/D-060 的模块边界拒绝；推导 §4.4）**。D-060 方差分解中 **epistemic (response)** 部分的唯一来源 | D-034/D-040/D-060 + 裁决 G7 |
 | 先验规格（类型外规范常量） | **D-035a 修正已裁决（裁决 B/G4）**：$p(\alpha_0)\propto1/[\alpha_0(1+\alpha_0)]$、$p(\alpha_p)\propto1/[\alpha_p(1+\alpha_p)]$（小 α 处保持 reference 局部行为、截断无穷远零模型平台；纯数学 propriety 依据，非回测选择）；$p(\Sigma_R)\propto|\Sigma_R|^{-(N+1)/2}$（Jeffreys）；$\Lambda_\alpha=\mathrm{diag}(\alpha_0,\alpha_p,\ldots,\alpha_p)$ 两 group precision（禁 per-band/per-asset/ARD/BF） | D-035 + D-035a（裁决 B/G4）/D-033/D-032 |
+
+> **P0-8 后续注记（2026-10-10）**：本节表格中两处 D-035a 先验形式（`p(α) ∝ 1/[α(1+α)]`：「propriety」行与「先验规格」行）已被 P0-8 裁决替换——当前先验为 `τ ~ HalfCauchy(0,1)`，即 `p(α) ∝ 1/(√α(1+α))`、log 密度 `(1/2)u − log(1+e^u)`；两行的 propriety 论证保留、仅注明适用对象。指向：AGENTS.md 第13/14任 P0-8 裁决与 `src/gate0/posterior.jl` 文件头。
 
 **与旧对象的映射**：取代 `ResponseOperator`（src/response.jl:92-104）+ `pred_moments`（V1Model 字段）+ macro EB 链（`optimize_matrix_normal_eb`、`sig2` 点估计——D-039 取消）。旧 `optimize_conditioned_eb`（src/response.jl:934-1121）降级为 legacy/hypothesis（D-084，第 6 节），只可提供 mode/initial bracket/diagnostic，**不得定义 posterior**（D-038）。
 
@@ -407,15 +411,15 @@ $$
 - **涉及文件**：docs/GATE0_RESPONSE_POSTERIOR.md（已存在）。**不写任何 runtime optimizer。**
 - **前置依赖**：Step 4/5/6 的代数已验证；推导已经 Manager 终审（裁决 B/G4）。
 - **测试**：无 runtime；推导静态 review 已由终审完成。
-- **验收判据**：已达成——推导成文（含「何时不满足」的 propriety 判别式：A2 数据层 n≥N 且 S(α)≻0）；解析路线完全成功（推导 §4.5：Σ_R 整体解析消元，无需数值积分——D-037 顺序裁决的最强满足）；D-035a 修正已裁决（p(α)∝1/[α(1+α)]，纯数学 propriety 依据，非回测选择）。**Step 8 无规范阻塞。**
+- **验收判据**：已达成——推导成文（含「何时不满足」的 propriety 判别式：A2 数据层 n≥N 且 S(α)≻0）；解析路线完全成功（推导 §4.5：Σ_R 整体解析消元，无需数值积分——D-037 顺序裁决的最强满足）；D-035a 修正已裁决（p(α)∝1/[α(1+α)]，纯数学 propriety 依据，非回测选择）。**Step 8 无规范阻塞。**（**P0-8 后续注记（2026-10-10）**：本条 D-035a 形式已被替换——当前先验为 `τ ~ HalfCauchy(0,1)`，即 `p(α) ∝ 1/(√α(1+α))`、log 密度 `(1/2)u − log(1+e^u)`；propriety 论证保留、仅注明适用对象。指向 AGENTS.md 第13/14任 P0-8 裁决与 `src/gate0/posterior.jl` 文件头。）
 - **纪律**：本步是「先想清楚再讲」的强制落点；跳过推导直接写 solver 是 Gate 违规。
 
 ### Step 8 — 写 slow full-posterior reference
 
-- **目标**：**先验修正已裁决（D-035a，裁决 B/G4），无规范阻塞**；单日 reference 实现（**先单日、不优化**）；$(\log\alpha_0,\log\alpha_p)$ deterministic adaptive quadrature（D-038：adaptive、tail/refinement 有证书、不收敛 fail loudly）；propriety gate fail loudly（D-036）；解析优先、MCMC 不作第一版（D-085/D-086）；统一 $\Sigma_R$（D-039）。
+- **目标**：**先验修正已裁决（D-035a，裁决 B/G4），无规范阻塞**（**P0-8 后续注记（2026-10-10）**：D-035a 形式已被替换——当前先验为 `τ ~ HalfCauchy(0,1)`，即 `p(α) ∝ 1/(√α(1+α))`、log 密度 `(1/2)u − log(1+e^u)`；propriety 论证保留、仅注明适用对象。见 2.4 节注记与 AGENTS.md 第13/14任段。）；单日 reference 实现（**先单日、不优化**）；$(\log\alpha_0,\log\alpha_p)$ deterministic adaptive quadrature（D-038：adaptive、tail/refinement 有证书、不收敛 fail loudly）；propriety gate fail loudly（D-036）；解析优先、MCMC 不作第一版（D-085/D-086）；统一 $\Sigma_R$（D-039）。
 - **涉及文件**：`src/gate0/response.jl`（posterior 部分）+ `src/gate0/quadrature.jl` 雏形（alpha 维度）。
 - **前置依赖**：Step 7 静态 review 已由终审完成（裁决 B/G4：先验修正已裁决，无规范阻塞）。
-- **测试**（tiny analytic，裁决 G5 扩充）：**A2 数据层 fixture**（n<N 与退化 Y → error，文本含 "posterior improper"——数据层条件仍是负测试）；**S(α) 双构造一致性断言**（S(α) = S_yy − S_xyᵀ(S_xx+Λ_α)⁻¹S_xy 与直接构造 Yᵀ(I−XA⁻¹Xᵀ)Y 逐 α 对照；推导明示高危陷阱：S(α) **不是** ridge 残差平方和 (C⁻¹Y)ᵀ(C⁻¹Y)——写错会静默改变全部下游）；**matrix-t vs dense 小系统数值积分对照**（p(B\|Y,α) 核与显式数值积分一致）；**μ 的 t 边缘矩 vs dense 对照**（均值 = B̂x̃_t、协方差 = [c/(ν−2)]S(α)，ν=n+1−N）；**quadrature 同 seed 逐位重放**；**预算耗尽统一错误文本**（含 "Numerical integration did not converge"）；先验退化为点质量时与 Step 4 固定 ridge 一致（回归锚）；**propriety gate 应绿**（D-035a 修正先验下右尾收敛——若红是实现 bug，不再是预期红；裁决 B/G4）；quadrature 细化时边缘矩收敛；旧 `optimize_conditioned_eb` 只提供 mode/bracket/diagnostic 对照（D-038 尾句）。
+- **测试**（tiny analytic，裁决 G5 扩充）：**A2 数据层 fixture**（n<N 与退化 Y → error，文本含 "posterior improper"——数据层条件仍是负测试）；**S(α) 双构造一致性断言**（S(α) = S_yy − S_xyᵀ(S_xx+Λ_α)⁻¹S_xy 与直接构造 Yᵀ(I−XA⁻¹Xᵀ)Y 逐 α 对照；推导明示高危陷阱：S(α) **不是** ridge 残差平方和 (C⁻¹Y)ᵀ(C⁻¹Y)——写错会静默改变全部下游）；**matrix-t vs dense 小系统数值积分对照**（p(B\|Y,α) 核与显式数值积分一致）；**μ 的 t 边缘矩 vs dense 对照**（均值 = B̂x̃_t、协方差 = [c/(ν−2)]S(α)，ν=n+1−N）；**quadrature 同 seed 逐位重放**；**预算耗尽统一错误文本**（含 "Numerical integration did not converge"）；先验退化为点质量时与 Step 4 固定 ridge 一致（回归锚）；**propriety gate 应绿**（D-035a 修正先验下右尾收敛——若红是实现 bug，不再是预期红；裁决 B/G4）（**P0-8 后续注记（2026-10-10）**：D-035a 先验形式已被替换——当前先验为 `τ ~ HalfCauchy(0,1)`，即 `p(α) ∝ 1/(√α(1+α))`、log 密度 `(1/2)u − log(1+e^u)`；propriety 论证保留、仅注明适用对象。指向 AGENTS.md 第13/14任 P0-8 裁决与 `src/gate0/posterior.jl` 文件头。）；quadrature 细化时边缘矩收敛；旧 `optimize_conditioned_eb` 只提供 mode/bracket/diagnostic 对照（D-038 尾句）。
 - **验收判据**：D-034~D-039、D-035a、D-085/D-086 落地；§41「response hyperparameters 不再 point plug-in」「posterior propriety 有证明」两项打钩。
 
 ### Step 9 — 重建 OOF full-mode folds
@@ -526,8 +530,8 @@ $$
 | D-032 | DC prior 零中心 | 〔S5/8〕α₀ group 零中心先验 |
 | D-033 | DC/dynamic 两 group precision | 〔S7/8〕Λ_α=diag(α₀,α_p,…,α_p) |
 | D-034 | α、Σ 不再 point estimate | 〔S8〕ResponsePosterior |
-| D-035 | reference prior | 〔S7〕推导；〔S8〕实现。**D-035a 修正已裁决（裁决 B/G4）：p(α) ∝ 1/[α(1+α)]，纯数学 propriety 依据（右尾零模型平台 × log-uniform 测度发散，推导 §5.3-§5.4），非回测选择；Step 8 propriety gate 应绿，若红是实现 bug** |
-| D-036 | propriety gate fail loudly | 〔S7/8〕ProprietyCertificate + 负测试。**D-035a 修正已裁决（裁决 B/G4）：Step 8 propriety gate 应绿，若红是实现 bug**（A2 数据层条件 n≥N 与 S(α)≻0 仍是 fail loudly 负测试） |
+| D-035 | reference prior | 〔S7〕推导；〔S8〕实现。**D-035a 修正已裁决（裁决 B/G4）：p(α) ∝ 1/[α(1+α)]，纯数学 propriety 依据（右尾零模型平台 × log-uniform 测度发散，推导 §5.3-§5.4），非回测选择；Step 8 propriety gate 应绿，若红是实现 bug**（**P0-8 注记（2026-10-10）**：此处 D-035a 形式已被替换为 `τ ~ HalfCauchy(0,1)`（`p(α) ∝ 1/(√α(1+α))`、log 密度 `(1/2)u − log(1+e^u)`）；propriety 论证保留、仅注明适用对象——见 2.4 节注记与 AGENTS.md 第13/14任段。） |
+| D-036 | propriety gate fail loudly | 〔S7/8〕ProprietyCertificate + 负测试。**D-035a 修正已裁决（裁决 B/G4）：Step 8 propriety gate 应绿，若红是实现 bug**（A2 数据层条件 n≥N 与 S(α)≻0 仍是 fail loudly 负测试）（**P0-8 注记（2026-10-10）**：D-035a 形式已被替换为 `τ ~ HalfCauchy(0,1)`——同上注；A2 数据层条件的 fail loudly 负测试语义不变。） |
 | D-037 | Σ_R 优先解析积分 | 〔S7〕顺序裁决（推导 §4.5：解析路线完全成功，无需数值积分） |
 | D-038 | alpha log-space adaptive quadrature | 〔S8〕alpha_nodes/weights + 证书 |
 | D-039 | macro σ² 独立点估计取消 | 〔S4/8〕统一 Σ_R |
@@ -601,7 +605,7 @@ $$
 | DC channel 存在且零中心 | S5/S8 + D-093 |
 | 14 trace constraints 不在 default core | S6 + D-094 |
 | response hyperparameters 不再 point plug-in | S8（对照 docs/POSTERIOR_DEFINITION.md §2） |
-| posterior propriety 有证明 | S7（推导已交付 + D-035a 已裁决） |
+| posterior propriety 有证明 | S7（推导已交付 + D-035a 已裁决；**P0-8 后续注记（2026-10-10）：先验形式现为 `τ ~ HalfCauchy(0,1)`——D-035a 已被替换，propriety 论证保留、仅注明适用对象**） |
 | vector innovation law 实现 | S10 + D-095（R 域，D-045a） |
 | no own-cell stitching | S11 |
 | d prior 显式 | S12 |
@@ -768,7 +772,7 @@ Case A 全 risky 确定性 <1 ⇒ w_cash=1；Case B 单资产确定性 >1 ⇒ w_
 
 ### 10.2 推导级待裁项处置记录（裁决 G1）
 
-- **T1~T6（GATE0_VECTOR_INNOVATION.md §11 张力清单）与 response §12 第 1 条（α 先验尾部修正）**：已裁决（裁决文本见 docs/GATE0_MANAGER_ADJUDICATIONS.md；其中 response §12 第 1 条即 D-035a：p(α)∝1/[α(1+α)]，裁决 B/G4）。
+- **T1~T6（GATE0_VECTOR_INNOVATION.md §11 张力清单）与 response §12 第 1 条（α 先验尾部修正）**：已裁决（裁决文本见 docs/GATE0_MANAGER_ADJUDICATIONS.md；其中 response §12 第 1 条即 D-035a：p(α)∝1/[α(1+α)]，裁决 B/G4）。（**P0-8 后续注记（2026-10-10）**：response §12 第 1 条的 D-035a 形式已被 P0-8 裁决替换——当前先验为 `τ ~ HalfCauchy(0,1)`，即 `p(α) ∝ 1/(√α(1+α))`、log 密度 `(1/2)u − log(1+e^u)`；propriety 论证保留、仅注明适用对象。指向 AGENTS.md 第13/14任 P0-8 裁决与 `src/gate0/posterior.jl` 文件头。）
 - **response §12 其余 6 条（第 2~7 条）**：按推导默认执行、标注「实现期可复审」——path group 划分（α_p 覆盖全体）、ragged 行 mode 分解权重语义（Step 3）、quadrature 输出对象审计字段、μ 通道 scenario 抽样语义（Step 8/13）、common response 措辞收敛、ε_quad 数值（与 T7 同走 D-066）。
 - **T7**：留实现期（D-066 流程定稿）。
 

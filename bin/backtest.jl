@@ -24,9 +24,11 @@
 # - 默认末 20 天短窗口（见下）。60/501 天与完整两年在单命令 60s 护栏
 #   之外，归 owner 按 D-088/D-089 分批调度；**不得把短窗口计时外推为长
 #   回测耗时**。
-# - 已知限制（2026-10-10 最终）：kelly 收敛鲁棒性缺口已修复（条件行缩放
-#   + polish 防护；见 AGENTS.md 第14任段）；最终受控验证 984/984 全绿
-#   （archive/evidence/gate0_final_verify_20261010/）。
+# - 已知限制（2026-10-10）：kelly 收敛鲁棒性缺口已修复（条件行缩放
+#   + polish 防护；见 AGENTS.md 第14任段）；该时点受控验证 984/984 全绿
+#   （F5 前时点口径；archive/evidence/gate0_final_verify_20261010/）——当前
+#   口径为 62 testset / 1204 断言全绿（见 AGENTS.md 第19任段与
+#   docs/GATE0_EXIT_CHECKLIST.md L195）。
 #
 # 数据桥（H1 互不 include 的直接推论）：`import KTrader` 只取旧线数据层
 # `load_bars`（src/data.jl），把 Bars 的字段数组提取出来，经

@@ -79,8 +79,8 @@ end
 # 单文件多场景入口（ENV 选择，避免拆文件重复冷启动 JIT 编译）。
 # 单个场景运行：BACKTEST_SCENARIO=1 julia test/gate0/backtest_tests.jl
 # 分组运行（同一进程编译一次，摊薄冷启动）：BACKTEST_SCENARIO="1,2" 一次
-# 跑场景 1 和 2；不设 ENV 时默认跑场景 1。7 个场景累积超单命令预算，
-# 故全量模式需分组调度（如 "1,2"、"3,4"、"5,6,7"）。
+# 跑场景 1 和 2；不设 ENV 时默认跑场景 1。9 个场景累积超单命令预算，
+# 故全量模式需分组调度（如 "1,2"、"3,4"、"5,6"、"7,8,9"）。
 # =============================================================================
 const _BT_SCENARIO = get(ENV, "BACKTEST_SCENARIO", "1")
 const _BT_SCENARIOS = Set(split(_BT_SCENARIO, ','))
@@ -475,6 +475,56 @@ if "8" in _BT_SCENARIOS
     @test all(x -> isfinite(x) && x > 0, res8.equity)
 
     # =================================================================== 
+    end
+
+
+end
+
+
+
+if "9" in _BT_SCENARIOS
+@testset "backtest (9) marking NaN propagation" begin
+    SEED_DEC = 0x0000000000005678
+    # 短窗口受控参数（与 (1)-(8) 同款 fixture 级降级；生产默认保持 1e-6
+    # ——P0-7 严格口径）。此降级仅限测试 fixture，不改变生产数学合同。
+    KW = (mode = :reference, S_reference = 32, diag_S = 16,
+          posterior_tol = 1e-2)
+    # (9) 修复回归（2026-10-11）：未持仓列缺价格不得污染财富（记中性 1.0），
+    # 持仓列缺价格仍必须 fail-loud（D-017 保持）。
+    # ===================================================================
+    # --- 单元级 A：未持仓缺价格列 → 中性 1.0（不进财富） ---
+    T9 = 272
+    px1 = exp.(0.003 .* collect(1:T9) .+ 0.01 .* randn(MersenneTwister(99), T9))
+    px2 = fill(NaN, T9); px2[268:270] .= 1.0     # 行 271 起缺观测（NaN）
+    close9 = hcat(px1, px2)
+    observed9 = falses(T9, 2)
+    observed9[:, 1] .= true
+    observed9[268:270, 2] .= true
+    dates9 = collect(Date(2024, 1, 1):Day(1):(Date(2024, 1, 1) + Day(T9 - 1)))
+    mf9 = MarketFacts(dates9, ["A1", "A2"], close9, copy(close9), observed9)
+    g9 = Gate0BacktestEnv._marking_gross(mf9, 270, [0.5, 0.0])
+    @test g9[1] == px1[271] / px1[270]           # 持仓合法列：真实比值
+    @test isfinite(g9[2]) && g9[2] == 1.0        # 未持仓缺价格列：中性 1.0
+    # --- 单元级 B：持仓缺价格列 → 仍 fail-loud（D-017 保持） ---
+    @test_throws ErrorException Gate0BacktestEnv._marking_gross(mf9, 270,
+                                                                [0.5, 0.3])
+    # --- 集成级：未持仓缺价格资产（全程 NaN）下，财富/净值/benchmark 有限 ---
+    mf9i = _mk_mf(N = 2, T = 280, seed = 39, ipo_asset = 2, ipo_first = 281,
+                  drift = 0.003)                 # 资产 2 全程未上市（NaN）
+    trade9i = trues(280, 2)
+    trade9i[:, 2] .= false                       # 且不可交易
+    el9i = Eligibility(mf9i, trade9i)
+    res9 = run_gate0_backtest(mf9i, el9i; t_start = 270, t_end = 272,
+                              seed = SEED_DEC, KW...)
+    @test all(d -> d.decision.w_universe[2] == 0.0, res9.days)   # fixture 前提
+    @test all(d -> isfinite(d.wealth_factor) && d.wealth_factor > 0,
+              res9.days)
+    @test all(x -> isfinite(x) && x > 0, res9.equity)
+    @test all(x -> isfinite(x), res9.equity_ew_daily)
+    @test all(x -> isfinite(x), res9.equity_ew_buyhold)
+    @test all(d -> d.gross_realized[2] == 1.0, res9.days)  # 记录为中性 1.0
+
+    # ===================================================================
     end
 
 

@@ -1,6 +1,6 @@
 # Gate-0 Exit 清单核对（AGENTS.md §41 十八项）
 
-**文档状态：核对文档，2026-10-10（最终更新轮 + 合并验证同步轮）。核对对象：Gate-0 纠偏新线 KTraderGate0；旧线（KTrader 2.0 RC legacy implementation）冻结不改，其历史违规仅作对照口径记录，不构成本清单的扣分项。本轮更新后十八项全部满足（含注记），Gate 0 宣告关闭——见文末关闭声明。断言计数最终口径：test/gate0/ 全量 **984 项全绿**（模块 1–12 + backtest 场景 1–8；9 条 scoped 命令全 rc=0、26 文件字节一致；archive/evidence/gate0_final_verify_20261010/）。演进链：890（先一轮全绿）→ 913（合并验证；场景 8 未执行）→ 984（kelly/T4/prequential 修复落地后的收尾验证）。**
+**文档状态：核对文档，2026-10-10（最终更新轮 + 合并验证同步轮）。核对对象：Gate-0 纠偏新线 KTraderGate0；旧线（KTrader 2.0 RC legacy implementation）冻结不改，其历史违规仅作对照口径记录，不构成本清单的扣分项。本轮更新后十八项全部满足（含注记），Gate 0 宣告关闭——见文末关闭声明。断言计数口径（**984 为 F5 前时点口径**；F5 后 kelly_cash 终态 25/238；总口径复核完成（2026-10-11）：当前口径 **62 testset / 1204 断言**全绿（证据 `archive/evidence/gate0_assertion_recount_20261011/`；净增 +220 = posterior +21 / kelly_cash +147 / quadrature +43 / backtest +9）——见 L195）：test/gate0/ 全量 **984 项全绿**（模块 1–12 + backtest 场景 1–8；9 条 scoped 命令全 rc=0、26 文件字节一致；archive/evidence/gate0_final_verify_20261010/）。演进链：890（先一轮全绿）→ 913（合并验证；场景 8 未执行）→ 984（kelly/T4/prequential 修复落地后的收尾批次；F5 前时点口径，见 L195）。**
 **证据来源：archive/evidence/gate0_wave2/3/4/ 各 summary.md 与 archive/evidence/gate0_step16/summary.md（只读引用，不复制运行数字原文）与 Manager 轮次裁决记录，以及 DevOps 2026-10-10 受控运行证据（archive/evidence/gate0_review_20261010/：存在性经 rerun 复核确认——10 文件、计数一致、17:08–17:29 真实运行；gate0_review_20261010_rerun/：890/890 全绿复跑；gate0_merged_verify_20261010/：求积升级 + ruler 修订后的合并验证 849/49 与当时的场景 8 状态；**gate0_final_verify_20261010/：收尾验证 984/984 全绿**；以及 gate0_merged_verify{2..8}*、gate0_kelly_adjudicate_*、gate0_innovation_attribution_*、gate0_reallimit_firstday_*、gate0_t4_recovery_*、gate0_f6_unblock_* 等过程证据）。本核对为文档层核对：未逐 testset 复核源码断言；凡证据为「summary 声明承载」而非「专门测试」的项，已在结论列如实标注证据形态。**
 
 ## 树结构调整注记（2026-10-10）
@@ -15,7 +15,7 @@
 |---|---|---|---|---|---|
 | 1 | `Bars.bar` 只表示 observation | D-012 | 新线数据 / mask 层（observation 语义独立） | wave summary（见附录 B） | 满足（新线口径）：新线不重蹈旧线「改 bar 表达政策」的历史违规；旧线违规冻结不改、仅作历史对照 |
 | 2 | model / trade / execution mask 分离 | D-013/014/015/016 | 新线 mask 模块（见附录 A） | wave summary | 满足（证据形态：summary 声明承载） |
-| 3 | benchmark universe 外生 | D-020 | 新线基准层 | wave summary | 满足（证据形态：summary 声明承载；专门测试名未见——已由 2026-10-10 全量套件覆盖（最终 984 全绿口径）） |
+| 3 | benchmark universe 外生 | D-020 | 新线基准层 | wave summary | 满足（证据形态：summary 声明承载；专门测试名未见——已由 2026-10-10 全量套件覆盖（984 全绿——F5 前时点口径，见 L195）） |
 | 4 | full mode response 含 cross blocks | D-025/026 | Step 3/4 统一 mode 坐标与四块 response | posterior_tests（logK 等断言全绿——Manager 裁决转述） | 满足 |
 | 5 | DC channel 存在且 zero-centered | D-031/032/033 | Step 5 DC 通道 | posterior_tests | 满足 |
 | 6 | 14 trace constraints 不在 default core | D-028/029 | Step 6 新线 default core | wave summary | 满足（证据形态：summary 声明承载） |
@@ -27,17 +27,17 @@
 | 12 | fixed S production path 删除 | D-062/067 | Step 14 adaptive 路径 | wave summary | 满足（证据形态：summary 声明承载）。注（Manager 裁决 6，2026-10-10）：driver 层 adaptive 在无信号 fixture 的慢收敛是 μ 通道 matrix-t epistemic 噪声的数学性质（M^{-1/2} 速率）非实现缺陷；D-067 fail-loud 传导断言是正确语义（driver_tests 71/71 含该断言）；μ 通道 RQMC 化已 defer 为 Gate-0 后扩展项 |
 | 13 | integration 有 independent audit certificate | D-064/065 | Step 14 nested Sobol + audit replicate | quadrature_tests 55/55（Wave 4 裁决执行后原文件级全绿） | 满足（附 Manager 裁决 6 注记）：Step 14 机制级证书原文件级全绿；driver 层慢收敛经裁决 6 定性为 μ 通道 matrix-t epistemic 噪声的数学性质（M^{-1/2} 速率）非实现缺陷，D-067 fail-loud 传导断言为正确语义（driver_tests 71/71）；μ 通道 RQMC 化 defer 为 Gate-0 后扩展项 |
 | 14 | cash 在 feasible set | D-068/069/070 | Step 2/15 Kelly（Σw≤1 + cash） | kelly_cash_tests 77/77、rc=0（DevOps 2026-10-10 受控运行，archive/evidence/gate0_review_20261010/；P0-9 tie-break 回归新增 18 项） | 满足（原文件级证据 kelly_cash_tests_final.log：Wave 2 裁决执行轮，D-090b/D-091 断言按裁决修正后九 testset 全 Pass） |
-| 15 | OOF full isolation | D-043 | Step 9 OOF folds | wave summary | 满足（证据形态：summary 声明承载；隔离测试指引已由 2026-10-10 全量套件覆盖（最终 984 全绿口径）） |
-| 16 | permutation / gauge / dummy invariance | §41 第 16 项 | Step 16 constitutional suite | archive/evidence/gate0_step16/summary.md（已落盘） | 满足（Step 16 汇总（2026-10-09 历史时点）为历史证据；当前工作树全量套件覆盖（最终 984 全绿口径）含 permutation/gauge/dummy 宪法套件；module 导出面 90 名——DevOps 2026-10-10 受控运行） |
-| 17 | synthetic worlds 全部通过 | §33（D-090~095） | 各 world 测试分散于 wave 测试 + Step 16 汇总 | posterior_tests / innovation_tests 全绿 + Step 16（2026-10-09 历史时点）为历史证据；当前工作树全量套件覆盖 synthetic worlds（D-090~095）（最终 984 全绿口径）——DevOps 2026-10-10 受控运行 | 满足（单项 wave 测试 + Step 16 汇总双重证据；当前全量套件覆盖 synthetic worlds（最终 984 全绿）） |
+| 15 | OOF full isolation | D-043 | Step 9 OOF folds | wave summary | 满足（证据形态：summary 声明承载；隔离测试指引已由 2026-10-10 全量套件覆盖（984 全绿——F5 前时点口径，见 L195）） |
+| 16 | permutation / gauge / dummy invariance | §41 第 16 项 | Step 16 constitutional suite | archive/evidence/gate0_step16/summary.md（已落盘） | 满足（Step 16 汇总（2026-10-09 历史时点）为历史证据；当前工作树全量套件覆盖（984 全绿——F5 前时点口径，见 L195）含 permutation/gauge/dummy 宪法套件；module 导出面 90 名——DevOps 2026-10-10 受控运行） |
+| 17 | synthetic worlds 全部通过 | §33（D-090~095） | 各 world 测试分散于 wave 测试 + Step 16 汇总 | posterior_tests / innovation_tests 全绿 + Step 16（2026-10-09 历史时点）为历史证据；当前工作树全量套件覆盖 synthetic worlds（D-090~095）（984 全绿——F5 前时点口径，见 L195）——DevOps 2026-10-10 受控运行 | 满足（单项 wave 测试 + Step 16 汇总双重证据；当前全量套件覆盖 synthetic worlds（984 全绿——F5 前时点口径，见 L195）） |
 | 18 | 所有 fail condition fail loudly | D-036/067 等 | 各模块 fail-loud 路径 | Step 16（2026-10-09 历史时点）为历史证据 + driver_tests 71/71（D-067 传导断言）——DevOps 2026-10-10 受控运行 | 满足（证据形态：Step 16 汇总（历史时点）+ 具名传导断言） |
 
 ## 证据等级与形态说明
 
-- **A 级（专门测试，DevOps 2026-10-10 受控运行，日志 archive/evidence/gate0_review_20261010/）**：market_tests 82、modes_tests 102、response_tests 78、posterior_tests 40、innovation_tests 243（P0-2/P0-3 新增 adaptive d / rank 满秩断言 37 项）、oof_tests 25、prequential_tests 12（P0-1 新增）、predictive_tests 56、kelly_cash_tests 77（P0-9 tie-break 回归 18 项）、quadrature_tests 55、driver_tests 71、backtest_tests 49——合计 890 项全绿（先一轮；日志 gate0_review_20261010/ 与 rerun/）。合并验证（求积升级 + ruler 修订后）：modes 110（102+8 新回归）、模块 1-11 合计 849/849、backtest 场景 1-7 合计 49/49、场景 8 = 15 断言未执行（kelly SLOW_PROGRESS）——当时全量口径 913 = 898 已绿 + 15 未执行。**收尾验证（2026-10-10 最终）：984 项全绿** = 82+110+78+60+25+49+243+56+91+55+71+64（模块 1–12 + backtest 场景 1–8；9 条 scoped 命令全 rc=0、26 文件字节一致；archive/evidence/gate0_final_verify_20261010/）。修复落地：T4 testset (8) 15/15 转绿、kelly 条件行缩放+防护（D-091 转绿）、posterior m 基准修复、prequential 加速、SM 秩一阶段 1+2。历史 Wave 2/4 原文件级计数（如 kelly_cash 59、driver 73）为彼时点证据，已被实际计数取代。
+- **A 级（专门测试，DevOps 2026-10-10 受控运行，日志 archive/evidence/gate0_review_20261010/）**：market_tests 82、modes_tests 102、response_tests 78、posterior_tests 40、innovation_tests 243（P0-2/P0-3 新增 adaptive d / rank 满秩断言 37 项）、oof_tests 25、prequential_tests 12（P0-1 新增）、predictive_tests 56、kelly_cash_tests 77（P0-9 tie-break 回归 18 项）、quadrature_tests 55、driver_tests 71、backtest_tests 49——合计 890 项全绿（先一轮；日志 gate0_review_20261010/ 与 rerun/）。合并验证（求积升级 + ruler 修订后）：modes 110（102+8 新回归）、模块 1-11 合计 849/849、backtest 场景 1-7 合计 49/49、场景 8 = 15 断言未执行（kelly SLOW_PROGRESS）——当时全量口径 913 = 898 已绿 + 15 未执行。**收尾验证（2026-10-10；984 全绿为 F5 前时点口径）** = 82+110+78+60+25+49+243+56+91+55+71+64（模块 1–12 + backtest 场景 1–8；9 条 scoped 命令全 rc=0、26 文件字节一致；archive/evidence/gate0_final_verify_20261010/）。修复落地：T4 testset (8) 15/15 转绿、kelly 条件行缩放+防护（D-091 转绿）、posterior m 基准修复、prequential 加速、SM 秩一阶段 1+2。历史 Wave 2/4 原文件级计数（如 kelly_cash 59、driver 73）为彼时点证据，已被实际计数取代。
 - **运行边界（DevOps 2026-10-10 受控运行）**：backtest_tests 全量 7 场景需分组调度逐组运行（BACKTEST_SCENARIO="1" / "2,3" / "4,5" / "6,7" / "8"）；quadrature_tests 需独立文件运行（包裹模式超时），55/55 为独立运行口径。合并验证新增边界：完整多日 prequential 链成本 ~200s/日（求积升级 ×2.6/cell × 67 行）超单命令护栏——t=327 单日链与 60-day 段 6 未在 ≤60s 内运行（A3/A4；超时按 rc=124 记录，不是成功）。
 - **B 级（summary 声明承载）**：轮次交付声明（archive/evidence/gate0_wave2/3/4/summary.md），非专门测试。
-- **C 级（Step 16 汇总）**：archive/evidence/gate0_step16/summary.md 已落盘（2026-10-09 历史时点快照：775 项断言、83 API）；当前工作树套件覆盖（最终 984 全绿口径）、module 导出面 90 名——DevOps 2026-10-10 受控运行。
+- **C 级（Step 16 汇总）**：archive/evidence/gate0_step16/summary.md 已落盘（2026-10-09 历史时点快照：775 项断言、83 API）；当前工作树套件覆盖（984 全绿——F5 前时点口径，见 L195）、module 导出面 90 名——DevOps 2026-10-10 受控运行。
 - 本核对未逐行复核新线源码；「满足」结论的证据等级为 Manager 轮次裁决记录 + wave summary 声明 + 模块 / 测试文件存在性（附录 A）。
 
 ## 附录 A：新线模块与测试文件（本次静态 glob 事实）
@@ -143,7 +143,7 @@ geometry 起，UndefVarError 实证）+ module 内 using Dates（market.jl
 
 Gate-0 Exit 十八项已全部满足（含注记）、Gate 0 已宣告关闭；以下事项为 owner 裁决域的后续工作，均非 Gate-0 关闭条件：
 
-a. **t=327 / t=271 求解器链增强（证书驱动自适应 kelly）**——60-day 级闭合的剩余障碍链（见 D-089 阶梯最终状态节）。事实链更新（2026-10-10 合并验证）：t=327 根因已转移并部分修复——posterior 2D 求积升级为张量 G-L 规则（收敛指数 2.014、1929 cells 达 1e-6、代理保守 ratio≥2；设计文档 docs/ADJUDICATION_T327_POSTERIOR_QUAD.md），posterior 层过（生产直调 3.09s/1929 cells；full fit 4.66s）后 kelly 层成为第二阻塞（场景 8 t=271 SLOW_PROGRESS 实测；t=327 的 kelly 层因 prequential 成本未在护栏内直接观察）。max_iter=1000 修复已落地且 kelly_cash_tests 77/77 零回归。**已解除（2026-10-10 收尾）**：kelly 条件行缩放（span>4.5e15 阈值；docs/KELLY_NUMERICAL_ROW_SCALING.md）+ polish 防护恢复 + (i)/(ii) 测试重写落地——D-091 转绿、T4 testset (8) 15/15 转绿、最终 984 全绿（gate0_final_verify_20261010/）。
+a. **t=327 / t=271 求解器链增强（证书驱动自适应 kelly）**——60-day 级闭合的剩余障碍链（见 D-089 阶梯最终状态节）。事实链更新（2026-10-10 合并验证）：t=327 根因已转移并部分修复——posterior 2D 求积升级为张量 G-L 规则（收敛指数 2.014、1929 cells 达 1e-6、代理保守 ratio≥2；设计文档 docs/ADJUDICATION_T327_POSTERIOR_QUAD.md），posterior 层过（生产直调 3.09s/1929 cells；full fit 4.66s）后 kelly 层成为第二阻塞（场景 8 t=271 SLOW_PROGRESS 实测；t=327 的 kelly 层因 prequential 成本未在护栏内直接观察）。max_iter=1000 修复已落地且 kelly_cash_tests 77/77 零回归。**已解除（2026-10-10 收尾）**：kelly 条件行缩放（span>4.5e15 阈值；docs/KELLY_NUMERICAL_ROW_SCALING.md）+ polish 防护恢复 + (i)/(ii) 测试重写落地——D-091 转绿、T4 testset (8) 15/15 转绿、984 全绿（F5 前时点口径；gate0_final_verify_20261010/）。
 b. **T4 多日跨语义缺口的 SPEC 审查（裁决 9）**——D-013 admission（prefix 级）与 D-036 fold propriety（fold 级）的语义不一致；修复需数学对象层变更（fold 域收缩 / admission 重定义 / 非 contiguous fold），不为测试便利改数学对象。
 c. **真实数据桥接（Bars→MarketFacts 转换器 + panel provenance 确认）**——真实数据短窗口验证优先于合成 501-day（合成数据增量验证价值低）。
 d. **501-day 分批执行**——分批机制已建立并经 20-day 级闭合验证、未执行；501 天超出单命令 60s 护栏，执行策略归 owner 裁决。
@@ -154,7 +154,7 @@ g. **数学加速解锁（D-007 下一层）**——数学正确性 → 数学�
 ## 已知边界（2026-10-10 收尾；详见 AGENTS.md 第14任段）
 
 - 首日 full-fit 性能：自适应 cells 规模仍是成本项（单点已达标；D-083 视角——reference 不追求速度）；
-- BLAS 线程配置：默认 6 线程对小 GEMM 约 3× 负优化，待裁决；
+- BLAS 线程配置：默认 6 线程对小 GEMM 约 3× 负优化——**已裁决（U2，2026-10-10）：采纳 BLAS 单线程并实施于 `bin/backtest.jl`**（`docs/MULTIDAY_COST_OPTIMIZATION.md` §7 U2）；本行为历史登记；
 - quadrature 负载敏感性：同字节重跑裁定为准；
 - span≈1e17+ 与人工双方向 fixture：已知边界；
 - 60-day：批量负载口径，非单命令目标。
@@ -175,9 +175,9 @@ g. **数学加速解锁（D-007 下一层）**——数学正确性 → 数学�
 
 - **5-day 级：✓**——backtest_tests testset 1 端到端绿。
 - **20-day 级：✓ 分批闭合（裁决 10）**——两段 10-day、held 桥接 + 净值乘法拼接 + 财富守恒六断言全绿；分批 = 数学不变的执行切分，因果性等价由 backtest_tests 的截断 / 全量断言承载。
-- **60-day 级：50/60 决策日绿（段 1-5）、段 6 未在护栏内运行**——t=327 事实链更新（2026-10-10 合并验证）：posterior 求积规则升级后 posterior 层过；kelly 层为第二阻塞（场景 8 t=271 实测 SLOW_PROGRESS；t=327 kelly 层因 prequential ~200s/日 成本超单命令预算未直接观察）。修法方向：证书驱动自适应 kelly + prequential 成本数学加速（交接登记 a；D-007 下一层）。**收尾注记（2026-10-10 最终）**：两阻塞均已修复落地——最终 984 全绿（gate0_final_verify_20261010/）；60-day 为批量负载口径（见「已知边界」节与 AGENTS.md 第14任段）。 **段 6 重跑尝试（2026-10-11）**：定位完成——段 6 = t=327..336（10 日/段；合成 fixture N=4、seed=2026、`archive/evidence/gate0_step16/backtest_batched.jl` + held 桥接口径）；当前字节下三档重跑（10/5/2 日）全部 rc=124（55s 切）——即使 2 日段（约 140 行 fit）亦超窗；卡点 = preq 逐行 fit 的 2D 自适应求积（`oof.jl:398` → `fit_full_posterior` → `adaptive_quadrature_2d`；与 ~200s/日 既有登记一致）。完成路径二选一（交 owner 裁决）：（i）preq 数学加速（D-007 下一层；需裁决「多日验证 vs 数学加速」的次序）；（ii）以性能边界结案。证据：`archive/evidence/gate0_seg6_rerun_20261011/`。
+- **60-day 级：50/60 决策日绿（段 1-5）、段 6 未在护栏内运行**——t=327 事实链更新（2026-10-10 合并验证）：posterior 求积规则升级后 posterior 层过；kelly 层为第二阻塞（场景 8 t=271 实测 SLOW_PROGRESS；t=327 kelly 层因 prequential ~200s/日 成本超单命令预算未直接观察）。修法方向：证书驱动自适应 kelly + prequential 成本数学加速（交接登记 a；D-007 下一层）。**收尾注记（2026-10-10）**：两阻塞均已修复落地——984 全绿（F5 前时点口径；gate0_final_verify_20261010/）；60-day 为批量负载口径（见「已知边界」节与 AGENTS.md 第14任段）。 **段 6 重跑尝试（2026-10-11）**：定位完成——段 6 = t=327..336（10 日/段；合成 fixture N=4、seed=2026、`archive/evidence/gate0_step16/backtest_batched.jl` + held 桥接口径）；当前字节下三档重跑（10/5/2 日）全部 rc=124（55s 切）——即使 2 日段（约 140 行 fit）亦超窗；卡点 = preq 逐行 fit 的 2D 自适应求积（`oof.jl:398` → `fit_full_posterior` → `adaptive_quadrature_2d`；与 ~200s/日 既有登记一致）。完成路径二选一（交 owner 裁决）：（i）preq 数学加速（D-007 下一层；需裁决「多日验证 vs 数学加速」的次序）；（ii）以性能边界结案。证据：`archive/evidence/gate0_seg6_rerun_20261011/`。**互指（2026-10-11 状态同步）**：完整 60-day 的最终状态见本文件「状态同步（2026-10-11）」A 门闭合节——t=330–389 六十个决策日全线完成（37 标准 + 23 超限）；上文「完成路径二选一（交 owner 裁决）」为该轮时点登记。
 - **501-day：分批机制已建立、未执行**——合成数据增量验证价值低，真实数据桥接优先（交接登记 c/d）。
-- **全线断言计数（两阶段口径）**：先一轮 **890**（market 82 + modes 102 + response 78 + posterior 40 + innovation 243 + oof 25 + prequential 12 + predictive 56 + kelly_cash 77 + quadrature 55 + driver 71 + backtest 49；日志 archive/evidence/gate0_review_20261010/ 与 gate0_review_20261010_rerun/）；合并验证后 **913 = 898 已绿（模块 1-11：849，含 modes 110；backtest 场景 1-7：49）+ 15 未执行（场景 8；kelly SLOW_PROGRESS）**（日志 archive/evidence/gate0_merged_verify_20261010/）。**收尾口径：984 全绿**（82+110+78+60+25+49+243+56+91+55+71+64；gate0_final_verify_20261010/，9 条 scoped 命令全 rc=0、26 文件字节一致）。
+- **全线断言计数（两阶段口径）**：先一轮 **890**（market 82 + modes 102 + response 78 + posterior 40 + innovation 243 + oof 25 + prequential 12 + predictive 56 + kelly_cash 77 + quadrature 55 + driver 71 + backtest 49；日志 archive/evidence/gate0_review_20261010/ 与 gate0_review_20261010_rerun/）；合并验证后 **913 = 898 已绿（模块 1-11：849，含 modes 110；backtest 场景 1-7：49）+ 15 未执行（场景 8；kelly SLOW_PROGRESS）**（日志 archive/evidence/gate0_merged_verify_20261010/）。**口径：984 全绿（F5 前时点口径）**（82+110+78+60+25+49+243+56+91+55+71+64；gate0_final_verify_20261010/，9 条 scoped 命令全 rc=0、26 文件字节一致）——F5 测试锚追加后 kelly_cash 终态 25/238；总口径复核完成（2026-10-11）：当前口径 **62 testset / 1204 断言**全绿（证据 `archive/evidence/gate0_assertion_recount_20261011/`；净增 +220 = posterior +21 / kelly_cash +147 / quadrature +43 / backtest +9；见 L195）。
 
 ## 裁决 7/8/9/10 登记（Manager 裁决 2026-10-10，简要）
 
@@ -192,6 +192,7 @@ g. **数学加速解锁（D-007 下一层）**——数学正确性 → 数学�
 - `src/gate0/oof.jl`——裁决 8 配套：tail_rel 10× 余量 + coarse_scan 补回。
 - `src/gate0/kelly.jl`——max_iter=1000（t=327 修复尝试；kelly_cash_tests 77/77 零回归，迭代预算不解除停滞）。
 - `src/gate0/kelly.jl`（2026-10-11 追加登记）——B2B-SPLIT-1/2/3 出口链拆分：`_cash_kelly_prelude`（= `_cash_kelly_prelude_prep` + `_cash_kelly_prelude_solve`）与 `_cash_kelly_finish`（= `_cash_kelly_finish_main` + `_cash_kelly_finish_tiebreak`）逐段化，组合调用与原 `cash_kelly` 逐点一致（kelly_cash_tests 的 B2B-SPLIT-1 testset 锁定；批量调度按段分批执行同一链）；TIE-FAST-1 全 cash 快速路径；2026-10-10/11 批次内早前落地并已锁定的设计 A（双路径候选取优）、M2（status 出口证书化）、KELLY-SCALE-RETRY-1 / 条件行缩放（span > 1/eps ≈ 4.5e15 阈值）。运行证据：kelly_cash 终态全绿（B2B-SPLIT-1 testset 26/26、TIE-FAST-1 13/13；`archive/evidence/gate0_multiday_run_20261010/S7_kelly_cash2.log`）。逐函数与逐段细节见 AGENTS.md 第 15/16 任段与本文件「状态同步（2026-10-11）」节的 SPLIT 链条目。
+- `src/gate0/kelly.jl`（2026-10-11 追加登记）——LOGSUM-SIMPLEX-IPM-1 求解核心重写：`_cash_kelly_ipm` 原始对数障碍内点法接入 `_cash_kelly_solve`（`:auto` 先 IPM、认证即返、未认证回退 Clarabel 原路径逐字保留）；tie-break m=2 一维二分专用化；`backend` 只增可选 kw（默认 `:auto`）；返回契约、证书唯一验收口径、fail-loud 均不变。设计文档 docs/KELLY_LOGSUM_SOLVER_DESIGN.md；运行证据 kelly_cash 24 testset / 227 断言全绿与注入负控（archive/evidence/gate0_kelly_rewrite_20261011/）。逐项细节见 AGENTS.md 第 17 任段。**终态口径（2026-10-11 同步；AGENTS.md 第 18 任段）**：登记 24/227 经逐行核实为 23/227；F5 测试锚追加后 kelly_cash 25 testset / 238 断言全绿。全量「984」为 F5 前时点口径；总口径复核完成（2026-10-11）：当前口径 **62 testset / 1204 断言**全绿（证据 `archive/evidence/gate0_assertion_recount_20261011/`；净增 +220 = posterior +21 / kelly_cash +147 / quadrature +43 / backtest +9）。
 - `src/gate0/backtest.jl` / `src/gate0/driver.jl` / `src/gate0/quadrature.jl`——各轮修复的 before/after 见各 summary（只读引用，不复制原文，给路径）：archive/evidence/gate0_wave2/3/4/ 各 summary.md 与 archive/evidence/gate0_step16/summary.md。
 
 本登记为文档层清单；源码字节以工作树为准，本核对未逐行复核 diff。
@@ -204,15 +205,41 @@ g. **数学加速解锁（D-007 下一层）**——数学正确性 → 数学�
 
 ### A 门闭合（过门配置）
 - 配置：`GATE0_MU_QMC=true` + `GATE0_CHISQ_QMC=true` + `GATE0_MAX_SCENARIOS=131072`。
-- 结果：t=330–346 十六日完成（339 为 solve 当日异常、未产出 A）——**十二过四超**（通过率 75%）；
-  未收敛日 336/340/343/344（A=1.355e-4 / 1.283e-4 / 1.246e-4 / 1.346e-4，超门 28%–35.5%）——
-  fail-loud、不产出认证权重。首次过门 t=330（A=6.2585e-5）、t=331（A=5.9696e-5）。
-- 门（weight_tol=1e-4）位于 A 分布约 75% 分位（335/341 贴边 9.3e-5 / 9.8e-5）。
+- 结果：t=330–389 六十个决策日全线完成（batch 链；调度形态演进为末尾 4 条分批/天；
+  330–338 为历史形态、非缺失）——**37 标准过门 + 23 超限**（标准对 A(65536→131072)、
+  过门参考线 weight_tol=1e-4；通过率 37/60）。
+- 23 个超限日已全部证得加深可达：21 天 @262144 对过线、2 天（354、385）@524288 对过线；
+  full 23 天 × 4 层 certified、nest_maxdiff=0；**1048576 无需用于任何一天**
+  （`archive/evidence/gate0_kelly_rewrite_20261011/deep_a/G_pass_summary.txt`）。
+- kelly 求解核心重写：log-sum simplex IPM（主求解 0.159s、finish 1.285s、tie-break 0.178s，
+  t=338 真实输入；证据 `archive/evidence/gate0_kelly_rewrite_20261011/`）。
+
+### 过门判据式（唯一口径；2026-10-11 评审 F2 收口）
+
+唯一过门判据式（实现：`src/gate0/quadrature.jl` L822）：
+
+    A ≤ weight_tol ∧ B_opt ≤ utility_tol ∧ B_audit ≤ utility_tol_audit
+      ∧ C 全绿（kelly_tol=1e-8）∧ norm≈0
+
+阈值层级（参考线、工具默认与 driver 默认分开记录，不得混用）：
+
+| 层 | 参数 | 值 | 出处 |
+|---|---|---|---|
+| 外部过门参考线 | A 门（weight_tol） | **1e-4** | 第 15/16 任采用 |
+| batch 工具内部默认 | A 门 | 1e-3 | batch 工具默认 |
+| B 工具默认 | utility_tol / utility_tol_audit | **1e-5** | batch 工具默认 |
+| driver 默认 | utility_tol | 1e-6 | src/gate0/driver.jl 默认 |
+| C 线（求解证书） | kelly_tol | batch 链默认 **1e-8**；driver 默认 1e-6（生产入口显式传参） | src/gate0/driver.jl L259 |
+
+口径后果：t=330 / 354 / 388 的 B_audit = 1.0790154555406772e-6 /
+1.2869900820888791e-6 / 1.5284801221093769e-6 在 **1e-5 口径下达标**、在 **1e-6 口径下超**——
+若 owner 采用 1e-6，这 3 天须纳入加深复核清单（其加深对 A 均过线，见 A 门段证据）。
+所有引用处（README / §9.13 更新 / 本文件）与本式一致。
 
 ### SPLIT 链与批量调度
 - b2b 出口链三级拆分（B2B-SPLIT-1/2/3；FB/S4 诊断先行、逐点等价锁定）：
   kelly_cash 终态 26/26（B2B-SPLIT-1）、TIE-FAST-1 13/13。
-- 批量调度九段稳定：零重试、最大段 40s、168–201s/日（330–346）。
+- 批量调度：330–346 九段稳定（零重试、最大段 40s、168–201s/日）；t=378–389 演进为 4 条分批/天（见 A 门段与 AGENTS.md 第 17 任段）。
 - 细节与逐日段耗时见 AGENTS.md 第 16 任段与 S1–S11 summary。
 
 ### t=327 处置
@@ -239,5 +266,8 @@ g. **数学加速解锁（D-007 下一层）**——数学正确性 → 数学�
 - `docs/KELLY_NUMERICAL_ROW_SCALING.md` §9.13：b（范围门控——语义例外，需 SPEC 裁决）、
   c（weight_tol D-066 复核——规范定稿程序）、d（活跃集低维化——已由 S10 诊断否定：
   本链 n=1、无零列）；推荐 c 与 b 并行，最终裁决留 owner/SPEC。
+- **2026-10-11 更新（路径 iv 已证）**：加深重跑已取得直接过线证据（23/23 超限日 × 4 层；
+  21 @262144 + 2 @524288）；b 行的原前提（「唯一解锁加深」「加深效果无证据」）已变——
+  详见 §9.13 更新；旧 b/c/d 登记保留为历史。
 
-*本文件由 Gate-0 文档轮（Wave 4 收尾）生成，2026-10-10 经最终更新轮（第 13/14/16/17/18 项结论升级、第 12 项注记改裁决 6 口径、剩余条件收缩、新增关闭声明）与收束文档轮（D-089 阶梯最终状态、裁决 7/8/9/10 登记、源码变更登记、剩余条件节替换为交接登记、关闭声明后续解锁一行对齐）两次更新；2026-10-10 再经断言计数更新轮（test/gate0/ 全量实际断言计数按 DevOps 受控运行证据更新为 890 项全绿，含运行边界注记）、以及合并验证同步轮（P0-8/`_WEAKINFO` 同步、t=327 事实链更新、rerun/merged_verify 引用、"890 → 913" 口径；纯文档更新，未改动任何源码 / 测试 / bin 文件——同批的 F3 注释修正与 P0-8 断言新增见 AGENTS.md 第13任段）、以及最终收尾同步轮（984 口径、T4/kelly/prequential 修复落地、入口切换状态、已知边界——见 AGENTS.md 第14任段；纯文档更新）；2026-10-11 再经状态同步轮（A 门闭合、SPLIT 链与批量调度、t=327/T4/入口/P0 指针、未收敛日决策包归属——见 AGENTS.md 第 15/16 任段；纯文档更新）。*
+*本文件由 Gate-0 文档轮（Wave 4 收尾）生成，2026-10-10 经最终更新轮（第 13/14/16/17/18 项结论升级、第 12 项注记改裁决 6 口径、剩余条件收缩、新增关闭声明）与收束文档轮（D-089 阶梯最终状态、裁决 7/8/9/10 登记、源码变更登记、剩余条件节替换为交接登记、关闭声明后续解锁一行对齐）两次更新；2026-10-10 再经断言计数更新轮（test/gate0/ 全量实际断言计数按 DevOps 受控运行证据更新为 890 项全绿，含运行边界注记）、以及合并验证同步轮（P0-8/`_WEAKINFO` 同步、t=327 事实链更新、rerun/merged_verify 引用、"890 → 913" 口径；纯文档更新，未改动任何源码 / 测试 / bin 文件——同批的 F3 注释修正与 P0-8 断言新增见 AGENTS.md 第13任段）、以及最终收尾同步轮（984 口径、T4/kelly/prequential 修复落地、入口切换状态、已知边界——见 AGENTS.md 第14任段；纯文档更新）；2026-10-11 再经状态同步轮（A 门闭合、SPLIT 链与批量调度、t=327/T4/入口/P0 指针、未收敛日决策包归属——见 AGENTS.md 第 15/16 任段；纯文档更新）、以及评审 GAP 弥合轮（330–389 口径与加深可达、过门判据式唯一化、IPM 重写登记、§9.13/README/设计文档同步——纯文档更新，未运行命令、未改源码/测试）。*

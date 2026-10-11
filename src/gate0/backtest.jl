@@ -71,7 +71,7 @@ export Gate0DayRecord, Gate0BacktestResult, run_gate0_backtest
   诊断、证书、方差分解、T4/all_cash 分支诊断）；
 - `held_before`：当日决策前的持仓权重（universe 维；T4 日 = 维持对象）；
 - `gross_realized`：t→t+1 的 marking gross（universe 维；
-  `adj[t+1,j]/adj[t,j]`）；
+  `adj[t+1,j]/adj[t,j]`；未持仓且缺价格列记中性 1.0）；
 - `wealth_factor`：当日实现财富因子 `Σ w_j·gross_j + w_cash`（净值乘子）；
 - `equity_after`：t+1 时点净值（起点 1.0 的累计乘积）。
 """
@@ -119,7 +119,9 @@ end
 t→t+1 的 marking gross：`gross_j = adj[t+1,j] / adj[t,j]`（carried marking
 序列——缺 bar 处 carry forward 是 adj 的字段语义）。对 `w_j > 0` 的持仓
 列要求两端价格有限且正（持仓必须有合法 marking——fail loudly，SPEC §56；
-w_j = 0 的列不校验——0·NaN 永不进入财富，旧线 locked_wealth 同语义）。
+`w_j = 0` 的列不校验：两端价格合法时记录真实比值，缺失时记中性值
+1.0——未持仓列在全部消费端以 `0 · gross = 0` 参与，不产生 NaN 污染
+（此前记 NaN 曾使 `0 · NaN = NaN` 污染财富/benchmark 求和；2026-10-11 修复）。
 """
 function _marking_gross(mf::MarketFacts, t::Int, w::AbstractVector{Float64})
     T, N = size(mf.observed)
@@ -137,7 +139,7 @@ function _marking_gross(mf::MarketFacts, t::Int, w::AbstractVector{Float64})
             gross[j] = p1 / p0
         else
             gross[j] = (isfinite(p0) && isfinite(p1) && p0 > 0 && p1 > 0) ?
-                       p1 / p0 : NaN   # 未持仓列的 gross 仅记录（不进财富）
+                       p1 / p0 : 1.0   # 未持仓缺价格列记中性 1.0——不进财富（0·NaN=NaN 会污染 dot 求和）
         end
     end
     gross

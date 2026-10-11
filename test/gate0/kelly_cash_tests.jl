@@ -14,6 +14,7 @@
 #   D-091   无信号世界（零均值对称）
 #   等价性  显式 cash 列 vs 预算不等式（同一 X，容差 1e-8）
 #   证书负测试 + 输入校验 fail-loudly
+#   主链 fail-loud 负锚（候选全不过证书 → error 不返回权重）+ :ipm_error 异常吞噬
 #
 # 全部合成数据、完全确定（无 RNG、无 seed）。解析答案的推导以注释给出。
 # =============================================================================
@@ -2607,7 +2608,12 @@ end
                                scale_retry_diag=dg5)
     @test dg5.preferred == :unscaled
     @test dg5.span > 1e8 && dg5.span < 1e10
-    @test dg5.attempted == true
+    # LOGSUM-SIMPLEX-IPM-1（2026-10-11 生产接线）：首选路径改为专用 IPM 后，
+    # cap#5 形态在未缩放空间即被 IPM 认证（不再需要缩放重试救回）——
+    # attempted 由 true 变为 false 是已批准语义变化的必然适应（行为更强：
+    # 一步给出认证解，无重试成本）。重试机制本身（纯决策真值表 T1a + 代码
+    # 路径）不变；下方证书/解/质量断言全部保留。
+    @test dg5.attempted == false
     # 设计 A + polish 轮数修复（P1）：取优可能采纳任一系（cap#5 的 raw+polish
     # 深度加深后可能反超 scaled）——断言「采纳方=较优质量方」的语义；固定
     # 「取缩放不回退」的历史口径由 G2 对照保留，不再是本锚的义务。
@@ -2847,6 +2853,271 @@ end
     solE = _cash_kelly_prelude_solve(Xc, prepE)
     rE = _cash_kelly_finish(Xc, solE)
     @test rE[1] == zeros(size(Xc, 2)) && rE[2] == 0.0
+end
+
+# =============================================================================
+# LOGSUM-SIMPLEX-IPM-1（2026-10-11 生产接线）：专用求解核心与双 backend 装配
+# =============================================================================
+# 覆盖：核心解析 fixture 证书；:ipm/:auto/:clarabel 装配；IPM 认证解 vs
+# cash_kelly 主链逐位对拍；可控回退（tol 不可达 → 未认证 → 回退 reference）；
+# tie-break m=2 严格凹（候选被证书拒、保留主解）与退化平局（采纳全 cash）；
+# 行缩放装配端点（span > 1/eps）。全部确定性、无 RNG。
+@testset "IPM core: analytic fixtures certified" begin
+    Xc = reshape([1.2, 0.85], 2, 1)
+    ipm_c = _cash_kelly_ipm(Xc, zeros(2), ones(2), 1.0, 1e-8)
+    @test ipm_c.converged && ipm_c.reason == :certified
+    @test isapprox(ipm_c.w_val[1], 5 / 6; atol=1e-6)
+    @test isapprox(ipm_c.w_val[2], 1 / 6; atol=1e-6)
+    cert_c = cash_kelly_certificate(Xc, ipm_c.w_val[1:1], ipm_c.w_val[2];
+                                     budget=1.0)
+    @test cash_kelly_certified(cert_c; tol=1e-8)
+
+    Xd = reshape([1.4, 0.7], 2, 1)
+    ipm_d = _cash_kelly_ipm(Xd, [0.3, 0.3], ones(2), 0.7, 1e-8)
+    @test ipm_d.converged
+    @test isapprox(ipm_d.w_val[1], 5 / 12; atol=1e-6)
+    @test isapprox(ipm_d.w_val[2], 17 / 60; atol=1e-6)
+
+    # Case A：全 cash 角点（risky 分量 → 0）
+    ipm_a = _cash_kelly_ipm(fill(0.99, 4, 1), zeros(4), ones(4), 1.0, 1e-8)
+    @test ipm_a.converged
+    @test abs(ipm_a.w_val[1]) <= 1e-6
+    @test isapprox(ipm_a.w_val[2], 1.0; atol=1e-6)
+
+    # m=1：唯一可行点（全 cash）
+    ipm_1 = _cash_kelly_ipm(Matrix{Float64}(undef, 3, 0), zeros(3), ones(3),
+                            0.7, 1e-8)
+    @test ipm_1.converged && ipm_1.reason == :m1
+    @test ipm_1.w_val == [0.7]
+
+    # 确定性：同输入两跑逐位
+    ipm_c2 = _cash_kelly_ipm(Xc, zeros(2), ones(2), 1.0, 1e-8)
+    @test ipm_c.w_val == ipm_c2.w_val && ipm_c.iters == ipm_c2.iters
+end
+
+@testset "assembly backends and fallback" begin
+    Xc = reshape([1.2, 0.85], 2, 1)
+    r_ipm = _cash_kelly_solve(Xc, zeros(2), ones(2), 1.0, 1e-8; backend=:ipm)
+    @test r_ipm.status_ok && r_ipm.reason == :ok && r_ipm.status == :ipm
+    r_auto = _cash_kelly_solve(Xc, zeros(2), ones(2), 1.0, 1e-8)
+    @test r_auto.status_ok && r_auto.status == :ipm
+    @test r_auto.w_val == r_ipm.w_val
+    r_cl = _cash_kelly_solve(Xc, zeros(2), ones(2), 1.0, 1e-8;
+                              backend=:clarabel)
+    @test r_cl.status_ok && r_cl.reason == :ok
+    @test r_cl.status in (Convex.MOI.OPTIMAL, Convex.MOI.ALMOST_OPTIMAL)
+    @test_throws ArgumentError _cash_kelly_solve(Xc, zeros(2), ones(2), 1.0,
+                                                 1e-8; backend=:bogus)
+
+    # --- 承诺 C0（批次 H 补齐；批次 J 按实测修正判据分工）---
+    # 固定 fixture = Case C（平坦目标，|f''|≈0.029）：w 不可辨识（多个最优解
+    # 皆合法），跨实现 w 逐分对比不是有效判据。批次 I 实测：w L∞ 差 =
+    # 2.336e-5（对原 1e-6 阈值红）——主要来自 Clarabel 解自身固有精度
+    # （其 kkt=1.14e-7，被平坦目标放大为 ~2.3e-5，放大式 δw ≈ kkt/(w·|H|)）；
+    # IPM 解自身离解析解仅 ~6.7e-7（kkt=2.6e-11）。非缺陷。该 fixture 的
+    # 正确判据是目标差（实测 8.024e-12 ≤ 1e-9）；可辨识 fixture 的 w 对拍
+    # 见下方 C0b。
+    @test r_ipm.status_ok && r_cl.status_ok
+    cert_ipm_c0 = cash_kelly_certificate(Xc, r_ipm.w_val[1:1], r_ipm.w_val[2];
+                                         budget=1.0)
+    cert_cl_c0 = cash_kelly_certificate(Xc, r_cl.w_val[1:1], r_cl.w_val[2];
+                                        budget=1.0)
+    @test abs(cert_ipm_c0.objective - cert_cl_c0.objective) <= 1e-9
+
+    # --- 承诺 C0b（批次 J 补齐；批次 L 按实测校准阈值）---
+    # 判据分工：退化/平坦 fixture 用目标差（C0）；可辨识 fixture 用
+    # 「w 对拍 + 解析锚」组合（本块）。fixture：X=[3.5; 0.125]（S=2、m=2），
+    # 强凹（|f''|=1225/729≈1.68）、唯一内点解 u*=13/35≈0.3714——w 可辨识。
+    # 批次 K 实测：w L∞ 差 = 4.181146e-6（原 1e-6 阈值红）；IPM 距 13/35 =
+    # 2.148e-11；两路径 obj 差 = 1.469e-11；IPM kkt=1.34e-11；
+    # Clarabel kkt=2.610e-6（其 Case C 值的 23 倍）。根因：w 差下界由
+    # Clarabel 在该 fixture 上的固有精度决定（kkt 2.61e-6 → δw≈4.18e-6）；
+    # 原 1e-6 实质是把「参考方精度上限」当成「IPM 验收线」，修正前永远红、
+    # 无验证能力。
+    # 校准（不是放松，是重构为可工作的判据组合）：
+    #   - w 对拍阈值 1e-6 → 1e-5：下界 = Clarabel 固有精度实测（kkt=2.61e-6
+    #     → δw≈4.18e-6）；1e-5 = 下界 + 明确裕量，仍能抓 IPM 显著回归
+    #     （δw ≳6e-6）。
+    #   - 解析锚 1e-5 → 1e-7（增强）：IPM 实测 2.148e-11，裕量 ~4.7e3；
+    #     与 w 对拍互补——一个锁 IPM 自身精度、一个锁跨实现一致性。
+    # 边界：本次改的是测试断言口径（基于实测 + 机制）；求解器数学 tol
+    # （1e-8 族）未动。
+    Xb2 = reshape([3.5, 0.125], 2, 1)
+    rib = _cash_kelly_solve(Xb2, zeros(2), ones(2), 1.0, 1e-8; backend=:ipm)
+    rcb = _cash_kelly_solve(Xb2, zeros(2), ones(2), 1.0, 1e-8; backend=:clarabel)
+    @test rib.status_ok && rcb.status_ok
+    @test maximum(abs.(rib.w_val .- rcb.w_val)) <= 1e-5
+    @test abs(rib.w_val[1] - 13 / 35) <= 1e-7   # 唯一解锚（IPM 自身精度）
+
+    # 对拍：:ipm 认证解 vs cash_kelly 主链（tie_eps=0）逐位一致（同一 IPM
+    # 路径）；默认 tie_eps 链同样必须证书绿（规范化不改变可采纳性）。
+    Xs = Matrix{Float64}(undef, 256, 1)
+    st = UInt64(12345)
+    for s in 1:256
+        st = st * UInt64(6364136223846793005) +
+             UInt64(1442695040888963407)
+        u = Float64(st >> 11) * 1.1102230246251565e-16
+        Xs[s, 1] = exp(0.04 * (2.0 * u - 1.0))
+    end
+    r_ipm2 = _cash_kelly_solve(Xs, zeros(256), ones(256), 1.0, 1e-8;
+                                backend=:ipm)
+    @test r_ipm2.status_ok
+    cert2 = cash_kelly_certificate(Xs, r_ipm2.w_val[1:1], r_ipm2.w_val[2];
+                                    budget=1.0)
+    @test cash_kelly_certified(cert2; tol=1e-8)
+    wfull0, cfull0, certf0 = cash_kelly(Xs; tie_eps=0)
+    @test vcat(wfull0, cfull0) == r_ipm2.w_val
+    @test cash_kelly_certified(certf0; tol=1e-8)
+    @test isapprox(certf0.objective, cert2.objective; atol=1e-12)
+    wfull, cfull, certf = cash_kelly(Xs)
+    @test cash_kelly_certified(certf; tol=1e-8)
+    @test isapprox(certf.objective, cert2.objective; atol=1e-7)
+
+    # 回退路径（可控触发）：tol=1e-300 使 IPM 证书在预算内不可达 → 未认证
+    # （budget_exhausted）→ :auto 回退 Clarabel reference，与 :clarabel
+    # 路径逐位一致（回退发生且无副作用）。
+    rr_ipm = _cash_kelly_solve(Xc, zeros(2), ones(2), 1.0, 1e-300;
+                               backend=:ipm)
+    @test !rr_ipm.status_ok && rr_ipm.reason == :ipm_failed
+    rr_auto = _cash_kelly_solve(Xc, zeros(2), ones(2), 1.0, 1e-300)
+    rr_cl = _cash_kelly_solve(Xc, zeros(2), ones(2), 1.0, 1e-300;
+                               backend=:clarabel)
+    @test rr_auto.w_val == rr_cl.w_val
+    @test rr_auto.status_ok && rr_cl.status_ok
+end
+
+@testset "tie-break m=2 specialization: strict vs tie" begin
+    # (a) 严格凹（Case C）：W_ε 边界候选 gap≈4e-6 > tol → 证书拒绝 →
+    # nothing（保留主解）——与设计文档 §5.2 预言一致。
+    Xc = reshape([1.2, 0.85], 2, 1)
+    wc, cc, certc = cash_kelly(Xc)
+    tb = _cash_kelly_canonical_tiebreak(Xc, zeros(2), 1.0, certc.objective,
+                                        vcat(wc, [cc]), 1e-8, 1e-8)
+    @test tb === nothing
+    @test isapprox(wc[1], 5 / 6; atol=1e-4)
+    @test cash_kelly_certified(certc; tol=1e-8)
+
+    # (b) 退化平局（risky 列恒 1 ⟹ wealth ≡ 1，整个单纯形平局）：
+    # canonical 候选 = 全 cash 端点，证书绿 → 采纳。
+    Xt = fill(1.0, 3, 1)
+    wt, ct, certt = cash_kelly(Xt)
+    @test all(x -> abs(x) <= 1e-10, wt) && abs(ct - 1.0) <= 1e-10
+    @test cash_kelly_certified(certt; tol=1e-8)
+    tb2 = _cash_kelly_canonical_tiebreak(Xt, zeros(3), 1.0, certt.objective,
+                                         vcat(wt, [ct]), 1e-8, 1e-8)
+    @test tb2 !== nothing
+    @test tb2[1][1] <= 1e-10 && isapprox(tb2[1][2], 1.0; atol=1e-10)
+    @test cash_kelly_certified(tb2[2]; tol=1e-8)
+end
+
+@testset "row-scaled assembly path certifies (span > 1/eps)" begin
+    # 确定性生成 span 远超 1/eps 的输入（宽尾 exp(±20) → span≈e^40≈2.4e17）：
+    # 走条件缩放装配（scale_preferred=true），证书必须全绿、解有限。
+    S = 64
+    Xr = Matrix{Float64}(undef, S, 1)
+    st = UInt64(777)
+    for s in 1:S
+        st = st * UInt64(6364136223846793005) +
+             UInt64(1442695040888963407)
+        u = Float64(st >> 11) * 1.1102230246251565e-16
+        Xr[s, 1] = exp(20.0 * (2.0 * u - 1.0))
+    end
+    dg = KellyScaleDiagnostics()
+    wr, cr, certr = cash_kelly(Xr; tol=1e-6, scale_retry_diag=dg)
+    @test dg.preferred == :scaled
+    @test dg.span > 1.0 / eps(Float64)
+    @test cash_kelly_certified(certr; tol=1e-6)
+    @test all(isfinite, wr) && isfinite(cr)
+    @test isapprox(sum(wr) + cr, 1.0; atol=1e-6)
+end
+
+# =============================================================================
+# 主链 fail-loud 负锚（F5；评审确认 kelly_cash 原无此直测）。
+# 覆盖对象：kelly.jl `_cash_kelly_finish_main` 的最终证书检查失败分支（本快照
+# L804–812）：双路径候选（首选 ± polish）全部未过原空间证书 → error，且
+# 绝不返回未认证权重（D-067 语义）。
+#
+# 「真能红」设计（mutation 语义，必读）：
+#   本锚断言的外部契约是「不返回权重」。若有人把 fail-loud 改回「返回最后
+#   一个可用解」（删掉 L804–812 的 error、直接返回 best.w/best.cert），或
+#   任何形态的静默降级（兜底全 cash、把证书门槛放宽到 > 2.4e8、吞掉 error
+#   文本），下方捕获的 err 将为 nothing / 消息不含锁定的失败语义 → 测试红。
+#   反之，在正确实现下该分支必须抛错（断言绿）。
+#
+# 构造（按 split 契约的真实输入面）：
+#   - 段 I：真实 `_cash_kelly_prelude_prep`。X 交替 e^±20（S=64, n=1）
+#     ⟹ span = e^40 > 1/eps ⟹ scale_preferred = true（真实置位）。
+#   - 段 I′：注入 res = status_ok=true / reason=:ok / w_val = 全 cash 端点
+#     [0, 1]——模拟「solver 白名单返回一个自称成功、却在 finish 复核下
+#     不过原空间证书的解」。
+#   - 全 cash 复核（解析）：wealth ≡ 1；g_risky = (32e^20+32e^-20)/64 =
+#     cosh(20) ≈ 2.4e8，g_cash = 1；kkt = gap = cosh(20) − 1 ≫ 1e-8 ⟹ 红。
+#   - polish：支撑 = {cash}（risky 分量 ≤ 1e-6 被排除），cash 支撑内唯一
+#     驻点仍是 u = budget ⟹ 精修点与全 cash 逐位相同、仍红（支撑集固定，
+#     精修契约不扩支撑、不把 risky 加回来）。
+#   - 缩放重试：scale_preferred = true ⟹ _cash_kelly_needs_retry = false，
+#     不触发第二次求解（这正是「已走缩放装配」的真实语义）。
+#   - 全程无 RNG、无 Clarabel/IPM 求解调用（polish 为纯 Newton）⟹ 快速、
+#     确定、与运行时长无关。
+# =============================================================================
+@testset "main-chain fail-loud anchor: all candidates uncertified -> error, no weights" begin
+    S = 64
+    X = Matrix{Float64}(undef, S, 1)
+    for s in 1:S
+        X[s, 1] = isodd(s) ? exp(20.0) : exp(-20.0)
+    end
+    prep = _cash_kelly_prelude_prep(X)
+    @test prep.scale_preferred          # 真实 prelude：span=e^40 > 1/eps
+    @test prep.early === nothing        # 非退化预算，正常进入 solve 段
+
+    # 构造前提自检：该候选确实不过证书（若此处绿说明构造失效，必须先红）。
+    c_bad = cash_kelly_certificate(X, [0.0], 1.0; base = prep.b,
+                                   budget = prep.budget)
+    @test !cash_kelly_certified(c_bad; tol = prep.tol)
+    @test c_bad.objective_gap > 1.0     # cosh(20)-1 ≈ 2.4e8 ≫ 1e-8
+    @test _cash_kelly_needs_retry(prep.scale_preferred, c_bad, prep.tol) == false
+
+    bad_res = (; w_val = [0.0, 1.0], status_ok = true, reason = :ok,
+                 status = :ipm)
+    pre = (; early = prep.early, b = prep.b, budget = prep.budget,
+             tol = prep.tol, tie_eps = prep.tie_eps,
+             scale_retry_diag = nothing, cs = prep.cs,
+             scale_preferred = prep.scale_preferred, res = bad_res)
+
+    err = try
+        _cash_kelly_finish_main(X, pre)
+        nothing
+    catch e
+        e
+    end
+    @test err isa ErrorException        # 若改为「返回最后可用解」→ 此处红
+    if err isa ErrorException
+        @test occursin("双路径候选均未过证书", err.msg)
+        @test occursin("不返回未认证权重", err.msg)
+    end
+end
+
+# =============================================================================
+# IPM 异常吞噬锚（F5 可选项；:ipm_failed 已由 assembly backends testset 以
+# tol=1e-300 覆盖，此处补 :ipm_error）。
+#
+# 覆盖对象：_cash_kelly_solve 的 :ipm 装配 catch（本快照 L630-645）——
+# _cash_kelly_ipm 抛出的任何异常 → ipm === nothing → reason=:ipm_error,
+# w_val=nothing。触发：cash_col 行数与 Xt 不符 ⟹ hcat(Xt, cash_col) 抛
+# DimensionMismatch（确定性、非 UB、非时长依赖）。
+# 生产 caller（prelude）总传一致尺寸，故这是防御分支；其契约仍可诚实
+# 验证：异常绝不泄漏、失败显式、无未认证出口。
+#
+# 「真能红」：删掉 catch（异常泄漏）→ 测试 Errored（红）；把 :ipm_error
+# 包装成 :ok/status_ok=true（静默降级）→ 前两条断言红；让它返回未认证
+# w_val → 第三条断言红。
+# =============================================================================
+@testset "IPM failure semantics: :ipm_error is a typed rejection (no leak, no weights)" begin
+    X2 = fill(1.01, 4, 2)
+    res = _cash_kelly_solve(X2, zeros(4), ones(3), 1.0, 1e-8; backend = :ipm)
+    @test res.status_ok == false
+    @test res.reason === :ipm_error
+    @test res.w_val === nothing
 end
 
 end  # module Gate0KellyCashTests

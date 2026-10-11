@@ -131,7 +131,7 @@ fold 已退役为 reference/diagnostic，该死结不适用于 production。三�
 
 - kelly 条件行缩放（span>4.5e15 阈值；设计文档 `docs/KELLY_NUMERICAL_ROW_SCALING.md`）与 polish 防护恢复落地后，t=271 的 SLOW_PROGRESS 解除。
 - testset (8) 15/15 全绿；backtest 场景 1–7（49）+ 场景 8（15）= **64 全绿**。
-- 最终口径：test/gate0/ 全量 **984 断言全绿**（模块 1–12 + backtest 场景 1–8；见 AGENTS.md 第14任段与 `docs/GATE0_EXIT_CHECKLIST.md`）。
+- 口径（984 为 **F5 前时点口径**；F5 后 kelly_cash 终态 25/238——总口径复核完成（2026-10-11）：当前口径 **62 testset / 1204 断言**全绿，证据 `archive/evidence/gate0_assertion_recount_20261011/`，净增 +220 = posterior +21 / kelly_cash +147 / quadrature +43 / backtest +9，见 `docs/GATE0_EXIT_CHECKLIST.md` L195）：test/gate0/ 全量 **984 断言全绿**（模块 1–12 + backtest 场景 1–8；见 AGENTS.md 第14任段与 `docs/GATE0_EXIT_CHECKLIST.md`）。
 
 ### 5.4 边界
 
@@ -145,7 +145,7 @@ fold 已退役为 reference/diagnostic，该死结不适用于 production。三�
 1. **裁决 8 时点的 driver 残差源**（fold vs prequential）与「上轮红」原始 log 缺失——是否请 DevOps 复现旧形态，归 owner 裁决；本裁决只对**当前 HEAD 语义**成立。
 2. **修法 (a) 的精确收缩定义**（fold 复活预案）：收缩到哪个集合、域变化时如何保持可重放——需要数学论证与 refinement。
 3. **非 contiguous fold 对 innovation 校准统计性质的影响**未评估（本裁决不执行该修法，记录为背景）。
-4. **计数连锁（2026-10-10 收尾）**：旧 890 → 913（modes +8、场景 8 纳入）→ **最终 984 全绿**（testset (8) 15/15 转绿后，backtest 49→64；`archive/evidence/gate0_final_verify_20261010/`）。全量分组建议 "1" / "2,3" / "4,5" / "6,7" / "8"。
+4. **计数连锁（2026-10-10 收尾）**：旧 890 → 913（modes +8、场景 8 纳入）→ **984 全绿（F5 前时点口径）**（testset (8) 15/15 转绿后，backtest 49→64；`archive/evidence/gate0_final_verify_20261010/`；F5 后 kelly_cash 终态 25/238；总口径复核完成（2026-10-11）：当前口径 **62 testset / 1204 断言**全绿，证据 `archive/evidence/gate0_assertion_recount_20261011/`，净增 +220 = posterior +21 / kelly_cash +147 / quadrature +43 / backtest +9，见 checklist L195）。全量分组建议 "1" / "2,3" / "4,5" / "6,7" / "8"。
 
 ---
 

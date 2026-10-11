@@ -7,6 +7,8 @@
 
 ---
 
+> **时点/适用对象注记（追加，2026-10-10）**：本文对账/盘点对象 = 旧线 2.0-RC（`src/` 旧实现）；文中「当前生产」语句属 Gate-0 重开时时点；本文目标条款已由 `docs/GATE0_VECTOR_INNOVATION.md` §10/§11 收口。新线闭合见 `docs/GATE0_EXIT_CHECKLIST.md` 与 AGENTS.md 第13–18任段。
+
 ## 0. 阅读约定
 
 - $\mathcal H_t$ 为价格历史信息集；$\varepsilon$ 为 OOF 残差，$\varepsilon_t = r_{t+1}-\hat\mu_t^{(-fold)}$（`src/predict.jl:5` 的模块定义）。

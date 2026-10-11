@@ -16,17 +16,18 @@
 #   GATE0_MODULES —— 模块选择（逗号分隔序号，默认 "all"）。例：
 #       GATE0_MODULES="1,2,3,4,5,6,7" 跑模块 1..7；
 #       GATE0_MODULES="8,9,10,11,12" 跑 8..12；GATE0_MODULES="all" 跑全部。
-#       12 模块累积超单命令预算，需分组调度（如 "1..7" 与 "8..12" 两组）。
+#       12 模块累积超单命令预算，需分组调度（实测约两模块一组，
+#       单组超窗再拆）。
 #   BACKTEST_SCENARIO —— backtest_tests.jl 的场景选择。默认 "1"（5-day
-#       end-to-end，最便宜场景）。全量 7 场景累积超单命令预算，需分组
-#       调度：BACKTEST_SCENARIO="1,2" / "3,4" / "5,6,7" 分别运行（同一
+#       end-to-end，最便宜场景）。全量 9 场景（1–9）累积超单命令预算，需分组
+#       调度：BACKTEST_SCENARIO="1,2,3,4" / "5,6,7,8" / "9" 分别运行（同一
 #       进程编译一次摊薄冷启动）。**默认只跑场景 1**——multi-day ×
 #       prequential 全量跑需单独调度，不在本统一入口的默认预算内。
 #       ENV 必须在 include backtest_tests.jl **之前**设置——该文件的
 #       `const _BT_SCENARIO = get(ENV, ...)` 在 include 时求值。
 #
 # 超时边界（必须明说）：本入口默认跑 11 个模块 + backtest 场景 1；全量
-# backtest 7 场景、或全量 prequential 多日窗口，单命令 ≤60s/RSS2048 预算
+# backtest 9 场景（1–9）、或全量 prequential 多日窗口，单命令 ≤60s/RSS2048 预算
 # 内不可行——需按上述分组单独调度。
 #
 # 结构约束（为什么用包裹 module 而非裸 include）：

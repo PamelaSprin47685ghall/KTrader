@@ -298,6 +298,315 @@ function _pick_better_kelly_candidate(a, b)
 end
 
 
+# =============================================================================
+# LOGSUM-SIMPLEX-IPM-1（2026-10-11）：cash Kelly 专用求解核心
+# =============================================================================
+# 设计：docs/KELLY_LOGSUM_SOLVER_DESIGN.md。冻结独立验证器
+# dev/kelly_ipm_probe.jl 已在真实 t=338 输入（131072×2）上验证：
+# 46 迭代、0.105s、内部证书 kkt=gap=2.756e-9；生产 cash_kelly_certificate
+# 复核差 9e-15 级。
+#
+# 数学：max (1/S)Σ log(a_s·w + b_s) s.t. w ≥ 0, 1'w = budget，A = [Xt cash_col]
+# 增广（cash 末列）。原始对数障碍 IPM：φ_μ = f + μΣlog w_i；每步阻尼牛顿解
+# (m+1)×(m+1) KKT（Schur 补 + 手写 Cholesky）；μ ← max(σμ, μ_floor)。
+# 终止判据 = cash_kelly_certified（原空间证书三量 ≤ tol）——无第二口径。
+# 无 RNG；不自行缩放（消费调用方装配）；确定性。
+#
+# 失败语义：内部防护失败（非有限财富/奇异 KKT/线搜索失败/预算耗尽）只返回
+# converged=false + reason；装配层（_cash_kelly_solve :auto）回退 Clarabel
+# reference 路径；绝不返回未认证解（D-067 fail-loud 由装配/finish 链承担）。
+# =============================================================================
+
+# 数值配置（LOGSUM-SIMPLEX-IPM-1；待 D-066 式 refinement 定稿，禁止由回测
+# 选择）：μ0 / σ / μ_floor 因子 / 迭代上限 / 分数步长回退系数。
+# μ_floor 因子取 1e-3·tol，且返回点绑定「中心参数已收缩到 floor」（见主循环
+# 收敛条件）：保证角点类解的主解残余小权重 ≲1e-9（tol=1e-8），与下游
+# tie-break canonicalization 的既有 1e-8 差值契约（TIE-FAST-1）对齐；更深
+# 的返回点只会更优，证书仍是唯一验收口径。
+const _KELLY_IPM_MU0 = 1.0
+const _KELLY_IPM_SIGMA = 0.2
+const _KELLY_IPM_MU_FLOOR_FACTOR = 1e-3
+const _KELLY_IPM_MAX_OUTER = 60
+const _KELLY_IPM_MAX_NEWTON = 4
+const _KELLY_IPM_TAU = 0.99
+
+# 内部证书（增广空间；与 cash_kelly_certificate 同式）。供 IPM 收敛判定与
+# m==1 分支使用；装配后仍由 cash_kelly_certificate 复核。
+function _kelly_ipm_cert_full(A::Matrix{Float64}, b::Vector{Float64},
+                               w::Vector{Float64}, budget::Float64)
+    S, m = size(A)
+    z = A * w .+ b
+    feasibility = max(abs(sum(w) - budget), max(0.0, -minimum(w)))
+    if !all(isfinite, w) || !all(x -> isfinite(x) && x > 0.0, z)
+        return (; feasibility=Inf, kkt_residual=Inf, objective_gap=Inf,
+                 objective=-Inf, dual=Inf)
+    end
+    invz = 1.0 ./ z
+    g = (A' * invz) ./ S
+    dual = maximum(g)
+    kkt = maximum(abs, w .* (dual .- g))
+    gap = max(0.0, budget * dual - dot(w, g))
+    (; feasibility=feasibility, kkt_residual=kkt, objective_gap=gap,
+       objective=sum(log, z) / S, dual=dual)
+end
+
+# 复用扫描所得梯度/目标值构造同一证书（省一次 O(S) 扫描）。
+function _kelly_ipm_cert_from_g(g::Vector{Float64}, w::Vector{Float64},
+                                 budget::Float64, objective::Float64)
+    dual = maximum(g)
+    feasibility = max(abs(sum(w) - budget), max(0.0, -minimum(w)))
+    kkt = maximum(abs, w .* (dual .- g))
+    gap = max(0.0, budget * dual - dot(w, g))
+    (; feasibility=feasibility, kkt_residual=kkt, objective_gap=gap,
+       objective=objective, dual=dual)
+end
+
+# 手写 Cholesky 求解（m×m 对称正定；确定性、无 LAPACK 依赖）。
+function _kelly_ipm_chol(M::Matrix{Float64}, rhs::Vector{Float64})
+    n = length(rhs)
+    size(M) == (n, n) || return nothing
+    L = zeros(n, n)
+    for i in 1:n
+        for j in 1:i
+            s = M[i, j]
+            for k in 1:(j - 1)
+                s -= L[i, k] * L[j, k]
+            end
+            if i == j
+                (isfinite(s) && s > 0.0) || return nothing
+                L[i, j] = sqrt(s)
+            else
+                L[i, j] = s / L[j, j]
+            end
+        end
+    end
+    y = zeros(n)
+    for i in 1:n
+        s = rhs[i]
+        for k in 1:(i - 1)
+            s -= L[i, k] * y[k]
+        end
+        y[i] = s / L[i, i]
+    end
+    x = zeros(n)
+    for i in n:-1:1
+        s = y[i]
+        for k in (i + 1):n
+            s -= L[k, i] * x[k]
+        end
+        x[i] = s / L[i, i]
+    end
+    all(isfinite, x) ? x : nothing
+end
+
+# 障碍值 φ_μ（Armijo 回溯判据）。
+function _kelly_ipm_barrier(A::Matrix{Float64}, b::Vector{Float64},
+                             w::Vector{Float64}, mu::Float64)
+    S, m = size(A)
+    logsum = 0.0
+    for s in 1:S
+        zs = b[s]
+        for i in 1:m
+            zs += A[s, i] * w[i]
+        end
+        (isfinite(zs) && zs > 0.0) || return (NaN, false)
+        logsum += log(zs)
+    end
+    phi = logsum / S
+    for i in 1:m
+        (isfinite(w[i]) && w[i] > 0.0) || return (NaN, false)
+        phi += mu * log(w[i])
+    end
+    (phi, true)
+end
+
+"""
+    _cash_kelly_ipm(Xt, bt, cash_col, budget, tol) -> NamedTuple
+
+LOGSUM-SIMPLEX-IPM-1 核心。增广 A = [Xt cash_col]、base = bt。返回
+`(; w_val, converged, iters, reason)`；`converged=true` 当且仅当内部证书
+（与 cash_kelly_certificate 同式）三量 ≤ tol。失败 reason ∈
+(:nonfinite_wealth, :singular_kkt, :nonfinite_direction, :line_search_failed,
+:nonfinite_state, :budget_exhausted, :invalid_budget)；`w_val` 在失败时仍
+返回当前迭代点（未认证，不得由装配层采纳）。
+"""
+function _cash_kelly_ipm(Xt::Matrix{Float64}, bt::Vector{Float64},
+                          cash_col::Vector{Float64}, budget::Float64,
+                          tol::Float64)
+    S, n = size(Xt)
+    m = n + 1
+    (isfinite(budget) && budget > 0.0) ||
+        return (; w_val=nothing, converged=false, iters=0,
+                reason=:invalid_budget)
+    A = hcat(Xt, cash_col)
+    b = bt
+
+    # m == 1：唯一可行点 w = budget（全 cash）
+    if m == 1
+        w1 = [budget]
+        c1 = _kelly_ipm_cert_full(A, b, w1, budget)
+        return (; w_val=w1, converged=cash_kelly_certified(c1; tol=tol),
+                iters=0, reason=:m1)
+    end
+
+    w = fill(budget / m, m)
+    mu = _KELLY_IPM_MU0
+    mu_floor = max(_KELLY_IPM_MU_FLOOR_FACTOR * tol, 1e-12)
+    iters = 0
+    nu = NaN
+
+    for _outer in 1:_KELLY_IPM_MAX_OUTER
+        for _inner in 1:_KELLY_IPM_MAX_NEWTON
+            iters += 1
+
+            # ---- 一遍扫描：g、H（下三角）、Σ log z ----
+            g = zeros(m)
+            H = zeros(m, m)
+            logsum = 0.0
+            scan_ok = true
+            for s in 1:S
+                zs = b[s]
+                for i in 1:m
+                    zs += A[s, i] * w[i]
+                end
+                if !(isfinite(zs) && zs > 0.0)
+                    scan_ok = false
+                    break
+                end
+                logsum += log(zs)
+                invz = 1.0 / zs
+                for i in 1:m
+                    ai = A[s, i]
+                    g[i] += ai * invz
+                    for j in 1:i
+                        H[i, j] += ai * A[s, j] * invz * invz
+                    end
+                end
+            end
+            if !scan_ok
+                return (; w_val=w, converged=false, iters=iters,
+                        reason=:nonfinite_wealth)
+            end
+            g ./= S
+            for i in 1:m
+                for j in (i + 1):m
+                    H[i, j] = H[j, i]
+                end
+            end
+            H ./= S
+            objective_now = logsum / S
+            phi_cur = objective_now
+            for i in 1:m
+                phi_cur += mu * log(w[i])
+            end
+
+            if isnan(nu)
+                nu = maximum(g)
+            end
+
+            # ---- 证书检查（复用 g；cash_kelly_certified 同一口径）----
+            # 返回点绑定深度：证书过 AND 中心参数 μ 已收缩到 floor（更深的
+            # 返回点保证角点残余 ≲1e-9；证书仍是唯一验收口径——更深的点只
+            # 会更优，绝不放松任何门槛）。μ 到 floor 后证书仍不过 → 继续
+            # 牛顿直至预算耗尽（fail → 装配层回退 Clarabel reference）。
+            cert_now = _kelly_ipm_cert_from_g(g, w, budget, objective_now)
+            if cash_kelly_certified(cert_now; tol=tol) && mu <= mu_floor
+                return (; w_val=w, converged=true, iters=iters,
+                        reason=:certified)
+            end
+
+            # ---- 牛顿方向（Schur 形式）----
+            #   [H + μ W⁻²  1] [Δw]   [ r_dual ]
+            #   [1'         0] [Δν] = [ −r_prim ]
+            M = Matrix{Float64}(undef, m, m)
+            for i in 1:m
+                for j in 1:m
+                    M[i, j] = H[i, j]
+                end
+                M[i, i] += mu / (w[i] * w[i])
+            end
+            r_dual = Vector{Float64}(undef, m)
+            for i in 1:m
+                r_dual[i] = g[i] + mu / w[i] - nu
+            end
+            r_prim = sum(w) - budget
+
+            x1 = _kelly_ipm_chol(M, r_dual)
+            x2 = _kelly_ipm_chol(M, ones(m))
+            if x1 === nothing || x2 === nothing
+                return (; w_val=w, converged=false, iters=iters,
+                        reason=:singular_kkt)
+            end
+            denom = sum(x2)
+            if !(isfinite(denom) && denom > 0.0)
+                return (; w_val=w, converged=false, iters=iters,
+                        reason=:singular_kkt)
+            end
+            dnu = (sum(x1) + r_prim) / denom
+            dw = x1 .- dnu .* x2
+            if !all(isfinite, dw)
+                return (; w_val=w, converged=false, iters=iters,
+                        reason=:nonfinite_direction)
+            end
+
+            # ---- 分数步长（保持 w > 0）----
+            alpha = 1.0
+            for i in 1:m
+                if dw[i] < 0.0
+                    tmax = -w[i] / dw[i]
+                    tmax < alpha && (alpha = tmax)
+                end
+            end
+            if alpha < 1.0
+                alpha *= _KELLY_IPM_TAU
+            end
+
+            # ---- Armijo 回溯（φ_μ 不下降）----
+            accepted = false
+            w_new = similar(w)
+            for _ls in 1:12
+                for i in 1:m
+                    w_new[i] = w[i] + alpha * dw[i]
+                end
+                (phi_try, ok_try) = _kelly_ipm_barrier(A, b, w_new, mu)
+                if ok_try && isfinite(phi_try) &&
+                   phi_try >= phi_cur - 1e-10 * (1.0 + abs(phi_cur))
+                    accepted = true
+                    break
+                end
+                alpha *= 0.5
+            end
+            if !accepted
+                return (; w_val=w, converged=false, iters=iters,
+                        reason=:line_search_failed)
+            end
+
+            # ---- 接受 + 对偶更新 + 预算清理（O(m)）----
+            for i in 1:m
+                w[i] = w_new[i]
+            end
+            nu += alpha * dnu
+            delta = budget - sum(w)
+            if abs(delta) > 0.0
+                w[m] += delta
+                if w[m] <= 0.0
+                    tot = sum(w)
+                    if isfinite(tot) && tot > 0.0
+                        w .*= budget / tot
+                    end
+                end
+            end
+            if !(all(isfinite, w) && sum(w) > 0.0)
+                return (; w_val=w, converged=false, iters=iters,
+                        reason=:nonfinite_state)
+            end
+        end
+        mu = max(mu * _KELLY_IPM_SIGMA, mu_floor)
+    end
+
+    (; w_val=w, converged=false, iters=iters, reason=:budget_exhausted)
+end
+
 # 求解器装配 + 求解 + status 白名单 + clip/预算归一的内部 helper（原
 # cash_kelly 主体抽出；数值语义逐字保留，含 max_iter=1000 注释语义）。
 # 返回 (; w_val, status_ok, reason, status)。reason ∈ (:ok, :status,
@@ -307,7 +616,37 @@ end
 # 由调用方决定采纳 / 放弃（重试）或 error（首选）。
 function _cash_kelly_solve(Xt::Matrix{Float64}, bt::Vector{Float64},
                            cash_col::Vector{Float64}, budget::Float64,
-                           tol::Float64)
+                           tol::Float64; backend::Symbol = :auto)
+    # LOGSUM-SIMPLEX-IPM-1 双 backend 装配（2026-10-11）：
+    #   :auto（默认）——先跑专用 IPM；认证（内部证书三量 ≤ tol）→ 直接返回；
+    #     未认证/运行性异常 → 回退下方 Clarabel reference 路径（原实现逐字
+    #     保留，含 status 白名单 / M2 出口 / clip / 归一）。回退不改变验收
+    #     口径：两条路径的最终采纳都由 _cash_kelly_finish_main 的
+    #     cash_kelly_certificate 决定。
+    #   :ipm —— 只跑 IPM（诊断/对拍用；status_ok=converged）。
+    #   :clarabel —— 只跑 Clarabel reference（回归对拍基准）。
+    backend in (:auto, :ipm, :clarabel) ||
+        throw(ArgumentError("unknown cash Kelly backend: $(repr(backend))"))
+    if backend === :auto || backend === :ipm
+        ipm = try
+            _cash_kelly_ipm(Xt, bt, cash_col, budget, tol)
+        catch
+            nothing
+        end
+        if ipm !== nothing && ipm.converged
+            return (; w_val = ipm.w_val, status_ok = true, reason = :ok,
+                      status = :ipm)
+        end
+        if backend === :ipm
+            return ipm === nothing ?
+                (; w_val = nothing, status_ok = false, reason = :ipm_error,
+                   status = nothing) :
+                (; w_val = ipm.w_val, status_ok = false,
+                   reason = :ipm_failed, status = ipm.reason)
+        end
+    end
+
+    # ---- Clarabel reference/回退路径（原实现逐字保留）----
     S, n = size(Xt)
     m = n + 1
     w_aug = Variable(m)
@@ -731,6 +1070,49 @@ function _cash_kelly_canonical_tiebreak(X::Matrix{Float64},
     S, n = size(X)
     m = n + 1
     length(w_primary) == m || return nothing
+
+    # LOGSUM-SIMPLEX-IPM-1 §5.2（2026-10-11）：m=2（n==1）精确一维专用化。
+    # W_ε = {u : h(u) ≥ U* − tie_eps}（u 为 risky 分量）：Stage 2 max cash
+    # ⟺ min u = u_lo；Stage 3 min ‖w_risky‖² 同点。候选计算 O(S·80)；仍过
+    # 同一原空间证书，不过 → nothing（保留主解）——与现行采纳语义同口径。
+    # 一般 m 保持下方两阶段 Clarabel（登记于设计文档 §5.3）。
+    if n == 1
+        threshold = Ustar - tie_eps
+        h_of = function (u::Float64)
+            logsum = 0.0
+            for s in 1:S
+                zs = b[s] + X[s, 1] * u + (budget - u)
+                (isfinite(zs) && zs > 0.0) || return NaN
+                logsum += log(zs)
+            end
+            logsum / S
+        end
+        ulo = 0.0
+        U0 = h_of(0.0)
+        if !(isfinite(U0) && U0 >= threshold)
+            ustar = w_primary[1]
+            if isfinite(ustar) && ustar > 0.0
+                lo, hi = 0.0, ustar
+                for _ in 1:80
+                    mid = 0.5 * (lo + hi)
+                    if h_of(mid) >= threshold
+                        hi = mid
+                    else
+                        lo = mid
+                    end
+                end
+                ulo = hi
+            end
+        end
+        w_tb = zeros(m)
+        w_tb[1] = ulo
+        w_tb[m] = budget - ulo
+        cert_tb = cash_kelly_certificate(X, w_tb[1:n], w_tb[n + 1];
+                                          base=b, budget=budget)
+        cash_kelly_certified(cert_tb; tol=tol) || return nothing
+        return (w_tb, cert_tb)
+    end
+
     X_aug = hcat(X, ones(S))
     U_lower = Ustar - tie_eps
 

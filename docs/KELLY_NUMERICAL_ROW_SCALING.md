@@ -153,6 +153,7 @@ cash_col = 1.0 ./ c               # 关键：cash 列同缩（不得 ones(S)）
 ## 8. 证书驱动的缩放重试（KELLY-SCALE-RETRY-1；2026-10-10，G2 实证后设计）
 
 **状态：只读 + 设计（本节）；未运行、未改 src/test。证据：archive/evidence/gate0_multiday_run_20261010/（G2_summary.md、G2_offline.log、G1_inputs.bin 的 cap#5 输入）。**
+**历史标注（2026-10-11 追加）：本节引用的 kelly.jl 行号为设计时点快照；其后的 IPM 接线已使函数位置漂移，当前行号以 docs/KELLY_LOGSUM_SOLVER_DESIGN.md 与源码为准。**
 
 ### 8.1 G2 事实（决定性）
 
@@ -458,6 +459,23 @@ t=332 的 >48s 组成未测：主求解 / polish / tie-break 三者占比决定 
 
 **边界**：只读；未运行；全部为选项分析与证据转引；实施须 SPEC 裁决（b）或独立施工（d）。
 
+### 9.13-补（2026-10-11）：路径 iv 与前提注记
+
+**（追加更新；以上 §9.13 正文保留为 2026-10-10 决策时点历史；本节不改任何路径的实施状态。）**
+
+- **新增路径 iv「逐层加深重跑生产链」——已证效果**：F/F2/G 全样本 23/23 超限日 × 4 层
+  （131072→262144→524288→1048576）：21 天 @262144 对过线、2 天（354、385）@524288 对过线；
+  certified、nest_maxdiff=0；**1048576 无需用于任何一天**。逐日 A 值见
+  `archive/evidence/gate0_kelly_rewrite_20261011/deep_a/G_pass_summary.txt`。
+- **前提注记（旧表述的前提已变）**：上文表格 b 行（范围门控）「唯一『解锁加深』的短路径」与
+  「加深的预期效果无直接证据（被阻断至今）」两条前提已不成立——①F/F2/G 已提供加深过线的
+  直接证据（路径 iv，参照过门参考线 weight_tol=1e-4）；②kelly 求解器重写（IPM）后深场景
+  tie-break 进窗（t=336 b2b3@262144=10s 实测），深链不再被 tie-break 阻断。旧 b/c/d 登记保留为历史。
+- **判据口径**：加深对 A(131072→262144)、A(262144→524288) 均按过门参考线 weight_tol=1e-4 判定；
+  唯一过门判据式与阈值层级（含 A 参考线 1e-4 vs batch 工具默认 1e-3、B 两口径）见
+  `docs/GATE0_EXIT_CHECKLIST.md`「过门判据式（唯一口径）」节。
+- **最终裁决留 owner/SPEC**。
+
 ### 9.9 补充：M2 出口证书化的语境分离（2026-10-10）
 
 kelly adjudicate 批次（archive/evidence/gate0_kelly_adjudicate_20261010/summary.md）对**场景 8（t=271、S=32、极端 base 1e±56）**的判决是：**M2 否定**——7 档 Clarabel 容差全部 SLOW_PROGRESS、返回解逐位相同（cert kkt=gap=1.35），polish 仅到 0.416；E2 模拟的「方案 A（SLOW_PROGRESS 出口证书化）」在该输入上**不过**。主根因是样本极端动态范围（V3 winsorize 后 kkt=1.88e-7 过——修复方向在样本/尺度层）。因此：**出口证书化框架不能承诺救回场景 8**；它的价值与边界见 §10。
@@ -467,6 +485,8 @@ kelly adjudicate 批次（archive/evidence/gate0_kelly_adjudicate_20261010/summa
 ## 10. SLOW_PROGRESS 出口证书化（M2 框架）——设计（2026-10-10）
 
 **状态：只读 + 设计；未运行、未改 src/test。**
+
+> **实施注记（2026-10-11 同步）**：本框架（M2 出口证书化）已实施并锁定——设计 A 双路径取优、M2、KELLY-SCALE-RETRY-1/条件行缩放于 2026-10-10/11 批次落地（`docs/GATE0_EXIT_CHECKLIST.md` L194 登记）；§9.9 的场景 8 判决（M2 否定）保持，本框架不承诺救回该输入。
 
 ### 10.1 背景与语境
 
