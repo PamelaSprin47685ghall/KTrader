@@ -929,6 +929,9 @@ function _cash_kelly_finish_tiebreak(X::Matrix{Float64}, pre, mid)
         tb = _cash_kelly_canonical_vertex(X, mid.b, mid.budget,
                           mid.cert.objective, mid.w_val,
                           Float64(mid.tie_eps), mid.tol)
+        tb === nothing && (tb = _cash_kelly_canonical_support(X, mid.b,
+                          mid.budget, mid.cert.objective, mid.w_val,
+                          Float64(mid.tie_eps), mid.tol))
         tb === nothing && (tb = _cash_kelly_canonical_tiebreak(
                    X, mid.b, mid.budget, mid.cert.objective,
                    mid.w_val, Float64(mid.tie_eps), mid.tol))
@@ -1029,6 +1032,113 @@ function _cash_kelly_canonical_vertex(X::Matrix{Float64},
     # convergence certificate. Near-indifferent, full-dimensional assets
     # otherwise magnify sub-ulp utility rounding into a spurious rejection.
     slack/runnerup_margin <= 1e-9 || return nothing
+    (w,cert)
+end
+
+"""
+    _cash_kelly_canonical_support(...) -> nothing or (w, original_certificate)
+
+CANON-SUPPORT-1 (Phase 4, 2026-10-12): exact certified stage-2/stage-3
+canonical point for a primary solution on a small risky support P (2..8
+assets, typical flat-ridge days). Generalises `_cash_kelly_canonical_vertex`.
+
+Stage 2 (max cash on W_ε={U ≥ U*−ε}, simplex) KKT: on P all gradients g_i
+are equal (=ν̄), g_k ≤ ν̄ off P, ν̄ > g_cash, U = U*−ε. Newton solves the
+|P| reduced equations; then on the ORIGINAL full problem:
+  (a) original Kelly certificate green within tol;
+  (b) U ≥ threshold (inside the superlevel set);
+  (c) concavity bound: any feasible w' has c'−c ≤ (slack+2rB)/(ν̄−g_c) ≤ 1e-11;
+  (d) stage-3 uniqueness: off-support mass ≤ (slack+2rB)/runner-up margin
+      and on-support deviation from a self-consistent curvature bound
+      (λ_min of the support Hessian, wealth-ratio corrected); total L1
+      distance to the true canonical point ≤ 1e-6 (100× below weight_tol).
+Any inconclusive check returns nothing → unchanged conic Clarabel path.
+"""
+# Diagnostic only: id of the last inconclusive check (no numeric effect).
+const _CANON_SUPPORT_LAST_FAIL = Ref(0)
+_canon_support_fail(code::Int) = (_CANON_SUPPORT_LAST_FAIL[] = code; nothing)
+function _cash_kelly_canonical_support(X::Matrix{Float64}, b::Vector{Float64},
+        budget::Float64, Ustar::Float64, w_primary::Vector{Float64},
+        tie_eps::Float64, tol::Float64)
+    S,n=size(X)
+    (n>=2 && length(w_primary)==n+1 && tie_eps>0) || return _canon_support_fail(1)
+    P=[i for i in 1:n if w_primary[i] > 1e-3*budget]
+    2<=length(P)<=8 || return _canon_support_fail(2)
+    p=length(P); T=Ustar-tie_eps
+    Y=X[:,P] .- 1.0
+    u=Float64[w_primary[i] for i in P]
+    base=b .+ budget
+    W=similar(base)
+    wealth!(u)= (mul!(W,Y,u); W.+=base; W)
+    Uof(u)= (wealth!(u); all(x->isfinite(x)&&x>0,W) ? sum(log,W)/S : -Inf)
+    for it in 1:60
+        wealth!(u); all(x->x>0,W) || return _canon_support_fail(3)
+        iw=1.0 ./ W
+        h=(Y'*iw)./S
+        Yw=Y .* iw
+        H=(Yw'*Yw)./S
+        F=zeros(p); J=zeros(p,p)
+        for i in 2:p
+            F[i-1]=h[i]-h[1]
+            J[i-1,:]=-(H[i,:].-H[1,:])
+        end
+        F[p]=sum(log,W)/S-T
+        J[p,:]=h
+        maximum(abs,F)<1e-15 && break
+        du=try J\(-F) catch; return _canon_support_fail(100) end
+        all(isfinite,du) || return _canon_support_fail(4)
+        t=1.0
+        while t>1e-8
+            un=u.+t.*du
+            (all(>=(0),un) && sum(un)<=budget && isfinite(Uof(un))) && break
+            t/=2
+        end
+        t>1e-8 || return _canon_support_fail(5)
+        u.+=t.*du
+        it==60 && return _canon_support_fail(101)
+    end
+    up=Float64[w_primary[i] for i in P]
+    mk(u)= begin w=zeros(n+1); w[P].=u; w[end]=budget-sum(u); w end
+    w=mk(u); cert=cash_kelly_certificate(X,w[1:n],w[end];base=b,budget=budget)
+    tt=1e-13
+    while !(isfinite(cert.objective) && cert.objective>=T)
+        tt>1e-6 && return _canon_support_fail(102)
+        uu=u.+tt.*(up.-u); w=mk(uu)
+        cert=cash_kelly_certificate(X,w[1:n],w[end];base=b,budget=budget)
+        tt*=4
+    end
+    w[end]>=0 || return _canon_support_fail(6)
+    cash_kelly_certified(cert;tol=tol) || return _canon_support_fail(7)
+    Wf=X*w[1:n] .+ w[end] .+ b
+    iw=1.0 ./ Wf
+    g=(X'*iw)./S; gc=sum(iw)/S
+    gP=g[P]; nubar=sum(gP)/p; r=maximum(abs,gP.-nubar)
+    nubar-gc > 1e-8 || return _canon_support_fail(8)
+    off=setdiff(1:n,P)
+    runner=isempty(off) ? Inf : minimum(nubar.-g[off])
+    runner > 1e-8 || return _canon_support_fail(9)
+    slack=cert.objective-T
+    slack2=slack+2r*budget
+    slack2/(nubar-gc) <= 1e-11 || return _canon_support_fail(10)          # (c) stage 2
+    e_off=slack2/runner
+    Yf=X .- 1.0
+    Gm=maximum(abs.(Yf).*iw)
+    YP=Yf[:,P].*iw
+    kap=eigmin(Symmetric((YP'*YP)./S))
+    kap>0 || return _canon_support_fail(11)
+    Hm=maximum(abs2,Yf.*iw)
+    rho=1e-4; bound=Inf
+    for _ in 1:20
+        Gm*rho<0.5 || return _canon_support_fail(12)
+        k2=kap/(1+Gm*rho)^2; h2=Hm/(1-Gm*rho)^2
+        a=h2*sqrt(p)*e_off
+        x=(a+sqrt(a^2+2k2*slack2))/k2
+        bound=sqrt(p)*x+e_off
+        bound<=rho && break
+        rho=2bound
+    end
+    bound<=rho || return _canon_support_fail(13)
+    bound <= 1e-6 || return _canon_support_fail(14)                        # (d) stage 3
     (w,cert)
 end
 
