@@ -36,7 +36,7 @@ const G=LockFreeReplayEnv
         push!(decs,G.Gate0DayDecision(:adaptive,t,[1,2],[1,2],
               copy(risky),copy(risky),cash,0.0,1.0,c,1024,
               v,conc,Int[],
-              (;reason=:computed,error_text="",dropped_free_universe=Int[])))
+              (;reason=:computed,error_text="",dropped_free_universe=Int[],certificate_path=:weight_stable)))
     end
     res=G.replay_independent_gate0(mf,el,decs;t_start,t_end)
     @test length(res.days)==6 && length(res.equity)==7

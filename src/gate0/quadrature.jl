@@ -375,6 +375,16 @@ function _draw_mu_qmc(post::ResponsePosterior, x_t::AbstractVector{Float64},
         return mu_hat .+ scale .* (lam === nothing ? basis * z_ord :
                      basis * (sqrt.(max.(lam,0.0)) .* z_ord))
     end
+    # PERF-P3 (exact): node_cache is Dict{Int,Any}, so mu_hat/basis/lam are
+    # inferred as Any here; the former in-line loop dispatched dynamically
+    # per element. A typed function barrier executes the identical
+    # operations (same mul!, same per-element mu_hat[i] + scale*v[i]).
+    _mu_qmc_finish!(mu_scratch, mu_hat, basis, lam, z_ord, scale)
+end
+
+function _mu_qmc_finish!(mu_scratch::Vector{Float64}, mu_hat::AbstractVector{Float64},
+                         basis::AbstractMatrix{Float64}, lam, z_ord::Vector{Float64},
+                         scale::Float64)
     if lam === nothing
         mul!(mu_scratch,basis,z_ord)
     else
@@ -742,7 +752,12 @@ struct AdaptiveKellyResult
     converged::Bool
     iterations::Int
     history::Vector{NamedTuple}
+    # :weight_stable (original A/B/C path) or :flat_ridge_utility
+    # (user adjudication 2026-10-12, see docs/KELLY_ADAPTIVE_CERTIFICATE_DRIVEN.md §FR).
+    certificate_path::Symbol
 end
+AdaptiveKellyResult(w,wc,M,rs,as,A,B,Ba,C,conv,it,h) =
+    AdaptiveKellyResult(w,wc,M,rs,as,A,B,Ba,C,conv,it,h,:weight_stable)
 
 """
     adaptive_scenario_kelly(src::RQMCScenarioSource;
@@ -867,7 +882,8 @@ function adaptive_scenario_kelly(src::RQMCScenarioSource;
                                   utility_tol::Float64 = 1e-5,
                                   utility_tol_audit::Float64 = 1e-5,
                                   kelly_tol::Float64 = 1e-8,
-                                  confirmation_pairs::Int = 2)
+                                  confirmation_pairs::Int = 2,
+                                  flat_ridge_certificate::Bool = true)
     # --- 输入校验（fail-loudly，SPEC §56） ---
     min_scenarios >= 1 ||
         throw(ArgumentError("adaptive_scenario_kelly: min_scenarios ≥ 1（got $min_scenarios）"))
@@ -949,6 +965,16 @@ function adaptive_scenario_kelly(src::RQMCScenarioSource;
                 w_full[k] = locked[k]          # locked 维持（进 base 不进优化）
             end
         end
+        if profile_layers && haskey(ENV,"GATE0_TRACE_DIR")
+            # Diagnostic only (opt-in): persist this layer's certified primary
+            # weights; no effect on the computation or acceptance.
+            mkpath(ENV["GATE0_TRACE_DIR"])
+            open(joinpath(ENV["GATE0_TRACE_DIR"],"primary_$(M).jls"),"w") do io
+                serialize(io,get(ENV,"GATE0_TRACE_X","false")=="true" ?
+                    (;M,w=w_full,wc=w_cash,cert,X,locked,free_pos) :
+                    (;M,w=w_full,wc=w_cash,cert))
+            end
+        end
         (X, w_full, w_cash, cert, stage)
     end
 
@@ -1007,6 +1033,7 @@ function adaptive_scenario_kelly(src::RQMCScenarioSource;
     history = Vector{NamedTuple}()
     iterations = 0
     consecutive_green = 0
+    consecutive_ridge = 0
     while true
         M2 = min(2 * M, max_scenarios)
         if M2 == M
@@ -1083,6 +1110,14 @@ function adaptive_scenario_kelly(src::RQMCScenarioSource;
         certified_pair = A <= weight_tol && abs(B_opt) <= utility_tol &&
                          B_audit <= utility_tol_audit
         consecutive_green = certified_pair ? consecutive_green + 1 : 0
+        # FLAT-RIDGE path (user adjudication 2026-10-12): a pair whose A fails
+        # but whose B_opt/B_audit pass is a ridge candidate. Tracked in a
+        # SEPARATE streak; the weight-stable A path below is evaluated first
+        # and is unchanged.
+        ridge_pair = flat_ridge_certificate && !certified_pair &&
+                     abs(B_opt) <= utility_tol && B_audit <= utility_tol_audit
+        consecutive_ridge = (certified_pair || ridge_pair) ?
+                            consecutive_ridge + 1 : 0
         if profile_layers
             println("GATE0_LAYER_PRIMARY_REFINEMENT M=$M2 A=$A Bopt=$B_opt Baudit=$B_audit green=$certified_pair streak=$consecutive_green")
             flush(stdout)
@@ -1110,6 +1145,47 @@ function adaptive_scenario_kelly(src::RQMCScenarioSource;
                          metrics.B_audit,fine.cert,true,iterations,history)
             end
             consecutive_green=0
+        elseif flat_ridge_certificate && consecutive_ridge >= confirmation_pairs &&
+               length(layer_history) >= confirmation_pairs+1
+            # FLAT-RIDGE certificate (explicit, labelled; never silent).
+            # Accept the CANONICAL fine solution iff (i) the canonical final
+            # pair passes B_opt and B_audit with the unchanged tolerances, (ii)
+            # cash_kelly C certifies, and (iii) the expected-log-utility of
+            # EVERY solution in the confirming window (confirmation_pairs+1
+            # layers; primary for older layers, canonical for the final pair),
+            # evaluated on the finest optimisation sample and on the
+            # independent audit sample, spans at most utility_tol /
+            # utility_tol (both samples, the stricter tol). A itself is reported, not waived silently.
+            coarse=canonical_layer(layer_history[end-1])
+            fine=canonical_layer(layer_history[end])
+            X_a_fine=audit_history[fine.M]
+            metrics=canonical_pair(coarse,fine,X_a_fine)
+            cash_kelly_certified(fine.cert;tol=kelly_tol) ||
+                error("canonical Kelly final certificate failed")
+            sols=Any[(l.w,l.wc) for l in layer_history[1:end-2]]
+            push!(sols,(coarse.w,coarse.wc)); push!(sols,(fine.w,fine.wc))
+            u_opt=[layer_objective(fine.X,w,wc) for (w,wc) in sols]
+            u_aud=[layer_objective(X_a_fine,w,wc) for (w,wc) in sols]
+            spread_opt=maximum(u_opt)-minimum(u_opt)
+            spread_aud=maximum(u_aud)-minimum(u_aud)
+            ridge_ok = abs(metrics.B_opt)<=utility_tol &&
+                       metrics.B_audit<=utility_tol_audit &&
+                       spread_opt<=utility_tol && spread_aud<=utility_tol
+            if profile_layers
+                println("GATE0_LAYER_FLAT_RIDGE M=$(fine.M) A=$(metrics.A) Bopt=$(metrics.B_opt) Baudit=$(metrics.B_audit) spread_opt=$spread_opt spread_audit=$spread_aud ok=$ridge_ok")
+                flush(stdout)
+            end
+            if ridge_ok
+                history[end]=merge(metrics,(;certificate_path=:flat_ridge_utility,
+                    ridge_layers=[l.M for l in layer_history],
+                    ridge_utility_spread=spread_opt,
+                    ridge_utility_spread_audit=spread_aud))
+                return AdaptiveKellyResult(fine.w,fine.wc,fine.M,
+                         rule_seed,a_seed,metrics.A,metrics.B_opt,
+                         metrics.B_audit,fine.cert,true,iterations,history,
+                         :flat_ridge_utility)
+            end
+            consecutive_ridge=0
         end
         M = M2
         w_M, wc_M = w_2M, wc_2M

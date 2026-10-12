@@ -153,3 +153,37 @@
 ---
 
 *本文件为只读调查 + 设计文档；未运行任何命令、未修改 `src/`、`test/`、`archive/` 既有文件。E1-E6 为设计草案，执行归 DevOps 受控流程。*
+
+## §FR Flat-ridge certificate path — USER ADJUDICATION 2026-10-12
+
+Context: real days (e.g. 2024-11-25, 2024-11-29) are fully invested in two
+near-equivalent assets; the primary split jitters between doubling layers
+(A ≈ 1e-2..1e-1 ≫ weight_tol) while B_opt/B_audit are ~1e-8..1e-6.
+
+Ruling (user, 2026-10-12): accept the CANONICAL solution when B_opt and
+B_audit pass AND the utility differences among the ridge solutions across the
+confirming layers are below utility_tol. Implemented in
+`adaptive_scenario_kelly` (`src/gate0/quadrature.jl`, kw
+`flat_ridge_certificate=true`):
+
+1. A pair with A > weight_tol but |B_opt| ≤ utility_tol and
+   B_audit ≤ utility_tol_audit is a ridge pair; a separate streak counts
+   ridge-or-green pairs. The original weight-stable A path is evaluated first
+   and is textually unchanged.
+2. After `confirmation_pairs` consecutive such pairs, the final pair is
+   canonicalised (same tie-break as the A path); C must certify; canonical
+   |B_opt| ≤ utility_tol and B_audit ≤ utility_tol_audit.
+3. Every solution in the confirming window (confirmation_pairs+1 layers;
+   primary for older layers, canonical for the final pair) is evaluated on the
+   finest optimisation sample and on the independent audit sample; both
+   max−min utility spreads must be ≤ utility_tol.
+4. Never silent: `AdaptiveKellyResult.certificate_path = :flat_ridge_utility`,
+   `history[end]` carries `certificate_path, ridge_layers,
+   ridge_utility_spread, ridge_utility_spread_audit`; the driver records it
+   in `Gate0DayDecision.diagnostics.certificate_path`
+   (`:weight_stable` / `:flat_ridge_utility` / `:none`). A is reported, not
+   overwritten. Any failure keeps the D-067 loud error (no last-layer weights).
+
+Note: a day whose A would eventually certify at a deeper layer may be accepted
+earlier via this path if (1)-(3) hold first. Regression tests:
+`test/gate0/flat_ridge_certificate_tests.jl`.

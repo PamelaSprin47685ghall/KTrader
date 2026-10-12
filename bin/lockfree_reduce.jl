@@ -8,8 +8,11 @@ using Dates,Serialization,LinearAlgebra,Statistics,Printf
 blas=parse(Int,get(ENV,"GATE0_BLAS_THREADS","4"))
 1<=blas<=16 || error("unsupported BLAS thread count")
 BLAS.set_num_threads(blas)
-include(joinpath(@__DIR__,"../src/gate0/KTraderGate0.jl"))
-Base.include(KTraderGate0,joinpath(@__DIR__,"../src/gate0/market_io.jl"))
+# Precompiled carrier of the unchanged src/gate0 code (no per-process JIT).
+# Setup once: julia --project=. -e 'push!(LOAD_PATH,"gate0pkg"); using KTraderGate0Precompiled'
+push!(LOAD_PATH,joinpath(@__DIR__,"..","gate0pkg"))
+using KTraderGate0Precompiled
+const KTraderGate0=KTraderGate0Precompiled.KTraderGate0  # checkpoint type paths
 const G=KTraderGate0
 mf=G.load_market_facts(get(ENV,"GATE0_DATA_DIR","data"))
 el=G.Eligibility(mf)
@@ -22,17 +25,18 @@ numshards=parse(Int,get(ENV,"GATE0_SHARD_COUNT","4"))
 1<=numshards<=8 || error("map/reduce shard count must be 1..8")
 minM=parse(Int,get(ENV,"GATE0_MIN_SCENARIOS","64"))
 maxM=parse(Int,get(ENV,"GATE0_MAX_SCENARIOS","65536"))
-sig=G._backtest_signature(mf,el,(:lockfree_independent_decisions_v2,
+sig=G._backtest_signature(mf,el,(:lockfree_independent_decisions_v3,
           a,b,options,G._DRIVER_DEFAULT_SEED,minM,maxM,blas,numshards,
-          1e-4,1e-6,1e-6,true,true))
+          1e-4,1e-6,1e-6,true,true,
+          read(joinpath(@__DIR__,"lockfree_worker.jl"))))
 dir=abspath(get(ENV,"GATE0_SHARD_DIR",
-             "/tmp/ktrader-two-year-20261011/lockfree-shards"))
+             "/workspace/ktrader-run/lockfree-shards"))
 collected=Dict{Int,G.Gate0DayDecision}()
 for shard in 1:numshards
     path=joinpath(dir,"shard_$(shard)_of_$(numshards).jls")
     isfile(path) || error("worker shard $shard is missing: $path")
     saved=deserialize(path)
-    expected=collect((a+shard-1):numshards:(b-1))
+    expected=G._lockfree_shard_days(a,b,shard,numshards)
     saved.version==2 && saved.signature==sig && saved.days==expected &&
         length(saved.decisions)==length(expected) &&
         all(t->haskey(saved.decisions,t),expected) ||
@@ -47,7 +51,7 @@ length(collected)==b-a && all(t->haskey(collected,t),a:b-1) ||
 decisions=[collected[t] for t in a:(b-1)]
 res=G.replay_independent_gate0(mf,el,decisions;t_start=a,t_end=b)
 result_path=abspath(get(ENV,"GATE0_LOCKFREE_RESULT_PATH",
-           "/tmp/ktrader-two-year-20261011/lockfree-two-year-result.jls"))
+           "/workspace/ktrader-run/lockfree-two-year-result.jls"))
 G._write_backtest_checkpoint(result_path,(;version=2,signature=sig,
                        data_dates=(mf.dates[a],mf.dates[b]),result=res))
 @printf("LOCKFREE_TWO_YEAR_COMPLETED date=%s..%s sessions=%d assets=%d equity=%.8f median_scenarios=%.0f max_scenarios=%d result=%s\n",

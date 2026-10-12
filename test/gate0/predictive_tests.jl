@@ -243,9 +243,15 @@ using .Gate0PredictiveEnv
             Fg = mp_sqrt_factors(st_e.V_t[g])
             eps_mean_R .+= st_e.d_weights[g] .* (Fg.half * vec(mean(Zg, dims = 1)))
         end
+        # Coordinate fix (2026-10-12): mu_R and eps_mean_R are R-domain MODE
+        # coordinates (mu_R = E_Rᵀ·asset mean, asserted below), while
+        # log_gross/s1 is in ASSET coordinates (u_R = E_R·y_R). The expected
+        # asset mean is E_R·(mu_R + E[eps]) — the same map var_aleatoric uses.
+        # Tolerance unchanged (0.01); production predictive_law unchanged.
+        m_exp = st_e.E_R * (res.mu_R .+ eps_mean_R)
         for a in 1:2
             m_mc = mean(res.log_gross[:, a]) / s1_e[a]
-            @test abs(m_mc - (res.mu_R[a] + eps_mean_R[a])) < 0.01
+            @test abs(m_mc - m_exp[a]) < 0.01
         end
         # μ_R 报告值与 predict_mu 的确定性投影一致（非 MC——解析断言）
         pmu = predict_mu(post_e, x_t_e)

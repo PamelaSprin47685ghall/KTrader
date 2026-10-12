@@ -101,8 +101,10 @@ const ConcentrationReport = NamedTuple{(:top_asset, :top_weight, :risky_weight,
 dropped_free_universe = resolve 剔除的 free 资产（资金留 cash，D-056 出
 路 4）。P0-4 收口：不再有 quadrature_locked_fallback 字段——adaptive
 请求一律直接处理 locked（quadrature.jl 已修复 locked 通道），无回落。"""
-const DriverDiag = NamedTuple{(:reason, :error_text, :dropped_free_universe),
-    Tuple{Symbol, String, Vector{Int}}}
+const DriverDiag = NamedTuple{(:reason, :error_text, :dropped_free_universe,
+    :certificate_path), Tuple{Symbol, String, Vector{Int}, Symbol}}
+# certificate_path: :weight_stable | :flat_ridge_utility (user adjudication
+# 2026-10-12) | :none (no adaptive integration certificate on this path).
 
 """
     Gate0DayDecision
@@ -181,7 +183,7 @@ function _held_maintained_result(held::AbstractVector{Float64},
         1.0 - sum(held[act[locked_act]]),
         _no_cert(), 0, _no_varsplit(), _no_concentration(0), Int[],
         (; reason = :innovation_coverage_locked, error_text = msg,
-           dropped_free_universe = Int[]))
+           dropped_free_universe = Int[], certificate_path = :none))
 end
 
 # ---------------------------------------------------------------------------
@@ -322,6 +324,32 @@ function _historical_forecast(mf::MarketFacts, el::Eligibility, origin::Int;
     end
     (; active=copy(prep.act),
        mean_log_return=prep.s1 .* (prep.E * mean_mode))
+end
+
+"""Decision-path forecast for origin `t`: EXACTLY the operations by which
+`single_day_decision` stores today's full-posterior mean into the forecast
+cache (causal truncation, non-compact `_response_prefix`, same training rows,
+full `fit_full_posterior`, `_posterior_log_forecast`). A lock-free preparation
+uses this for in-window origins so that independent decisions consume
+bitwise the same forecasts as the sequential backtest. Not an approximation:
+`_historical_forecast` computes the same quantity by another evaluation order
+(measured difference ~1e-15 relative), which is why it is not used here.
+"""
+function _decision_forecast(mf::MarketFacts, el::Eligibility, t::Int;
+                            tol::Float64=1e-6, max_cells::Int=2048,
+                            u_span::Float64=5.0)
+    mf_t = MarketFacts(mf.dates[1:t], mf.symbols,
+                       mf.close[1:t, :], mf.adj[1:t, :], mf.observed[1:t, :])
+    el_t = Eligibility(el.model_admitted[1:t, :], el.trade_eligible[1:t, :],
+                       el.executable[1:t, :])
+    isempty(findall(el_t.model_admitted[t, :])) &&
+        error("_decision_forecast: no active assets at t=$t")
+    prep = _response_prefix(mf_t, el_t, t)
+    rows = Int[s for s in WARMUP:(t-1) if any(view(prep.obs, s + 1, :))]
+    length(rows) >= 2 || error("_decision_forecast: fewer than two training rows at t=$t")
+    post = fit_full_posterior(prep.mp.X[rows, :], prep.mp.Y[rows, :];
+                              tol = tol, max_cells = max_cells, u_span = u_span)
+    _posterior_log_forecast(post, prep, t)
 end
 
 """Prequential surprises: make the forecast at u-1, then observe the real
@@ -536,7 +564,7 @@ function single_day_decision(mf::MarketFacts, el::Eligibility,
             zeros(N), Float64[], 1.0, 0.0, 1.0, _no_cert(), 0,
             _no_varsplit(), _no_concentration(0), Int[],
             (; reason = :no_active_assets, error_text = "",
-               dropped_free_universe = Int[]))
+               dropped_free_universe = Int[], certificate_path = :none))
     end
 
     # --- 步骤 2–3：与历史 forecast 共用同一个因果 preprocessing owner ---
@@ -574,7 +602,7 @@ function single_day_decision(mf::MarketFacts, el::Eligibility,
             zeros(N), Float64[], 1.0, 0.0, 1.0, _no_cert(), 0,
             _no_varsplit(), _no_concentration(0), Int[],
             (; reason = :empty_risk_domain, error_text = "",
-               dropped_free_universe = Int[]))
+               dropped_free_universe = Int[], certificate_path = :none))
     end
     try
         R_act, dropped_free_act = resolve_risk_domain(row_ids, row_masks,
@@ -767,6 +795,7 @@ function single_day_decision(mf::MarketFacts, el::Eligibility,
                  C = res.certificate_C, converged = true,
                  kelly_objective = res.certificate_C.objective)
         M_dec = res.M
+        cert_path = res.certificate_path
     else
         # 固定 S reference 路径（D-062 合法用途；locked 非零时语义正确组装
         # ——free-column Kelly + base_locked，与 quadrature.jl 的 solve_layer
@@ -806,6 +835,7 @@ function single_day_decision(mf::MarketFacts, el::Eligibility,
                      converged = false, kelly_objective = cert.objective)
         end
         M_dec = S_reference
+        cert_path = :none
     end
 
     # --- 步骤 13：写回 universe 坐标 ---
@@ -903,7 +933,8 @@ function single_day_decision(mf::MarketFacts, el::Eligibility,
         w_universe, w_R, w_cash, locked_exposure, budget, certs, M_dec,
         variance_split, concentration, dropped_free_act,
         (; reason = :ok, error_text = "",
-           dropped_free_universe = dropped_free_univ))
+           dropped_free_universe = dropped_free_univ,
+           certificate_path = cert_path))
 end
 
 # ---------------------------------------------------------------------------

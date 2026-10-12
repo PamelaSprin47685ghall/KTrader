@@ -72,7 +72,11 @@ Base.showerror(io::IO, e::BacktestPaused) =
 
 function _backtest_signature(mf, el, options)
     io = IOBuffer()
-    serialize(io, (VERSION, mf, el, options))
+    # Field-wise (not the struct objects): the digest must not depend on the
+    # module path under which KTraderGate0 was loaded (include vs the
+    # precompiled carrier package); the bound data are exactly the same.
+    serialize(io, (VERSION, mf.dates, mf.symbols, mf.close, mf.adj, mf.observed,
+                   el.model_admitted, el.trade_eligible, el.executable, options))
     for path in sort(filter(p -> endswith(p, ".jl"), readdir(@__DIR__; join=true)))
         write(io, basename(path), '\0', read(path))
     end
@@ -87,8 +91,21 @@ function _write_backtest_checkpoint(path::String, payload)
     try
         serialize(io, payload)
         flush(io)
+        # Durability: data must be on disk BEFORE the rename publishes it, and
+        # the directory entry must be synced after it (crash/power loss never
+        # exposes a truncated checkpoint under the final name).
+        ccall(:fsync, Cint, (Cint,), fd(io)) == 0 ||
+            error("checkpoint fsync failed: $(Libc.strerror())")
         close(io)
-        mv(temp, path; force=true) # completed file replaces the old checkpoint
+        mv(temp, path; force=true) # atomic rename(2) within one directory
+        dfd = ccall(:open, Cint, (Cstring, Cint), dirname(abspath(path)), 0)
+        dfd >= 0 || error("checkpoint directory open failed: $(Libc.strerror())")
+        try
+            ccall(:fsync, Cint, (Cint,), dfd) == 0 ||
+                error("checkpoint directory fsync failed: $(Libc.strerror())")
+        finally
+            ccall(:close, Cint, (Cint,), dfd)
+        end
     finally
         isopen(io) && close(io)
         isfile(temp) && rm(temp)
@@ -306,6 +323,15 @@ function _lockfree_required_origins(mf::MarketFacts,el::Eligibility,
         end
     end
     sort!(collect(required))
+end
+
+"""Dates owned by one lock-free worker shard: decision days t_start:(t_end-1)
+assigned round-robin. Over shard=1:shard_count this is an exact partition
+(no omission, duplicate, or out-of-window date); the reducer re-derives it."""
+function _lockfree_shard_days(t_start::Int,t_end::Int,shard::Int,shard_count::Int)
+    t_start<t_end || throw(ArgumentError("empty lock-free decision window"))
+    1<=shard<=shard_count || throw(ArgumentError("invalid shard $shard of $shard_count"))
+    collect((t_start+shard-1):shard_count:(t_end-1))
 end
 
 """
