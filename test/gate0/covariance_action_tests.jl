@@ -19,6 +19,20 @@ using .CovarianceActionEnv
     @test sum(w*x^2*y^2 for ((x,y), w) in zip(q.nodes, q.weights)) ≈ 1/9 atol=1e-13
 end
 
+@testset "adaptive directional refinement preserves the quadrature target" begin
+    f(x,y) = -50x*x - 0.25y*y
+    kw = (; tol=2e-6, tail_rel=1.0, max_cells=2048, m_ref=0.0)
+    adaptive = adaptive_quadrature_2d(f,(-1.0,1.0),(-1.0,1.0); kw...,
+                                      split_axis=:curvature)
+    reference = adaptive_quadrature_2d(f,(-1.0,1.0),(-1.0,1.0); kw...,
+                                       split_axis=:longest)
+    @test adaptive.rel_err <= kw.tol
+    @test reference.rel_err <= kw.tol
+    @test isapprox(adaptive.logZ, reference.logZ; atol=2e-5)
+    @test adaptive.n_cells < reference.n_cells
+    @test isapprox(sum(w for w in adaptive.weights),1; atol=1e-12)
+end
+
 @testset "posterior covariance action is inverse precision" begin
     rng = MersenneTwister(20261011)
     X = randn(rng, 40, 15)
@@ -81,10 +95,31 @@ end
     slow = fit_full_posterior(X, Y; rank1=false)
     fast = fit_full_posterior(X, Y; rank1=true)
     ps, pf = predict_mu(slow, x), predict_mu(fast, x)
+    direct_mean = fit_full_posterior(X, Y; rank1=true, mean_at=x)
     @test fast.evidence ≈ slow.evidence atol=1e-8 rtol=1e-9
     @test pf.mu ≈ ps.mu atol=1e-8 rtol=1e-7
+    @test direct_mean ≈ pf.mu atol=1e-10 rtol=1e-9
+    @test direct_mean ≈ fit_full_posterior(X, Y; rank1=false, mean_at=x) atol=1e-8 rtol=1e-7
     @test pf.within ≈ ps.within atol=1e-8 rtol=1e-7
     @test pf.between ≈ ps.between atol=1e-8 rtol=1e-7
     @test all(c -> c.V === nothing, fast.conditional)
+    @test all(c -> c.S_alpha isa CovarianceActionEnv.RankOneResidualCovariance,
+              fast.conditional)
+    @test Matrix(fast.conditional[1].S_alpha) ≈
+          Matrix(slow.conditional[1].S_alpha) atol=1e-8 rtol=1e-7
     @test Base.summarysize(fast) < Base.summarysize(slow)
+    cdf = CovarianceActionEnv._mu_node_cdf(fast.alpha_weights)
+    original_rng, cached_rng = MersenneTwister(72), MersenneTwister(72)
+    for _ in 1:32
+        @test draw_mu(fast,x,original_rng) ==
+              CovarianceActionEnv._draw_mu_cdf(fast,x,cached_rng,cdf)
+    end
+    original_rng, cached_rng = MersenneTwister(341), MersenneTwister(341)
+    node_cache = CovarianceActionEnv._MuDrawCache(fast;capacity=8)
+    for _ in 1:64
+        @test draw_mu(fast,x,original_rng) ==
+              CovarianceActionEnv._draw_mu_cdf(fast,x,cached_rng,cdf;
+                                                node_cache=node_cache)
+        @test length(node_cache.mc) <= 8
+    end
 end

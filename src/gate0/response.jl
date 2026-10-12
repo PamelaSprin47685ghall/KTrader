@@ -111,7 +111,8 @@ function build_mode_problem(returns::AbstractMatrix{Float64},
                             E::AbstractMatrix{Float64};
                             s_m::Union{Nothing,AbstractVector{Float64}} = nothing,
                             s_perp::Union{Nothing,AbstractVector{Float64}} = nothing,
-                            dc::Bool = false)
+                            dc::Bool = false,
+                            compact::Bool = false)
     T, N = size(returns)
     (size(observed, 1) == T && size(observed, 2) == N) ||
         throw(DimensionMismatch("build_mode_problem: observed must be T×N matching returns"))
@@ -119,25 +120,40 @@ function build_mode_problem(returns::AbstractMatrix{Float64},
         throw(DimensionMismatch("build_mode_problem: s1/E must have dimension N"))
     T >= 2 ||
         throw(ArgumentError("build_mode_problem: need T ≥ 2 rows to form (x_s, y_{s+1}) pairs"))
-    # 逐行 mode_field（契约校验在 mode_field 内：s1 有限正、observed 坐标
-    # return 有限——fail loudly）
+    # Construct the same embedded field with the same _embedded_mode_row
+    # formula as mode_field. The shared orthogonal transform is applied to
+    # all rows in one GEMM, not T separately allocated matrix-vector products.
     m_series = Vector{Float64}(undef, T)
     e_embedded = Matrix{Float64}(undef, T, N)
     y_modes = Matrix{Float64}(undef, T, N)
     for t in 1:T
-        mf = mode_field(view(returns, t, :), view(observed, t, :), s1, E)
-        m_series[t] = mf.y[1]
-        e_embedded[t, :] .= mf.e
-        y_modes[t, :] .= mf.y
+        m_series[t] = _embedded_mode_row!(view(e_embedded,t,:),
+                           view(returns,t,:), view(observed,t,:), s1)
+    end
+    y_modes[:, 1] .= m_series
+    if N > 1
+        y_modes[:, 2:N] .= e_embedded * view(E, :, 2:N)
     end
     X_m, X_rel = cumulative_path_coordinates(m_series, e_embedded)
     s_m_eff = s_m === nothing ? fast_s_m(X_m) : s_m
     s_perp_eff = s_perp === nothing ? compute_s_perp(X_rel) : s_perp
     Q = view(E, :, 2:N)                       # 域基 relative 块（Helmert）
     des = mode_basis_design(X_m, X_rel, Q, s_m_eff, s_perp_eff)
-    X_core = hcat(des.B_m, des.B_perp)       # T × 14N（动态列）
-    X_full = dc ? hcat(fill(1.0, T), X_core) : X_core   # dc=true：[1 | B_m | B_⊥]（D-031）
-    X = X_full[1:(T - 1), :]                  # 行 s = s 时刻 feature
+    # Allocate the large T×14N design only once. Former hcat(Bm,Bperp),
+    # followed by hcat(ones,Xcore), followed by X_full[1:T-1,:] could retain
+    # three identical ~100 MB matrices. The compact historical forecast path
+    # holds a view until selecting its training rows; regular API callers
+    # still receive an independent X copy, as before.
+    X_full = Matrix{Float64}(undef,T,14N+(dc ? 1 : 0))
+    offset = dc ? 1 : 0
+    if dc
+        X_full[:,1] .= 1.0
+    end
+    X_full[:,offset+1:offset+14] .= des.B_m
+    if N > 1
+        X_full[:,offset+15:end] .= des.B_perp
+    end
+    X = compact ? view(X_full,1:T-1,:) : X_full[1:(T-1), :]
     Y = y_modes[2:T, :]                       # 行 s = s+1 时刻 mode 输出
     (; X = X, Y = Y, X_full = X_full, y_modes = y_modes,
        B_m = des.B_m, B_perp = des.B_perp, X_q = des.X_q,

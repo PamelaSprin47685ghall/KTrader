@@ -22,6 +22,21 @@ using .CausalForecastEnv
     mf = MarketFacts(dates, ["OLD", "IPO"], prices, prices, observed)
     el = Eligibility(mf)
     prefix = CausalForecastEnv._response_prefix(mf, el, origin)
+    compact = CausalForecastEnv._response_prefix(mf, el, origin; compact=true)
+    cache = CausalForecastEnv._ForecastCache(mf, el, (1e-6, 2048, 5.0))
+    prepared = CausalForecastEnv._response_prefix(mf,el,origin;
+                     compact=true,prepared=cache)
+    @test prepared.act == compact.act
+    @test prepared.s1 ≈ compact.s1 atol=1e-12
+    @test prepared.Xtr ≈ compact.Xtr atol=1e-12
+    @test prepared.Ytr ≈ compact.Ytr atol=1e-12
+    @test prepared.xnow ≈ compact.xnow atol=1e-12
+    @test compact.act == prefix.act
+    @test compact.s1 == prefix.s1
+    @test compact.E == prefix.E
+    @test compact.Xtr == prefix.mp.X[prefix.rows, :]
+    @test compact.Ytr == prefix.mp.Y[prefix.rows, :]
+    @test compact.xnow == vec(prefix.mp.X_full[origin, :])
     @test prefix.act == [1]
     @test size(prefix.mp.X_full, 1) == origin
     @test all(<(origin), prefix.rows)
@@ -42,9 +57,12 @@ using .CausalForecastEnv
     @test f1.active == [1]
     @test f1.mean_log_return == f2.mean_log_return
     @test all(isfinite, f1.mean_log_return)
+    f_cached = CausalForecastEnv._historical_forecast(mf,el,origin;
+                                                      preprocessed=cache)
+    @test f_cached.active == f1.active
+    @test f_cached.mean_log_return ≈ f1.mean_log_return atol=1e-11
 
     today = CausalForecastEnv._response_prefix(mf, el, T)
-    cache = CausalForecastEnv._ForecastCache(mf, el, (1e-6, 2048, 5.0))
     cold = CausalForecastEnv._market_prequential_residuals(mf, el, [origin+1],
                                                          today.act, today.s1)
     cached = CausalForecastEnv._market_prequential_residuals(mf, el, [origin+1],

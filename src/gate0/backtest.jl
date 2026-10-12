@@ -9,9 +9,9 @@
 # 文件头依赖声明钉死）。本文件不修改 driver.jl。
 #
 # 职责（施工图 Step 15 多日段 / 旧 SPEC §42 循环语义 / D-089 短窗口）：
-# 把 single_day_decision 串成 sequential 多日回测——**5→20 天短窗口受控
-# 运行**（Gate-0 关闭后解锁的阶梯级；60/501 天在护栏外，归 owner 分批
-# 策略，不在本文件）。
+# 把 single_day_decision 串成 sequential 多日回测。原 Gate-0 reference
+# 验证范围为 5→20 日；长区间可选择带因果历史预测复用与检查点的相同
+# sequential 账户循环。缓存仅避免重复历史预测，不改变任何模型对象。
 #
 # 旧 SPEC §42 基本循环的逐步落点（docstring 钉死，供审计对照）：
 #   for decision day t ∈ t_start:(t_end-1):
@@ -52,8 +52,8 @@
 # （ew_rebalance_gap）；**不做「volatility pump」因果解释**——rebalancing
 # premium 的 counterfactual 分解未完成前，该差只是报告量。
 #
-# reference 级（D-082/D-083）：单线程、无缓存、无 scheduler、无优化——
-# 多日循环的每成本就是 N 天 × 单日成本；fail-loudly（SPEC §56）；固定
+# reference 推断级（D-082/D-083）：单线程、无 scheduler、无降级——
+# 外层可选缓存历史预测、原子写入检查点；fail-loudly（SPEC §56）；固定
 # seed（SPEC §36）；全部判据与回测收益/Sharpe 无关（SPEC §95）。
 # =============================================================================
 
@@ -92,6 +92,75 @@ function _write_backtest_checkpoint(path::String, payload)
     finally
         isopen(io) && close(io)
         isfile(temp) && rm(temp)
+    end
+    nothing
+end
+
+"""Fill the initial prequential forecast history before fitting today's full
+posterior. A bounded checkpoint slice must not repeat the same expensive
+today-posterior on every restart while historical forecasts are being built.
+Only origins strictly before `first_t` are evaluated; their own causal
+preprocessing and posterior are unchanged. This is an execution reordering,
+not a rolling-window or an innovation-law approximation.
+"""
+function _prime_historical_forecasts!(cache::_ForecastCache, first_t::Int;
+                                       progress::Bool=false,
+                                       workers::Int=1,
+                                       required_universe::Union{Nothing,Vector{Int}}=nothing,
+                                       max_new_forecasts::Union{Nothing,Int}=nothing)
+    mf, el = cache.market, cache.eligibility
+    tol, max_cells, u_span = cache.options
+    N = size(mf.observed, 2)
+    if required_universe !== nothing
+        isempty(required_universe) && throw(ArgumentError("required_universe is empty"))
+        all(j -> 1 <= j <= N,required_universe) ||
+            throw(ArgumentError("required_universe contains an invalid asset"))
+    end
+    1 <= workers <= Threads.nthreads() ||
+        throw(ArgumentError("forecast workers must be between 1 and Julia thread count"))
+    origins = Int[]
+    for u in (WARMUP+1):first_t
+        origin = u-1
+        haskey(cache.entries, origin) && continue
+        # This row is absent from the prequential design unless an adjacent
+        # pair of actual (not carried marking) prices exists.
+        if required_universe === nothing
+            any(mf.observed[u-1,j] && mf.observed[u,j] for j in 1:N) || continue
+        else
+            all(j -> mf.observed[u-1,j] && mf.observed[u,j] &&
+                     el.model_admitted[u-1,j],required_universe) || continue
+        end
+        push!(origins, origin)
+    end
+    k = 1
+    while k <= length(origins)
+        # Slice/checkpoint tests must never compute beyond their requested
+        # bound. Keep scheduling deterministic, independent of worker count.
+        budget = max_new_forecasts === nothing ? workers :
+                 min(workers, max_new_forecasts - cache.additions)
+        budget > 0 || error("priming exhausted forecast slice without pause")
+        upto = min(length(origins), k+budget-1)
+        dates = view(origins, k:upto)
+        calculate(origin) = _historical_forecast(mf,el,origin;
+                              tol=tol,max_cells=max_cells,u_span=u_span,
+                              preprocessed=cache)
+        forecasts = if length(dates) == 1
+            [calculate(dates[1])]
+        else
+            # Each origin is causally self-contained; workers only read market
+            # facts. The shared cache and durable checkpoint are updated in
+            # increasing date order AFTER all worker tasks have finished.
+            tasks = [Threads.@spawn calculate(d) for d in dates]
+            fetch.(tasks)
+        end
+        for (origin,forecast) in zip(dates,forecasts)
+            _cache_forecast!(cache, origin, forecast)
+            if progress && cache.additions % 128 == 0
+                println("historical_forecasts=$(length(cache.entries)) origin=$origin date=$(mf.dates[origin])")
+                flush(stdout)
+            end
+        end
+        k = upto+1
     end
     nothing
 end
@@ -142,6 +211,156 @@ struct Gate0BacktestResult
     equity_ew_daily::Vector{Float64}
     equity_ew_buyhold::Vector{Float64}
     ew_rebalance_gap::Vector{Float64}
+end
+
+"""
+    _assert_lockfree_independent_window(mf, el, start, stop, held0)
+
+Prove from immutable policy/market masks that no portfolio produced by the
+driver can create a locked position in the stated window. With the original
+zero initial account or initial holdings free at start, the driver's only
+dependency on prior `held` is its locked set; consequently full Bayesian
+single-day decisions can be evaluated independently and their exact marking
+and account drift replayed in date order. If even one date violates the
+certificate, parallel evaluation is forbidden; use sequential backtest.
+"""
+function _assert_lockfree_independent_window(mf::MarketFacts,
+                                              el::Eligibility,
+                                              t_start::Int,t_end::Int,
+                                              held0::AbstractVector{Float64})
+    T,N=size(mf.observed)
+    1<=t_start<t_end<=T ||
+        throw(ArgumentError("lockfree replay requires a valid nonempty interval"))
+    length(held0)==N && all(x->isfinite(x)&&x>=0,held0) &&
+        sum(held0)<=1.0+1e-12 ||
+        throw(ArgumentError("lockfree replay requires a feasible initial account"))
+    first_free=free(el,t_start)
+    any(j->held0[j]>0 && !first_free[j],1:N) &&
+        error("lockfree parallel decisions are forbidden: initial locked holding")
+    for t in t_start:(t_end-1)
+        f=free(el,t)
+        for j in 1:N
+            if el.model_admitted[t,j] && !f[j]
+                error("lockfree parallel decisions are forbidden: " *
+                      "date=$(mf.dates[t]) model asset=$(mf.symbols[j]) is not free")
+            end
+        end
+    end
+    nothing
+end
+
+"""Return the EXACT union of historical forecast origins that a lock-free
+selective prequential driver may consume over this calendar interval.
+
+Rows are the same observed adjacent-bar pairs, the same first risk resolver,
+and the same structural-rank floor as in single_day_decision. An active-set
+change rebuilds the date masks; on unchanged days a new row is appended.
+This avoids re-creating ~14,000 bit masks on every one of 502 decisions.
+No posterior fit or portfolio decision is made by this function.
+"""
+function _lockfree_required_origins(mf::MarketFacts,el::Eligibility,
+                                     t_start::Int,t_end::Int)
+    _assert_lockfree_independent_window(mf,el,t_start,t_end,
+                                        zeros(size(mf.observed,2)))
+    t_start>WARMUP+1 ||
+        throw(ArgumentError("lockfree forecast preparation needs warmup"))
+    act_prev=Int[]
+    row_ids=Int[]
+    row_masks=BitVector[]
+    required=Set{Int}()
+    for t in t_start:(t_end-1)
+        act=findall(view(el.model_admitted,t,:))
+        isempty(act) && error("lockfree preparation requires a nonempty active risk domain")
+        if act!=act_prev
+            empty!(row_ids)
+            empty!(row_masks)
+            act_prev=copy(act)
+            last_u=WARMUP
+        else
+            last_u=isempty(row_ids) ? WARMUP : row_ids[end]
+        end
+        for u in (last_u+1):t
+            mask=BitVector([mf.observed[u-1,j] && mf.observed[u,j] for j in act])
+            any(mask) || continue
+            push!(row_ids,u)
+            push!(row_masks,mask)
+        end
+        free_act=Int[k for (k,j) in enumerate(act) if free(el,t)[j]]
+        R,dropped=resolve_risk_domain(row_ids,row_masks,free_act,Int[],t)
+        isempty(R) && error("lockfree preparation refuses empty risk domain")
+        floor,peeled=_forecast_risk_floor(row_ids,row_masks,free_act,
+                                          Int[],R,t,el,act)
+        if !isempty(peeled)
+            counts=[count(i->row_masks[i][j],eachindex(row_ids)) for j in R]
+            after=[counts[findfirst(==(j),R)] for j in floor]
+            before=[counts[findfirst(==(j),R)] for j in peeled]
+            if isempty(after) || minimum(after)-maximum(before)<WARMUP
+                floor=R
+            end
+        end
+        risk=act[floor]
+        for u in row_ids
+            all(j->mf.observed[u-1,j] && mf.observed[u,j] &&
+                   el.model_admitted[u-1,j],risk) || continue
+            push!(required,u-1)
+        end
+    end
+    sort!(collect(required))
+end
+
+"""
+    replay_independent_gate0(mf, el, decisions; t_start, t_end, held0)
+
+Account/benchmark reducer for independently calculated *complete* adaptive
+decisions on a proved lock-free window. It uses the EXACT same marking,
+wealth, drift and benchmark equations as run_gate0_backtest; no interpolation,
+portfolio changes, per-day PnL assumptions or different Kelly solve.
+All decisions must be supplied and numerically certified. No held-maintained
+or uncategorised day is accepted. Source/data/numerics signature checking is
+the responsibility of the precomputed-decision file reader, not this reducer.
+"""
+function replay_independent_gate0(mf::MarketFacts,el::Eligibility,
+                                  decisions::Vector{Gate0DayDecision};
+                                  t_start::Int,t_end::Int,
+                                  held0::Vector{Float64}=zeros(size(mf.observed,2)))
+    _assert_lockfree_independent_window(mf,el,t_start,t_end,held0)
+    length(decisions)==t_end-t_start ||
+        throw(DimensionMismatch("independent replay needs one decision per session"))
+    N=size(mf.observed,2)
+    held=copy(held0)
+    equity=1.0
+    equity_curve=[equity]
+    records=Gate0DayRecord[]
+    for (i,dec) in enumerate(decisions)
+        t=t_start+i-1
+        dec.t==t && dec.mode==:adaptive ||
+            error("parallel replay refuses absent, out-of-order or unverified adaptive decision t=$t")
+        length(dec.w_universe)==N && all(x->isfinite(x)&&x>=0,dec.w_universe) &&
+            isfinite(dec.w_cash) && dec.w_cash>=0 &&
+            abs(sum(dec.w_universe)+dec.w_cash-1.0)<=1e-8 ||
+            error("parallel replay refuses infeasible decision weights at t=$t")
+        c=dec.certificates
+        c.converged && c.A<=1e-4 && abs(c.B)<=1e-6 &&
+            c.B_audit<=1e-6 && cash_kelly_certified(c.C;tol=1e-6) ||
+            error("parallel replay refuses uncertified numerical decision t=$t")
+        # Independent decision must use ONLY model-admitted/free coordinates.
+        all(j->dec.w_universe[j]==0 ||
+            (el.model_admitted[t,j] && free(el,t)[j]),1:N) ||
+            error("parallel replay found a position outside the proved free domain")
+        before=copy(held)
+        gross=_marking_gross(mf,t,dec.w_universe)
+        wealth=dot(dec.w_universe,gross)+dec.w_cash
+        (isfinite(wealth) && wealth>0) ||
+            error("parallel replay encountered nonpositive account wealth at t=$t")
+        equity*=wealth
+        push!(equity_curve,equity)
+        held=[dec.w_universe[j]*gross[j]/wealth for j in 1:N]
+        push!(records,Gate0DayRecord(t,dec,before,gross,wealth,equity))
+    end
+    benchmarks=_benchmark_curves(mf,el,t_start,t_end)
+    Gate0BacktestResult(t_start,t_end,records,equity_curve,
+                        benchmarks.equity_cash,benchmarks.equity_ew_daily,
+                        benchmarks.equity_ew_buyhold,benchmarks.ew_rebalance_gap)
 end
 
 # ---------------------------------------------------------------------------
@@ -297,6 +516,8 @@ function run_gate0_backtest(mf::MarketFacts, el::Eligibility;
                             # CHISQ-QMC（A 门过门配置，CQ_*）：透传 driver；默认 false。
                             mu_chisq_qmc::Bool = false,
                             reuse_forecasts::Bool = true,
+                            selective_forecasts::Bool = true,
+                            forecast_workers::Int = 1,
                             checkpoint::Union{Nothing,String} = nothing,
                             resume::Bool = false,
                             max_new_days::Union{Nothing,Int} = nothing,
@@ -321,12 +542,20 @@ function run_gate0_backtest(mf::MarketFacts, el::Eligibility;
         throw(ArgumentError("resume/slicing requires an explicit checkpoint path"))
     max_new_forecasts !== nothing && !reuse_forecasts &&
         throw(ArgumentError("forecast slicing requires reuse_forecasts=true"))
+    1 <= forecast_workers <= Threads.nthreads() ||
+        throw(ArgumentError("forecast_workers requires 1 ≤ workers ≤ Julia thread count"))
     posterior_options = (Float64(get(kwargs, :posterior_tol, 1e-6)),
                          Int(get(kwargs, :posterior_max_cells, 2048)),
                          Float64(get(kwargs, :u_span, 5.0)))
     cache = reuse_forecasts ? _ForecastCache(mf, el, posterior_options) : nothing
+    if cache !== nothing
+        cache.selective = selective_forecasts
+        cache.workers = forecast_workers
+        cache.max_new_forecasts = max_new_forecasts
+    end
     signature = checkpoint === nothing ? "" : _backtest_signature(mf, el,
-        (t_start, t_end, held0, mode, seed, mu_qmc, mu_chisq_qmc, (; kwargs...)))
+        (t_start, t_end, held0, mode, seed, mu_qmc, mu_chisq_qmc,
+         selective_forecasts, (; kwargs...)))
 
     held = Float64.(collect(held0))
     equity = 1.0
@@ -367,6 +596,12 @@ function run_gate0_backtest(mf::MarketFacts, el::Eligibility;
     save_checkpoint()
     new_days = 0
     try
+    if cache !== nothing && !cache.selective && next_t[] < t_end &&
+       any(view(el.model_admitted, next_t[], :)) &&
+       (any(free(el, next_t[])) || any(>(0.0), held))
+        _prime_historical_forecasts!(cache, next_t[]; progress=progress,
+            workers=forecast_workers,max_new_forecasts=max_new_forecasts)
+    end
     for t in next_t[]:(t_end - 1)
         if max_new_days !== nothing && new_days >= max_new_days
             throw(BacktestPaused(t, checkpoint))

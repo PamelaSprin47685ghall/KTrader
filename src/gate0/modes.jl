@@ -85,15 +85,13 @@ risk_domain_mode_basis(R_t::AbstractVector{Int}) = domain_mode_basis(length(R_t)
 observed 坐标的 return 必须 finite；s1 必须 finite 且 > 0；维度不一致即
 抛错（DimensionMismatch / DomainError，SPEC §56）。
 """
-function mode_field(returns_row::AbstractVector{Float64},
-                    observed_row::AbstractVector{Bool},
-                    s1::AbstractVector{Float64},
-                    E::AbstractMatrix{Float64})
+function _embedded_mode_row!(e::AbstractVector{Float64},
+                             returns_row::AbstractVector{Float64},
+                             observed_row::AbstractVector{Bool},
+                             s1::AbstractVector{Float64})
     N = length(returns_row)
-    (length(observed_row) == N && length(s1) == N) ||
+    (length(e) == N && length(observed_row) == N && length(s1) == N) ||
         throw(DimensionMismatch("mode_field: returns_row/observed_row/s1 lengths must all equal N"))
-    (size(E, 1) == N && size(E, 2) == N) ||
-        throw(DimensionMismatch("mode_field: E must be the N×N domain mode basis"))
     for j in 1:N
         (isfinite(s1[j]) && s1[j] > 0) ||
             throw(DomainError(s1[j], "mode_field: s1 must be finite and positive (ruler scale)"))
@@ -105,24 +103,41 @@ function mode_field(returns_row::AbstractVector{Float64},
     end
     c = 0
     sum_u = 0.0
-    u = Vector{Float64}(undef, N)
     for j in 1:N
         if observed_row[j]
-            u[j] = returns_row[j] / s1[j]
-            sum_u += u[j]
+            sum_u += returns_row[j] / s1[j]
             c += 1
         end
     end
     m = c == 0 ? 0.0 : sum_u / sqrt(c)          # 行级归一 1/√|O_s|（裁决 E1）
-    e = zeros(Float64, N)                       # 零嵌入（D-022）
+    fill!(e, 0.0)                              # 零嵌入（D-022）
     if c > 0
         shift = sum_u / c
         for j in 1:N
             if observed_row[j]
-                e[j] = u[j] - shift
+                e[j] = returns_row[j] / s1[j] - shift
             end
         end
     end
+    m
+end
+
+function _embedded_mode_row(returns_row::AbstractVector{Float64},
+                            observed_row::AbstractVector{Bool},
+                            s1::AbstractVector{Float64})
+    e = zeros(Float64, length(returns_row))
+    m = _embedded_mode_row!(e, returns_row, observed_row, s1)
+    m, e
+end
+
+function mode_field(returns_row::AbstractVector{Float64},
+                    observed_row::AbstractVector{Bool},
+                    s1::AbstractVector{Float64},
+                    E::AbstractMatrix{Float64})
+    N = length(returns_row)
+    (size(E, 1) == N && size(E, 2) == N) ||
+        throw(DimensionMismatch("mode_field: E must be the N×N domain mode basis"))
+    m, e = _embedded_mode_row(returns_row, observed_row, s1)
     Q = view(E, :, 2:N)                         # 域基的 relative 块（Helmert）
     q = Q' * e
     y = Vector{Float64}(undef, N)

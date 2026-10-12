@@ -47,7 +47,7 @@
 # `cls_floor` 仅用于浮点谱分类（区分真零特征与数值小特征），不进入
 # V_t 的数学定义，且必须接受 floor→0 refinement 检验（D-050/D-051）。
 
-using Random, LinearAlgebra
+using Random, LinearAlgebra, FFTW
 
 export InnovationState, innovation_state, SupportCertificate,
     DConditionedShapePool, draw_innovation, z_pool_rows, z_row_at, V_at,
@@ -240,6 +240,117 @@ function V_direct(eps_R::AbstractMatrix{Float64},
     return V
 end
 
+# The fractional kernel is translation invariant in observation DATE, not in
+# the index within J. For every historical forecast origin u_i, the exact
+# numerator of V_{u_i-1}(d) is a discrete convolution of
+#   A_u = 1{u in J} * eps_u * eps_u'
+# with h[lag] = k_d(lag) for lag>=1 and h[0]=0. Missing joint dates are
+# zero *in the convolution input and the denominator*, not zero residuals:
+# both weighted sums exclude them. Zero padding makes the FFT a LINEAR (not
+# circular) convolution. This replaces repeated O(|J|² N²) prefix sums with
+# O(|calendar| N² log|calendar|) transforms for the SAME V matrices, up to
+# ordinary floating-point summation error. The direct form stays the oracle.
+struct _FractionalFFTWorkspace{P}
+    nJ::Int
+    N::Int
+    span::Int
+    nfft::Int
+    dates::Vector{Int}
+    ij::Vector{Tuple{Int,Int}}
+    observed_fft::Vector{ComplexF64}
+    products_fft::Matrix{ComplexF64}
+    frequency_scratch::Matrix{ComplexF64}
+    covariance_scratch::Matrix{Float64}
+    inverse_plan::P
+end
+
+function _prepare_fractional_fft(eps_R::AbstractMatrix{Float64},
+                                  u_J::AbstractVector{<:Integer})
+    nJ, N = size(eps_R)
+    nJ == length(u_J) || throw(DimensionMismatch("FFT residual dates"))
+    span = Int(u_J[end] - u_J[1] + 1)
+    span >= nJ || throw(ArgumentError("joint dates are not strictly increasing"))
+    all(i -> u_J[i] > u_J[i-1], 2:nJ) ||
+        throw(ArgumentError("joint dates are not strictly increasing"))
+    npairs = N*(N+1) ÷ 2
+    nfft = nextpow(2, 2span)
+    # Retain the direct reference for abnormal dense/high-dimensional panels
+    # whose temporary FFT buffers would exceed the 2 GiB process guard.
+    nfft*npairs*24 <= 256*1024*1024 || return nothing
+    observed = zeros(nfft)
+    products = zeros(nfft,npairs)
+    ij = Tuple{Int,Int}[]
+    for b in 1:N, a in 1:b
+        push!(ij,(a,b))
+    end
+    dates = [Int(t - u_J[1] + 1) for t in u_J]
+    for i in 1:nJ
+        t = dates[i]
+        observed[t] = 1.0
+        for (k,(a,b)) in enumerate(ij)
+            products[t,k] = eps_R[i,a]*eps_R[i,b]
+        end
+    end
+    product_spectrum=rfft(products,(1,))
+    scratch=similar(product_spectrum)
+    cov_scratch=Matrix{Float64}(undef,nfft,npairs)
+    inverse_plan=plan_irfft(scratch,nfft,(1,);flags=FFTW.ESTIMATE)
+    _FractionalFFTWorkspace(nJ,N,span,nfft,dates,ij,
+                            rfft(observed),product_spectrum,
+                            scratch,cov_scratch,inverse_plan)
+end
+
+function _fft_prefix_covariances(eps_R::AbstractMatrix{Float64},
+                                  u_J::AbstractVector{<:Integer}, d::Real;
+                                  prepared::Union{Nothing,_FractionalFFTWorkspace}=nothing,
+                                  reuse_buffers::Bool=false)
+    plan = prepared === nothing ? _prepare_fractional_fft(eps_R,u_J) : prepared
+    plan === nothing && return nothing
+    reuse_buffers && prepared === nothing &&
+        throw(ArgumentError("FFT buffer reuse requires an explicit prepared workspace"))
+    (plan.nJ == length(u_J) && plan.N == size(eps_R,2) &&
+     plan.dates[end] == u_J[end]-u_J[1]+1) ||
+        throw(DimensionMismatch("FFT workspace belongs to a different panel"))
+    lag_kernel = zeros(plan.nfft)
+    frac = frac_weights_gate0(d,plan.span)
+    for lag in 1:plan.span-1
+        lag_kernel[lag+1] = frac[lag]
+    end
+    hfft = rfft(lag_kernel)
+    denoms = irfft(plan.observed_fft .* hfft, plan.nfft)
+    covariances = if reuse_buffers
+        # This mutable view is valid only until the NEXT call with the same
+        # plan. Adaptive d-quadrature consumes each likelihood completely
+        # before evaluating the next d node. Public/default callers retain
+        # independently owned arrays so scenario node caches cannot alias.
+        copyto!(plan.frequency_scratch,plan.products_fft)
+        plan.frequency_scratch .*= reshape(hfft,:,1)
+        mul!(plan.covariance_scratch,plan.inverse_plan,plan.frequency_scratch)
+        plan.covariance_scratch
+    else
+        freq = copy(plan.products_fft)
+        freq .*= reshape(hfft,:,1)
+        irfft(freq,plan.nfft,(1,))
+    end
+    function prefix_V(i::Int, buffer::Union{Nothing,Matrix{Float64}}=nothing)
+        2 <= i <= plan.nJ || throw(BoundsError(u_J,i))
+        t = plan.dates[i]
+        denom = denoms[t]
+        (isfinite(denom) && denom > 0) ||
+            error("FFT prefix covariance: invalid joint weight sum")
+        buffer === nothing || size(buffer)==(plan.N,plan.N) ||
+            throw(DimensionMismatch("FFT prefix buffer has the wrong shape"))
+        V = buffer === nothing ? Matrix{Float64}(undef,plan.N,plan.N) : buffer
+        for (k,(a,b)) in enumerate(plan.ij)
+            val = covariances[t,k]/denom
+            V[a,b] = val
+            V[b,a] = val
+        end
+        V
+    end
+    prefix_V
+end
+
 # ---------------------------------------------------------------------------
 # Moore-Penrose support 协议（VI §4；D-050/D-051）
 # ---------------------------------------------------------------------------
@@ -332,19 +443,83 @@ Gaussian covariance quasi-likelihood（D-57 / VI §3.2，**mode-space 精确
 function quasi_loglik(eps_R::AbstractMatrix{Float64},
                       u_J::AbstractVector{<:Integer},
                       d::Real;
-                      cls_floor::Union{Nothing,Real} = nothing)
+                      cls_floor::Union{Nothing,Real} = nothing,
+                      prepared_fft::Union{Nothing,_FractionalFFTWorkspace}=nothing,
+                      reuse_fft_buffers::Bool=false)
     nJ = length(u_J)
     nJ >= 2 ||
         error("quasi_loglik: |L| = 0（行集仅 $(nJ) 行，V_{s−1} 不可定义）——ℓ 无信息；不得静默返回均匀先验（D-049/VI §3.4）")
+    fast_prefix = nJ >= 64 ?
+        _fft_prefix_covariances(eps_R,u_J,d; prepared=prepared_fft,
+                                 reuse_buffers=reuse_fft_buffers) : nothing
+    N = size(eps_R,2)
+    V_buffer = fast_prefix === nothing ? nothing : Matrix{Float64}(undef,N,N)
+    chol_work = Matrix{Float64}(undef,N,N)
     ll = 0.0
     for i in 2:nJ
-        Vsm = V_direct(view(eps_R, 1:i-1, :), view(u_J, 1:i-1), d, u_J[i] - 1)
-        F = mp_sqrt_factors(Vsm; cls_floor = cls_floor)
-        ε = view(eps_R, i, :)
-        quad = norm(F.inv_half * ε) ^ 2      # εᵀV⁺ε（null 分量被零化）
-        ll -= 0.5 * (sum(log, F.positive) + quad)
+        Vsm = fast_prefix === nothing ?
+            V_direct(view(eps_R, 1:i-1, :), view(u_J, 1:i-1), d, u_J[i] - 1) :
+            fast_prefix(i,V_buffer)
+        ll -= 0.5 * _quasi_measure(Vsm,view(eps_R,i,:),cls_floor;
+                                    chol_work=chol_work)
     end
     return ll
+end
+
+function _quasi_measure(Vsm::AbstractMatrix{Float64},
+                        e::AbstractVector{Float64},
+                        cls_floor::Union{Nothing,Real};
+                        chol_work::Union{Nothing,Matrix{Float64}}=nothing)
+    N = size(Vsm,1)
+    chol_work === nothing || size(chol_work)==(N,N) ||
+        throw(DimensionMismatch("Cholesky scratch must have the covariance shape"))
+    # On full-rank prefixes the Moore–Penrose logdet/quadratic is exactly
+    # the ordinary SPD logdet/quadratic. Instead of constructing L^-1 merely
+    # to bound λ_min(V), certify the SAME threshold via a shifted Cholesky:
+    # V - 8*floor_upper*I ≻ 0  =>  λ_min(V) > 8*floor_upper >= floor.
+    # This is a definite-matrix test, not a numerical floor or regularisation
+    # of the likelihood: the unshifted V still gives the exact logdet/quad.
+    # Rank-deficient/ill-conditioned prefixes keep the eigen/pseudoinverse.
+    if cls_floor === nothing || cls_floor >= 0
+        floor_upper = cls_floor === nothing ?
+            N*sqrt(eps(Float64))*max(opnorm(Vsm,Inf),floatmin(Float64)) :
+            Float64(cls_floor)
+        if isfinite(floor_upper)
+            guarded = chol_work === nothing ? Matrix(Vsm) : chol_work
+            copyto!(guarded,Vsm)
+            shift = 8 * floor_upper
+            @inbounds for i in 1:N
+                guarded[i,i] -= shift
+            end
+            C_guard = cholesky!(Symmetric(guarded);check=false)
+            if isposdef(C_guard)
+                copyto!(guarded,Vsm)
+                C = cholesky!(Symmetric(guarded);check=false)
+                isposdef(C) || error("unshifted covariance failed after shifted SPD certificate")
+                L = C.L
+                y = L \ e
+                return 2sum(log,diag(L)) + dot(y,y)
+            end
+        end
+    end
+    cls_floor !== nothing && cls_floor < 0 &&
+        throw(DomainError(cls_floor,"quasi_loglik cls_floor must be nonnegative"))
+    # Same spectral classification as mp_sqrt_factors.
+    F = eigen(Symmetric(Vsm))
+    lam = F.values
+    fl = cls_floor === nothing ?
+        size(Vsm,1) * sqrt(eps(Float64)) *
+        max(lam[end], floatmin(Float64)) : Float64(cls_floor)
+    logdet = 0.0
+    quad = 0.0
+    for j in eachindex(lam)
+        if lam[j] > fl
+            z = dot(view(F.vectors,:,j),e)
+            quad += abs2(z) / lam[j]
+            logdet += log(lam[j])
+        end
+    end
+    logdet + quad
 end
 
 """
@@ -438,11 +613,27 @@ function adaptive_d_quadrature(eps_R::AbstractMatrix{Float64},
     isapprox(sum(cells0), 1.0; atol = 1e-9) ||
         error("adaptive_d_quadrature: 初始 cell mass 总和 $(sum(cells0)) ≠ 1（覆盖 (0,1]，VI §3.3）")
 
-    # 计算一层的节点/权重/V_t（direct sums，reference 纪律 D-085）
+    # Refinement keeps the previous quadrature nodes. Their V_t(d) and
+    # quasi-likelihood are mathematical functions of the SAME immutable
+    # residual panel/time, so never recompute those O(nJ) historical spectra
+    # at every level. This is an exact within-decision memo, not a prior
+    # approximation, d-grid fixation or inter-date statistical cache.
+    evaluated = Dict{Float64,Tuple{Matrix{Float64},Float64}}()
+    prepared_fft = length(u_J) >= 64 ? _prepare_fractional_fft(eps_R,u_J) : nothing
+    function node_eval(d::Float64)
+        get!(evaluated, d) do
+            (V_direct(eps_R, u_J, d, t),
+             quasi_loglik(eps_R, u_J, d; cls_floor=cls_floor,
+                          prepared_fft=prepared_fft,
+                          reuse_fft_buffers=prepared_fft !== nothing))
+        end
+    end
+
+    # 计算一层的节点/权重/V_t
     function level(nodes::Vector{Float64}, cells::Vector{Float64})
-        V_list = [V_direct(eps_R, u_J, nodes[g], t) for g in eachindex(nodes)]
-        lls = [quasi_loglik(eps_R, u_J, nodes[g]; cls_floor = cls_floor)
-               for g in eachindex(nodes)]
+        pairs = [node_eval(d) for d in nodes]
+        V_list = [p[1] for p in pairs]
+        lls = [p[2] for p in pairs]
         log_w = lls .+ log.(cells)
         mx = maximum(log_w)
         w_un = exp.(log_w .- mx)
@@ -580,8 +771,31 @@ function row_at(pool::DConditionedShapePool, d::Real, i::Integer)
     Jpos = pool.L_rows[i]
     Vsm = V_direct(view(pool.eps_R, 1:Jpos-1, :), view(pool.u_J, 1:Jpos-1),
                    d, pool.u_J[Jpos] - 1)
-    F = mp_sqrt_factors(Vsm; cls_floor = pool.cls_floor)
-    return F.inv_half * view(pool.eps_R, Jpos, :)
+    return _inv_sqrt_action(Vsm, view(pool.eps_R, Jpos, :),pool.cls_floor)
+end
+
+# Same Moore–Penrose principal inverse square-root ACTION as
+# mp_sqrt_factors(V).inv_half*eps, but no construction of the two dense
+# N×N root matrices. Supports exactly the same positive-eigenvalue predicate.
+function _inv_sqrt_action(V::AbstractMatrix{Float64},
+                          e::AbstractVector{Float64},
+                          cls_floor::Union{Nothing,Real})
+    F = eigen(Symmetric(V))
+    lam, U = F.values, F.vectors
+    n = length(lam)
+    floor = cls_floor === nothing ?
+        n*sqrt(eps(Float64))*max(lam[end],floatmin(Float64)) : Float64(cls_floor)
+    floor >= 0 || throw(DomainError(floor,"Moore–Penrose classification floor must be >=0"))
+    z = zeros(Float64,n)
+    for j in eachindex(lam)
+        if lam[j] > floor
+            weight = dot(view(U,:,j),e) / sqrt(lam[j])
+            @inbounds for i in 1:n
+                z[i] += weight * U[i,j]
+            end
+        end
+    end
+    z
 end
 
 """
@@ -593,8 +807,15 @@ function rows(pool::DConditionedShapePool, d::Real)
     nL = length(pool.L_rows)
     N_R = size(pool.eps_R, 2)
     Z = Matrix{Float64}(undef, nL, N_R)
+    prefix = size(pool.eps_R,1) >= 64 ?
+        _fft_prefix_covariances(pool.eps_R,pool.u_J,d) : nothing
     for i in 1:nL
-        Z[i, :] .= row_at(pool, d, i)
+        if prefix === nothing
+            Z[i,:] .= row_at(pool,d,i)
+        else
+            Jpos = pool.L_rows[i]
+            Z[i,:] .= _inv_sqrt_action(prefix(Jpos),view(pool.eps_R,Jpos,:),pool.cls_floor)
+        end
     end
     return Z
 end

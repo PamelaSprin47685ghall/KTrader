@@ -63,6 +63,7 @@
 
 using Random
 using LinearAlgebra
+using Serialization
 using Distributions   # b′：Φ^{-1} / Chisq 逆 CDF（quantile）——Project 既有依赖
 
 export SobolOwenRule, rule_points, audit_seed,
@@ -303,37 +304,86 @@ NODE-QMC-1）；其余方向与卡方 g 走固定 seed MC 流（消费序列固�
 分布等价性：全 iid 时 Q√Λ z 与 chol 版本同协方差 S_alpha；谱排序为纯正交
 重排（不改分布、不截断；λ 的数值负值 floor 0 属数值治理）。混合驱动的
 联合分布非严格乘积——无偏性/偏误边界由 E3 与 SPEC 复审（设计 §3.2-3、§8）。"""
+function _qmc_node_basis(post::ResponsePosterior,
+                         x_t::AbstractVector{Float64}, k::Int)
+    c = post.conditional[k]
+    mh = c.B_hat * x_t
+    cv = dot(x_t,V_solve(c,collect(x_t)))
+    F = eigen(Symmetric(Matrix(c.S_alpha)))
+    ord = sortperm(F.values;rev=true)
+    full_root=F.vectors[:,ord] .*
+              reshape(sqrt.(max.(F.values[ord],0.0)),1,:)
+    (mh,cv,full_root,nothing)
+end
+
 function _draw_mu_qmc(post::ResponsePosterior, x_t::AbstractVector{Float64},
                       u_node::Float64, u_z1::Float64, u_z2::Float64,
                       mu_rng::AbstractRNG;
-                      u_g::Float64 = NaN)
+                      u_g::Float64 = NaN,
+                      node_cdf::Union{Nothing,Vector{Float64}} = nothing,
+                      node_cache::Union{Nothing,_MuDrawCache} = nothing,
+                      z_scratch::Union{Nothing,Vector{Float64}}=nothing,
+                      mc_scratch::Union{Nothing,Vector{Float64}}=nothing,
+                      mu_scratch::Union{Nothing,Vector{Float64}}=nothing)
     N = post.N
+    if z_scratch !== nothing
+        length(z_scratch)==N || throw(DimensionMismatch("QMC normal scratch length"))
+    end
+    if mu_scratch !== nothing
+        length(mu_scratch)==N || throw(DimensionMismatch("QMC mode scratch length"))
+    end
     # NODE-QMC-1（设计 §8）：节点选择为离散 inverse-CDF，与旧 while 版对同一
     # u 逐点等价（第一个 cumsum ≥ u 的索引；min 截断防 u=1 越界）。
-    cw_node = cumsum(post.alpha_weights)
+    cw_node = node_cdf === nothing ? cumsum(post.alpha_weights) : node_cdf
     k = min(searchsortedfirst(cw_node, u_node), length(cw_node))
-    c = post.conditional[k]
-    mu_hat = c.B_hat * x_t
-    ck = dot(x_t, V_solve(c, collect(x_t)))
+    mu_hat,ck,basis,lam = if node_cache === nothing
+        c = post.conditional[k]
+        mh = c.B_hat * x_t
+        cv = dot(x_t, V_solve(c, collect(x_t)))
+        F = eigen(Symmetric(Matrix(c.S_alpha)))
+        ord = sortperm(F.values; rev=true)
+        (mh,cv,F.vectors[:,ord],F.values[ord])
+    else
+        _mu_cached_node!(node_cache.qmc,k,node_cache.capacity) do
+            _qmc_node_basis(post,x_t,k)
+        end
+    end
     nu = post.nu
     n_mc = max(N - 2, 0)
-    z_mc = n_mc > 0 ? randn(mu_rng, n_mc) : Float64[]
+    if mc_scratch !== nothing
+        length(mc_scratch)==n_mc || throw(DimensionMismatch("QMC MC-normal scratch length"))
+    end
+    z_ord = z_scratch === nothing ? zeros(N) : z_scratch
+    if n_mc > 0
+        # randn!(rng, Vector) and randn(rng,n) are bitwise/stream equivalent.
+        # A SubArray view is NOT equivalent for MersenneTwister: its draw
+        # dispatch consumes a different stream. Never sample into a view.
+        z_mc = mc_scratch === nothing ? randn(mu_rng,n_mc) :
+               randn!(mu_rng,mc_scratch)
+        @views copyto!(z_ord[3:N],z_mc)
+    end
     g = isnan(u_g) ? rand(mu_rng, Chisq(nu)) :
         quantile(Chisq(nu), _MU_QMC_CHISQ_EPS +
                            (1 - 2 * _MU_QMC_CHISQ_EPS) * clamp(u_g, 0.0, 1.0))
     e = _MU_QMC_PHI_EPS
     z1 = quantile(Normal(), e + (1 - 2e) * clamp(u_z1, 0.0, 1.0))
     z2 = N >= 2 ? quantile(Normal(), e + (1 - 2e) * clamp(u_z2, 0.0, 1.0)) : 0.0
-    F = eigen(Symmetric(c.S_alpha))
-    ord = sortperm(F.values; rev = true)
-    lam = F.values[ord]
-    Q = F.vectors[:, ord]
-    z_ord = zeros(N)
     z_ord[1] = z1
     N >= 2 && (z_ord[2] = z2)
-    N > 2 && (z_ord[3:N] .= z_mc)
     scale = sqrt(ck / nu) / sqrt(g / nu)
-    mu_hat .+ scale .* (Q * (sqrt.(max.(lam, 0.0)) .* z_ord))
+    if mu_scratch === nothing
+        return mu_hat .+ scale .* (lam === nothing ? basis * z_ord :
+                     basis * (sqrt.(max.(lam,0.0)) .* z_ord))
+    end
+    if lam === nothing
+        mul!(mu_scratch,basis,z_ord)
+    else
+        mul!(mu_scratch,basis,sqrt.(max.(lam,0.0)) .* z_ord)
+    end
+    @inbounds for i in eachindex(mu_scratch)
+        mu_scratch[i] = mu_hat[i] + scale * mu_scratch[i]
+    end
+    mu_scratch
 end
 
 # ---------------------------------------------------------------------------
@@ -420,7 +470,9 @@ function predictive_rqmc_source(post::ResponsePosterior,
                                 # 子开关（仅在 mu_qmc=true 时生效；默认 false 逐位不变）。
                                 mu_qmc::Bool = false,
                                 mu_chisq_qmc::Bool = false,
-                                mu_z1_vdc::Bool = false)
+                                mu_z1_vdc::Bool = false,
+                                lazy_z::Bool = true,
+                                prefetch_mu_factors::Bool = true)
     N = post.N
     length(x_t) == post.P ||
         throw(DimensionMismatch("predictive_rqmc_source: x_t 长度 $(length(x_t)) ≠ P=$(post.P)"))
@@ -445,16 +497,96 @@ function predictive_rqmc_source(post::ResponsePosterior,
     R = st.R_t
     N_R = st.N_R
     E_R = st.E_R
+    # The pair of orthogonal coordinate changes applied to every scenario is
+    # the same exact linear map T = E_R' * E_active[R,:]. Form it once instead
+    # of doing two N×N matrix-vector products and an asset-subset allocation
+    # for every scenario. No mode or covariance is truncated.
+    mode_to_risk = Matrix(E_R' * E_active[R,:])
     s1_R = collect(Float64, s1)[R]
     n_d = length(st.d_nodes)
     nL = length(st.L_t)
     cw = cumsum(st.d_weights)
+    # These same alpha weights are consumed at *every* scenario and at every
+    # adaptive refinement level. Never rebuild a 10k+ node CDF inside draws.
+    mu_cache = _MuDrawCache(post)
+    alpha_cdf = mu_cache.cdf
     # per-d 节点的确定性缓存（z pool 行矩阵 / V 因子——纯函数结果复用，
     # 无跨调用状态；reference 级允许）。
     z_cache = Dict{Int,Matrix{Float64}}()
     f_cache = Dict{Int,Any}()
+    # The reference eagerly standardised ALL historical rows for each d,
+    # even if only one row of that d was selected by a scenario. Historical
+    # covariances are the same; standardise just the selected (d,row) and
+    # memoise it. `lazy_z=false` is the exact eager baseline for regression.
+    selected_z_cache = Dict{Tuple{Int,Int},Vector{Float64}}()
+    z_prefix_cache = Dict{Int,Any}()
+    z_fft_plan = lazy_z && length(st.z_pool.u_J) >= 64 ?
+        _prepare_fractional_fft(st.z_pool.eps_R,st.z_pool.u_J) : nothing
+
+    function standardised_row(idx_d::Int, idx_row::Int)
+        if !lazy_z
+            return view(get!(() -> z_pool_rows(st,st.d_nodes[idx_d]),
+                             z_cache,idx_d),idx_row,:)
+        end
+        if !haskey(selected_z_cache,(idx_d,idx_row)) &&
+           length(selected_z_cache) >= 8192
+            empty!(selected_z_cache)
+        end
+        get!(selected_z_cache,(idx_d,idx_row)) do
+            d = st.d_nodes[idx_d]
+            pool = st.z_pool
+            if z_fft_plan === nothing
+                return z_row_at(st,d,idx_row)
+            end
+            if !haskey(z_prefix_cache,idx_d) && length(z_prefix_cache) >= 6
+                delete!(z_prefix_cache,first(keys(z_prefix_cache)))
+            end
+            prefix = get!(z_prefix_cache,idx_d) do
+                _fft_prefix_covariances(pool.eps_R,pool.u_J,d;
+                                         prepared=z_fft_plan)
+            end
+            prefix === nothing && return z_row_at(st,d,idx_row)
+            pos = pool.L_rows[idx_row]
+            _inv_sqrt_action(prefix(pos),view(pool.eps_R,pos,:),pool.cls_floor)
+        end
+    end
+
+    # Within this one decision only, Sobol prefixes and μ streams are nested.
+    # Retain the last independently generated optimisation/audit prefix.
+    # RNG keys compare the COMPLETE serialised initial RNG state, not only a
+    # seed/hash: callers with already-advanced RNGs cannot hit this cache.
+    scenario_prefixes = Dict{Tuple{Int,UInt64,Vector{UInt8}},Any}()
+
+    function skip_mu_draws!(rng::AbstractRNG, ns::Int)
+        # Advance the caller's actual RNG by precisely the draws made by the
+        # original μ sampler. Cached scenarios still consume the same RNG
+        # state, even when a caller observes that RNG after gen returns.
+        for _ in 1:ns
+            if mu_qmc
+                randn(rng, max(N - 2, 0))
+                mu_chisq_qmc || rand(rng, Chisq(post.nu))
+            else
+                rand(rng)
+                randn(rng, N)
+                rand(rng, Chisq(post.nu))
+            end
+        end
+    end
 
     function gen(M::Int, rule::SobolOwenRule, mu_rng::AbstractRNG)
+        # Empty/signature-invalid requests retain the original rule failure.
+        M >= 1 || throw(ArgumentError("gen requires positive scenario count"))
+        rng_bytes = let io=IOBuffer()
+            serialize(io,mu_rng)
+            take!(io)
+        end
+        key = (rule.dim, rule.seed, rng_bytes)
+        prior = get(scenario_prefixes,key,nothing)
+        if prior !== nothing && M <= prior.M
+            skip_mu_draws!(mu_rng, M)
+            return copy(view(prior.X,1:M,:))
+        end
+        prefix = prior === nothing ? 0 : prior.M
         pts = rule_points(rule, M)   # M×2（rqmc_dim = 2）
         # b′：μ 通道部分 QMC 的点集（mu_qmc=false 时为空、分支不进）。
         mu_pts = mu_qmc ?
@@ -465,6 +597,30 @@ function predictive_rqmc_source(post::ResponsePosterior,
         node_pts = mu_qmc ?
             rule_points(SobolOwenRule(1, _mu_node_rule_seed(rule.seed)), M) :
             Matrix{Float64}(undef, 0, 1)
+        if mu_qmc && prefetch_mu_factors && Threads.nthreads()>1 &&
+           M-prefix >= 128
+            # Node k is an independent conditional matrix-t eigenproblem.
+            # Evaluate different nodes in parallel into separate result
+            # slots; only AFTER every task finishes update the decision-local
+            # dictionary in sorted key order. No shared mutable RNG, cached
+            # covariance, Kelly weight or quadrature integral crosses tasks.
+            missing = sort!(unique(Int[
+                min(searchsortedfirst(alpha_cdf,node_pts[s,1]),
+                    length(alpha_cdf)) for s in (prefix+1):M
+                if !haskey(mu_cache.qmc,
+                    min(searchsortedfirst(alpha_cdf,node_pts[s,1]),
+                        length(alpha_cdf)))]))
+            if length(missing)>=32 &&
+               length(mu_cache.qmc)+length(missing)<=mu_cache.capacity
+                values=Vector{Any}(undef,length(missing))
+                Threads.@threads for i in eachindex(missing)
+                    values[i]=_qmc_node_basis(post,xt,missing[i])
+                end
+                for i in eachindex(missing)
+                    mu_cache.qmc[missing[i]]=values[i]
+                end
+            end
+        end
         # CHISQ-QMC-1（§9.10）与 Z1-VDC-1（§9.11）：两个正交开关（默认 false）。
         g_pts = (mu_qmc && mu_chisq_qmc) ?
             rule_points(SobolOwenRule(1, _mu_chisq_rule_seed(rule.seed)), M) :
@@ -473,15 +629,32 @@ function predictive_rqmc_source(post::ResponsePosterior,
             _nested_systematic_points(_mu_z1_shift(rule.seed), M) :
             Float64[]
         gross = Matrix{Float64}(undef, M, N_R)
-        for s in 1:M
+        mu_risk = zeros(N_R)
+        eps_buf = zeros(N_R)
+        y_risk = zeros(N_R)
+        u_risk = zeros(N_R)
+        z_normal_buf = mu_qmc ? zeros(N) : Float64[]
+        mc_normal_buf = mu_qmc ? zeros(max(N-2,0)) : Float64[]
+        mu_mode_buf = mu_qmc ? zeros(N) : Float64[]
+        if prior !== nothing
+            gross[1:prefix,:] .= prior.X
+            skip_mu_draws!(mu_rng,prefix)
+        end
+        for s in (prefix+1):M
             # 流位置 1：μ 通道（独立流——固定 seed 重建保证嵌套）
             mu_mode_s = mu_qmc ?
                 _draw_mu_qmc(post, xt, node_pts[s, 1],
                                (mu_z1_vdc ? z1_pts[s] : mu_pts[s, 1]),
                                mu_pts[s, 2], mu_rng;
-                               u_g = (mu_chisq_qmc ? g_pts[s] : NaN)) :
-                draw_mu(post, xt, mu_rng)
-            mu_R_s = E_R' * (E_active * mu_mode_s)[R]
+                               u_g = (mu_chisq_qmc ? g_pts[s] : NaN),
+                               node_cdf = alpha_cdf,
+                               node_cache = mu_cache,
+                               z_scratch = z_normal_buf,
+                               mc_scratch = mc_normal_buf,
+                               mu_scratch = mu_mode_buf) :
+                _draw_mu_cdf(post, xt, mu_rng, alpha_cdf;
+                             node_cache = mu_cache)
+            mul!(mu_risk,mode_to_risk,mu_mode_s)
             # 流位置 2：d 通道——RQMC inverse-CDF（与 draw_innovation 同式）
             u_d = pts[s, 1]
             idx_d = min(searchsortedfirst(cw, u_d), n_d)
@@ -489,18 +662,24 @@ function predictive_rqmc_source(post::ResponsePosterior,
             u_z = pts[s, 2]
             idx_row = min(floor(Int, u_z * nL) + 1, nL)
             # 反标准化：ε = V_t(d)^{1/2}·z_{s'}(d)（与 draw_innovation 同构）
-            Z = get!(() -> z_pool_rows(st, st.d_nodes[idx_d]), z_cache, idx_d)
             F = get!(() -> mp_sqrt_factors(st.V_t[idx_d];
                                            cls_floor = st.z_pool.cls_floor),
                      f_cache, idx_d)
-            z = Z[idx_row, :]
-            eps = F.half * z
+            z = standardised_row(idx_d, idx_row)
+            mul!(eps_buf,F.half,z)
             # 步骤 4-7：y_R → u_R → r_R → gross（与 predictive_law 同构）
-            y_R = mu_R_s .+ eps
-            u_R = E_R * y_R
-            r_R = u_R .* s1_R
-            gross[s, :] .= exp.(r_R)
+            @inbounds for j in 1:N_R
+                y_risk[j] = mu_risk[j] + eps_buf[j]
+            end
+            mul!(u_risk,E_R,y_risk)
+            @inbounds for j in 1:N_R
+                gross[s,j] = exp(u_risk[j]*s1_R[j])
+            end
         end
+        if !haskey(scenario_prefixes,key) && length(scenario_prefixes) >= 2
+            delete!(scenario_prefixes,first(keys(scenario_prefixes)))
+        end
+        scenario_prefixes[key] = (; M, X=copy(gross))
         gross
     end
     return RQMCScenarioSource(gen, N_R, 2)
@@ -687,7 +866,8 @@ function adaptive_scenario_kelly(src::RQMCScenarioSource;
                                   weight_tol::Float64 = 1e-3,
                                   utility_tol::Float64 = 1e-5,
                                   utility_tol_audit::Float64 = 1e-5,
-                                  kelly_tol::Float64 = 1e-8)
+                                  kelly_tol::Float64 = 1e-8,
+                                  confirmation_pairs::Int = 2)
     # --- 输入校验（fail-loudly，SPEC §56） ---
     min_scenarios >= 1 ||
         throw(ArgumentError("adaptive_scenario_kelly: min_scenarios ≥ 1（got $min_scenarios）"))
@@ -697,6 +877,8 @@ function adaptive_scenario_kelly(src::RQMCScenarioSource;
     utility_tol >= 0 || throw(ArgumentError("adaptive_scenario_kelly: utility_tol ≥ 0（got $utility_tol）"))
     utility_tol_audit >= 0 || throw(ArgumentError("adaptive_scenario_kelly: utility_tol_audit ≥ 0（got $utility_tol_audit）"))
     kelly_tol > 0 || throw(ArgumentError("adaptive_scenario_kelly: kelly_tol > 0（got $kelly_tol）"))
+    confirmation_pairs >= 1 ||
+        throw(ArgumentError("adaptive_scenario_kelly: confirmation_pairs must be positive"))
     length(locked) == src.n_assets ||
         throw(DimensionMismatch("adaptive_scenario_kelly: locked 长度 $(length(locked)) ≠ n_assets $(src.n_assets)"))
     all(x -> isfinite(x) && x >= 0, locked) ||
@@ -729,8 +911,15 @@ function adaptive_scenario_kelly(src::RQMCScenarioSource;
     # locked 填回），但任何下游 wealth 求值都不得在 X_full·w_full 之上
     # 再加 base_locked（locked 已含于 w_full 的 locked 分量）。
     free_pos = [k for k in 1:src.n_assets if locked[k] == 0]
+    all_free = length(free_pos)==src.n_assets
+    profile_layers = get(ENV,"GATE0_TRACE_LAYERS","false")=="true"
     function solve_layer(M::Int)
+        layer_t0=time_ns()
         X = src.gen(M, opt_rule, MersenneTwister(m_seed))
+        if profile_layers
+            println("GATE0_LAYER_GENERATED M=$M sec=$((time_ns()-layer_t0)/1e9)")
+            flush(stdout)
+        end
         base = locked_wealth_gate0(X, locked)
         if isempty(free_pos)
             # free 列空（全 locked）：无可优化列——预算全留 cash（唯一
@@ -743,11 +932,16 @@ function adaptive_scenario_kelly(src::RQMCScenarioSource;
                 kkt_residual = 0.0, objective_gap = 0.0,
                 objective = isempty(X) ? 0.0 :
                     mean(log.(budget .+ base)),
-                dual = NaN))
+                dual = NaN), nothing)
         end
-        X_free = X[:, free_pos]
-        w_free, w_cash, cert = cash_kelly(X_free; base = base,
+        X_free = all_free ? X : X[:, free_pos]
+        stage = _cash_kelly_staged_primary(X_free; base = base,
                                            budget = budget, tol = kelly_tol)
+        if profile_layers
+            println("GATE0_LAYER_PRIMARY_CERTIFIED M=$M sec=$((time_ns()-layer_t0)/1e9) cash=$(stage.cash)")
+            flush(stdout)
+        end
+        w_free, w_cash, cert = stage.risky,stage.cash,stage.cert
         w_full = zeros(src.n_assets)
         w_full[free_pos] .= w_free
         for k in 1:src.n_assets
@@ -755,13 +949,64 @@ function adaptive_scenario_kelly(src::RQMCScenarioSource;
                 w_full[k] = locked[k]          # locked 维持（进 base 不进优化）
             end
         end
-        (X, w_full, w_cash, cert)
+        (X, w_full, w_cash, cert, stage)
+    end
+
+    # Bound in-process storage to the last confirmation_pairs+1 numerical
+    # layers. The original mathematical evaluation and audit rule are the
+    # same; these snapshots allow original CANONICAL A/B/C recertification
+    # without resampling or repeating an already-certified primary solver.
+    layer_history = Vector{Any}()
+    audit_history = Dict{Int,Matrix{Float64}}()
+    function keep_layer!(M,X,w,wc,cert,stage)
+        push!(layer_history,(;M,X,w,wc,cert,stage))
+        length(layer_history)<=confirmation_pairs+1 || popfirst!(layer_history)
+        nothing
+    end
+    function canonical_layer(layer)
+        canonical_t0=time_ns()
+        stage=layer.stage
+        if stage===nothing
+            return (;layer.M,X=layer.X,w=layer.w,wc=layer.wc,cert=layer.cert)
+        end
+        X_free = all_free ? layer.X : layer.X[:,free_pos]
+        freeW,cash,cert = _cash_kelly_staged_canonical(X_free,stage)
+        if profile_layers
+            println("GATE0_LAYER_CANONICAL_CERTIFIED M=$(layer.M) sec=$((time_ns()-canonical_t0)/1e9) cash=$cash")
+            flush(stdout)
+        end
+        fullW=zeros(src.n_assets)
+        fullW[free_pos] .= freeW
+        for k in eachindex(locked)
+            locked[k]>0 && (fullW[k]=locked[k])
+        end
+        (;M=layer.M,X=layer.X,w=fullW,wc=cash,cert)
+    end
+    # Evaluate exactly the ORIGINAL optimization and independent audit log
+    # objective, in the same locked/free accounting coordinates.
+    function layer_objective(X,w,wc)
+        base=locked_wealth_gate0(X,locked)
+        wealth=isempty(free_pos) ? wc .+ base :
+               (all_free ? X : X[:,free_pos]) * w[free_pos] .+ wc .+ base
+        all(x->isfinite(x)&&x>0,wealth) ||
+            error("canonical layer certificate has non-positive wealth")
+        sum(log,wealth)/size(X,1)
+    end
+    function canonical_pair(coarse,fine,audit)
+        A=norm(vcat(coarse.w,coarse.wc).-vcat(fine.w,fine.wc),1)
+        Bopt=layer_objective(fine.X,fine.w,fine.wc)-
+             layer_objective(fine.X,coarse.w,coarse.wc)
+        Baudit=abs(layer_objective(audit,fine.w,fine.wc)-
+                   layer_objective(audit,coarse.w,coarse.wc))
+        (;M=coarse.M,M2=fine.M,A,B_opt=Bopt,B_audit=Baudit)
     end
 
     M = min_scenarios
-    _, w_M, wc_M, _ = solve_layer(M)
+    X_M, w_M, wc_M, cert_M, stage_M = solve_layer(M)
+    keep_layer!(M,X_M,w_M,wc_M,cert_M,stage_M)
     history = Vector{NamedTuple}()
     iterations = 0
+    consecutive_green = 0
     while true
         M2 = min(2 * M, max_scenarios)
         if M2 == M
@@ -769,7 +1014,8 @@ function adaptive_scenario_kelly(src::RQMCScenarioSource;
             # 不生成同层 (max, max) 比较（A=B=0 假绿），直接 fail。
             break
         end
-        X_2M, w_2M, wc_2M, cert_2M = solve_layer(M2)
+        X_2M, w_2M, wc_2M, cert_2M, stage_2M = solve_layer(M2)
+        keep_layer!(M2,X_2M,w_2M,wc_2M,cert_2M,stage_2M)
         iterations += 1
         # Certificate C：cert_2M 已由 cash_kelly fail-loudly 保证全绿
         # （不过即 error——不返回 heuristic 权重）；数值携带供审计。
@@ -788,7 +1034,7 @@ function adaptive_scenario_kelly(src::RQMCScenarioSource;
             wealth_f_opt = wc_2M .+ base_2M
             wealth_c_opt = wc_M .+ base_2M
         else
-            X_free_2M = X_2M[:, free_pos]
+            X_free_2M = all_free ? X_2M : X_2M[:, free_pos]
             wealth_f_opt = X_free_2M * w_2M[free_pos] .+ wc_2M .+ base_2M
             wealth_c_opt = X_free_2M * w_M[free_pos] .+ wc_M .+ base_2M
         end
@@ -802,12 +1048,20 @@ function adaptive_scenario_kelly(src::RQMCScenarioSource;
         # 两个权重的目标值，取**绝对差**——任何一侧大幅偏离都说明
         # 积分未稳定。wealth 表示与 B_opt 相同（方案 2）。
         X_a = src.gen(M2, audit_rule, MersenneTwister(am_seed))
+        if profile_layers
+            println("GATE0_LAYER_AUDIT_GENERATED M=$M2")
+            flush(stdout)
+        end
+        audit_history[M2]=X_a
+        if length(audit_history)>confirmation_pairs
+            delete!(audit_history,minimum(keys(audit_history)))
+        end
         base_a = locked_wealth_gate0(X_a, locked)
         if isempty(free_pos)
             wealth_f = wc_2M .+ base_a
             wealth_c = wc_M .+ base_a
         else
-            X_a_free = X_a[:, free_pos]
+            X_a_free = all_free ? X_a : X_a[:, free_pos]
             wealth_f = X_a_free * w_2M[free_pos] .+ wc_2M .+ base_a
             wealth_c = X_a_free * w_M[free_pos] .+ wc_M .+ base_a
         end
@@ -819,10 +1073,43 @@ function adaptive_scenario_kelly(src::RQMCScenarioSource;
         B_audit = abs(I_f - I_c)
         push!(history, (; M = M, M2 = M2, A = A, B_opt = B_opt,
                         B_audit = B_audit))
-        if A <= weight_tol && B_opt <= utility_tol && B_audit <= utility_tol_audit
-            return AdaptiveKellyResult(w_2M, wc_2M, M2, rule_seed, a_seed,
-                                       A, B_opt, B_audit, cert_2M, true,
-                                       iterations, history)
+        # An early pair of equal corner solutions is NOT numerical stability:
+        # observed on the real 64-asset panel where 64→128 has A≈1e-5 but
+        # 128→256 changes the optimal allocation by almost 2. Keep the SAME
+        # numerical tolerances and original objective; require two consecutive
+        # refined pairs with all A/B/C certificates green before admission.
+        # Also reject a large negative B_opt (fine solve worse than coarse on
+        # its own integration rule); its intended regret magnitude is bounded.
+        certified_pair = A <= weight_tol && abs(B_opt) <= utility_tol &&
+                         B_audit <= utility_tol_audit
+        consecutive_green = certified_pair ? consecutive_green + 1 : 0
+        if profile_layers
+            println("GATE0_LAYER_PRIMARY_REFINEMENT M=$M2 A=$A Bopt=$B_opt Baudit=$B_audit green=$certified_pair streak=$consecutive_green")
+            flush(stdout)
+        end
+        if consecutive_green >= confirmation_pairs
+            # Every screening pair had certified *primary* solutions on the
+            # same original expected-log-utility objective. Only the LAST
+            # pair needs the expensive canonical tie break to establish the
+            # actual returned weights and original A/B/audit certificates.
+            # Thus acceptance is stricter than the old single-pair contract:
+            # multiple stable primary pairs PLUS a fully canonical final pair.
+            # Avoid conic canonicalisation of old quadratures already shown
+            # to be unreliable by later refinement.
+            coarse=canonical_layer(layer_history[end-1])
+            fine=canonical_layer(layer_history[end])
+            metrics=canonical_pair(coarse,fine,audit_history[fine.M])
+            cash_kelly_certified(fine.cert;tol=kelly_tol) ||
+                error("canonical Kelly final certificate failed")
+            if metrics.A<=weight_tol &&
+               abs(metrics.B_opt)<=utility_tol &&
+               metrics.B_audit<=utility_tol_audit
+                history[end]=metrics
+                return AdaptiveKellyResult(fine.w,fine.wc,fine.M,
+                         rule_seed,a_seed,metrics.A,metrics.B_opt,
+                         metrics.B_audit,fine.cert,true,iterations,history)
+            end
+            consecutive_green=0
         end
         M = M2
         w_M, wc_M = w_2M, wc_2M

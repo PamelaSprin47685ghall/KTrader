@@ -90,12 +90,14 @@
 
 using Dates, Statistics, LinearAlgebra, Printf
 
-# BLAS 单线程（Manager 裁决 U2，2026-10-10；见 docs/MULTIDAY_COST_OPTIMIZATION.md
-# §7）：gate0 负载实测最优配置——小 GEMM 在多线程 BLAS 下被线程开销放大
-# ~3×（单点 log_evidence 8.36ms@默认 6 线程 → 2.52ms@1 线程；证据
-# archive/evidence/gate0_merged_verify8_20261010/ 分段微基准）。这是性能/
-# 确定性配置，不改变任何数学对象、门禁或容差（P0-7/D-066 不受影响）。
-BLAS.set_num_threads(1)
+# The original Gate-0 microbenchmark favoured BLAS=1 for tiny GEMM. After
+# rank-one posterior / batched response changes, a real 64-asset 2024 forecast
+# is faster with BLAS=4 on this CPU. Keep conservative default 1, but permit
+# explicitly benchmarked per-host hardware tuning. This is NOT a tolerance,
+# model, eligibility or Kelly strategy parameter.
+blas_threads = parse(Int,get(ENV,"GATE0_BLAS_THREADS","1"))
+1 <= blas_threads <= 16 || error("GATE0_BLAS_THREADS must be 1..16")
+BLAS.set_num_threads(blas_threads)
 
 # ---------------------------------------------------------------------------
 # 加载 Gate-0 独立顶层 module（与 test/gate0/ 各测试文件同模式）
@@ -129,6 +131,10 @@ trade252 = get(ENV, "GATE0_TRADE_252", "false") == "true"
 posterior_tol = parse(Float64, get(ENV, "GATE0_POSTERIOR_TOL", "1e-6"))
 posterior_max_cells = parse(Int, get(ENV, "GATE0_POSTERIOR_MAX_CELLS", "2048"))
 max_scenarios = parse(Int, get(ENV, "GATE0_MAX_SCENARIOS", "512"))
+min_scenarios = parse(Int,get(ENV,"GATE0_MIN_SCENARIOS","64"))
+min_scenarios >= 1 && ispow2(min_scenarios) &&
+    min_scenarios*4 <= max_scenarios ||
+    error("GATE0_MIN_SCENARIOS requires a power of two and room for two refinements")
 weight_tol = parse(Float64, get(ENV, "GATE0_WEIGHT_TOL", "1e-4"))
 utility_tol = parse(Float64, get(ENV, "GATE0_UTILITY_TOL", "1e-6"))
 kelly_tol = parse(Float64, get(ENV, "GATE0_KELLY_TOL", "1e-6"))
@@ -174,6 +180,8 @@ optional_limit(key) = haskey(ENV, key) ? parse(Int, ENV[key]) : nothing
 max_new_days = optional_limit("GATE0_MAX_NEW_DAYS")
 max_new_forecasts = optional_limit("GATE0_MAX_NEW_FORECASTS")
 reuse_forecasts = get(ENV, "GATE0_REUSE_FORECASTS", "true") == "true"
+selective_forecasts = get(ENV,"GATE0_SELECTIVE_FORECASTS","true") == "true"
+forecast_workers = parse(Int, get(ENV,"GATE0_FORECAST_WORKERS","1"))
 
 # ---------------------------------------------------------------------------
 # Eligibility（默认政策或 252 有效交易日政策，D-018/H4）
@@ -181,10 +189,10 @@ reuse_forecasts = get(ENV, "GATE0_REUSE_FORECASTS", "true") == "true"
 el = trade252 ? Eligibility(mf, effective_bars_252(mf)) : Eligibility(mf)
 
 println("KTrader current entry: bin/backtest.jl -> KTraderGate0 (Gate-0 line; 2026-10-10)")
-println("Julia=$(VERSION) threads=$(Threads.nthreads()) panel=$(size(mf.observed)) input=$(first(mf.dates)):$(last(mf.dates))")
+println("Julia=$(VERSION) threads=$(Threads.nthreads()) blas_threads=$(BLAS.get_num_threads()) panel=$(size(mf.observed)) input=$(first(mf.dates)):$(last(mf.dates))")
 println("window=$t_start:$t_end mode=$mode S_reference=$s_reference seed=0x$(string(seed, base = 16)) trade252=$trade252")
-println("posterior_tol=$posterior_tol posterior_max_cells=$posterior_max_cells max_scenarios=$max_scenarios weight_tol=$weight_tol utility_tol=$utility_tol kelly_tol=$kelly_tol mu_qmc=$mu_qmc mu_chisq_qmc=$mu_chisq_qmc")
-println("Historical forecasts use their own causal preprocessing; exact forecast reuse=$reuse_forecasts checkpoint=$checkpoint resume=$resume")
+println("posterior_tol=$posterior_tol posterior_max_cells=$posterior_max_cells min_scenarios=$min_scenarios max_scenarios=$max_scenarios weight_tol=$weight_tol utility_tol=$utility_tol kelly_tol=$kelly_tol mu_qmc=$mu_qmc mu_chisq_qmc=$mu_chisq_qmc")
+println("Historical forecasts use their own causal preprocessing; exact forecast reuse=$reuse_forecasts selective=$selective_forecasts workers=$forecast_workers checkpoint=$checkpoint resume=$resume")
 
 # ---------------------------------------------------------------------------
 # 主入口：run_gate0_backtest
@@ -199,12 +207,15 @@ res = try
                          posterior_tol = posterior_tol,
                          posterior_max_cells = posterior_max_cells,
                          max_scenarios = max_scenarios,
+                         min_scenarios = min_scenarios,
                          weight_tol = weight_tol,
                          utility_tol = utility_tol,
                          kelly_tol = kelly_tol,
                          mu_qmc = mu_qmc,
                          mu_chisq_qmc = mu_chisq_qmc,
                          reuse_forecasts = reuse_forecasts,
+                         selective_forecasts = selective_forecasts,
+                         forecast_workers = forecast_workers,
                          checkpoint = checkpoint, resume = resume,
                          max_new_days = max_new_days,
                          max_new_forecasts = max_new_forecasts,

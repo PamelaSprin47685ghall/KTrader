@@ -190,24 +190,49 @@ end
 
 # One owner for causal preprocessing. In particular, a forecast made at `origin`
 # must not use the active set or any ruler estimated at a later decision date.
-function _response_prefix(mf::MarketFacts, el::Eligibility, origin::Int)
+function _response_prefix(mf::MarketFacts, el::Eligibility, origin::Int;
+                          compact::Bool=false,
+                          prepared=nothing)
     1 <= origin <= size(mf.observed, 1) ||
         throw(ArgumentError("_response_prefix: origin outside market history"))
     act = findall(view(el.model_admitted, origin, :))
     isempty(act) && return nothing
-    signal = ifelse.(mf.observed[1:origin, act], mf.adj[1:origin, act], NaN)
-    xlog = log.(signal)
-    firsts = [findfirst(isfinite, view(xlog, :, j)) for j in eachindex(act)]
-    all(!isnothing, firsts) || error("_response_prefix: admitted asset has no price")
-    s1 = vec(ruler(xlog, Int[i for i in firsts])[:, 1])
-    r = fill(NaN, origin, length(act))
-    if origin > 1
-        r[2:end, :] .= diff(xlog; dims=1)
+    if prepared === nothing
+        signal = ifelse.(mf.observed[1:origin, act], mf.adj[1:origin, act], NaN)
+        xlog = log.(signal)
+        firsts = [findfirst(isfinite, view(xlog, :, j)) for j in eachindex(act)]
+        all(!isnothing, firsts) || error("_response_prefix: admitted asset has no price")
+        s1 = vec(ruler(xlog, Int[i for i in firsts])[:, 1])
+        r = fill(NaN, origin, length(act))
+        if origin > 1
+            r[2:end, :] .= diff(xlog; dims=1)
+        end
+        obs = isfinite.(r)
+    else
+        # Exact immutable log-price and adjacent-return arrays. All views are
+        # truncated to `origin`, including ruler and feature construction.
+        # This never freezes the date-specific ruler or current active set.
+        (prepared.market === mf && prepared.eligibility === el) ||
+            throw(ArgumentError("prepared market belongs to another history"))
+        xlog = view(prepared.market_logs,1:origin,act)
+        s1 = vec(ruler(xlog,prepared.first_seen[act])[:,1])
+        r = view(prepared.market_returns,1:origin,act)
+        obs = view(prepared.market_return_mask,1:origin,act)
     end
-    obs = isfinite.(r)
     E = domain_mode_basis(length(act))
-    mp = build_mode_problem(r, Matrix{Bool}(obs), s1, E; dc=true)
+    mp = build_mode_problem(r, Matrix{Bool}(obs), s1, E;
+                            dc=true, compact=compact)
     rows = Int[s for s in WARMUP:(origin-1) if any(view(obs, s+1, :))]
+    if compact
+        # Prequential history consumes only the training design/targets and
+        # the forecast point. All retained matrices in `mp` (cumulative
+        # paths, cross-field, full path basis) are otherwise dead after this
+        # point. Release them BEFORE the expensive posterior quadrature, so
+        # two CPU workers do not retain several copies of a T×14N design.
+        return (; act, s1, E, rows,
+                Xtr=mp.X[rows, :], Ytr=mp.Y[rows, :],
+                xnow=vec(mp.X_full[origin, :]))
+    end
     (; act, s1, E, mp, rows, obs)
 end
 
@@ -226,9 +251,33 @@ mutable struct _ForecastCache
     on_update::Function
     hits::Int
     additions::Int
+    market_logs::Matrix{Float64}
+    market_returns::Matrix{Float64}
+    market_return_mask::BitMatrix
+    first_seen::Vector{Int}
+    workers::Int
+    max_new_forecasts::Union{Nothing,Int}
+    selective::Bool
 end
-_ForecastCache(mf, el, options) =
-    _ForecastCache(mf, el, options, Dict{Int,_ForecastValue}(), () -> nothing, 0, 0)
+function _ForecastCache(mf::MarketFacts, el::Eligibility, options)
+    T,N = size(mf.observed)
+    logs = fill(NaN,T,N)
+    ret = fill(NaN,T,N)
+    rm = falses(T,N)
+    first_seen = zeros(Int,N)
+    for j in 1:N, t in 1:T
+        if mf.observed[t,j]
+            logs[t,j] = log(mf.adj[t,j])
+            first_seen[j] == 0 && (first_seen[j] = t)
+        end
+        if t>1 && mf.observed[t-1,j] && mf.observed[t,j]
+            ret[t,j] = logs[t,j]-logs[t-1,j]
+            rm[t,j] = true
+        end
+    end
+    _ForecastCache(mf,el,options,Dict{Int,_ForecastValue}(),() -> nothing,
+                   0,0,logs,ret,rm,first_seen,1,nothing,false)
+end
 
 function _cache_forecast!(cache::_ForecastCache, origin::Int, forecast)
     fresh = !haskey(cache.entries, origin)
@@ -255,20 +304,24 @@ numerical integration failures are errors, not statistical missing observations.
 """
 function _historical_forecast(mf::MarketFacts, el::Eligibility, origin::Int;
                               tol::Float64=1e-6, max_cells::Int=2048,
-                              u_span::Float64=5.0)
-    prep = _response_prefix(mf, el, origin)
+                              u_span::Float64=5.0,
+                              preprocessed::Union{Nothing,_ForecastCache}=nothing)
+    prep = _response_prefix(mf, el, origin;
+                            compact=true,prepared=preprocessed)
     (prep === nothing || length(prep.rows) < 2) && return nothing
-    local post
+    local mean_mode
     try
-        post = fit_full_posterior(prep.mp.X[prep.rows, :], prep.mp.Y[prep.rows, :];
-                                  tol=tol, max_cells=max_cells, u_span=u_span)
+        mean_mode = fit_full_posterior(prep.Xtr, prep.Ytr;
+                                       tol=tol, max_cells=max_cells, u_span=u_span,
+                                       mean_at=prep.xnow)
     catch err
         if err isa ErrorException && occursin("posterior improper", err.msg)
             return nothing
         end
         rethrow()
     end
-    _posterior_log_forecast(post, prep, origin)
+    (; active=copy(prep.act),
+       mean_log_return=prep.s1 .* (prep.E * mean_mode))
 end
 
 """Prequential surprises: make the forecast at u-1, then observe the real
@@ -281,10 +334,28 @@ function _market_prequential_residuals(mf::MarketFacts, el::Eligibility,
                                        s1::Vector{Float64};
                                        tol::Float64=1e-6, max_cells::Int=2048,
                                        u_span::Float64=5.0,
+                                       focus_risk::Union{Nothing,Vector{Int}}=nothing,
                                        forecast_cache::Union{Nothing,_ForecastCache}=nothing)
     out = fill(NaN, length(row_ids), length(act))
     local_col = Dict(j => k for (k, j) in enumerate(act))
+    # A scenario innovation is drawn only from a jointly observed and
+    # PREVIOUSLY PREDICTED residual vector on the risk domain R. For a given R,
+    # all nonjoint dates have exactly zero mass in the empirical innovation
+    # measure (VI D-054/D-055). Avoid fitting their expensive hyperposteriors;
+    # the underlying prediction, ruler, history and potential R are unchanged.
+    if focus_risk !== nothing
+        isempty(focus_risk) && throw(ArgumentError("focus_risk may not be empty"))
+        length(unique(focus_risk)) == length(focus_risk) ||
+            throw(ArgumentError("focus_risk must be unique"))
+        all(j -> j in act, focus_risk) ||
+            throw(ArgumentError("focus_risk must be drawn from today's active assets"))
+    end
     for (i, u) in enumerate(row_ids)
+        if focus_risk !== nothing &&
+           !all(j -> mf.observed[u-1,j] && mf.observed[u,j] &&
+                     el.model_admitted[u-1,j], focus_risk)
+            continue
+        end
         if forecast_cache !== nothing && haskey(forecast_cache.entries, u-1)
             forecast_cache.hits += 1
             forecast = forecast_cache.entries[u-1]
@@ -304,6 +375,44 @@ function _market_prequential_residuals(mf::MarketFacts, el::Eligibility,
         end
     end
     out
+end
+
+"""A workload-only lower risk domain used to prepare eligible joint forecasts.
+
+The raw joint count is an UPPER bound on the eventual residual rank. Any
+candidate domain with fewer joint rows than coordinates cannot be full-rank,
+regardless of posterior values. We remove minimum-covered free assets only
+to identify which histories must be prepared. The actual risk-domain choice
+remains entirely with the two `resolve_risk_domain` calls in the driver.
+"""
+function _forecast_risk_floor(row_ids::Vector{Int},
+                              row_masks::Vector{BitVector},
+                              free_act::Vector{Int},
+                              locked_act::Vector{Int},
+                              R_initial::Vector{Int}, t::Int,
+                              el::Eligibility, act::Vector{Int})
+    R = copy(R_initial)
+    free_now = sort(intersect(free_act,R))
+    peeled = Int[]
+    joint_count(R0) = isempty(R0) ? length(row_ids) :
+        count(i -> row_ids[i] <= t &&
+              all(j -> row_masks[i][j] &&
+                       el.model_admitted[row_ids[i]-1,act[j]],R0),
+              eachindex(row_ids))
+    while joint_count(R) < length(R) && !isempty(free_now)
+        counts = [count(i -> row_ids[i] <= t && row_masks[i][j],
+                        eachindex(row_ids)) for j in free_now]
+        _, which = findmin(counts)
+        j = free_now[which]
+        push!(peeled,j)
+        deleteat!(free_now,which)
+        R = sort(union(free_now,locked_act))
+    end
+    # If locked assets make full rank impossible, only the driver's T4 path
+    # can decide how to maintain the account. Do not fabricate residuals.
+    joint_count(R) >= length(R) ||
+        error("innovation coverage failure: insufficient joint observations for locked risk")
+    R, peeled
 end
 
 """
@@ -483,6 +592,40 @@ function single_day_decision(mf::MarketFacts, el::Eligibility,
     N_R = length(R_act)
     dropped_free_univ = Int[act[j] for j in dropped_free_act]
 
+    # Exact joint-risk workload pruning. Dates that did not have a genuine
+    # consecutive price AND a contemporaneously admitted model for every
+    # candidate risk asset cannot enter the innovation joint sample. The
+    # structural rank bound anticipates the young-IPO case (e.g. 65 risks
+    # but <65 joint return rows) without changing either risk-domain gate.
+    forecast_floor = R_act
+    if forecast_cache !== nothing && forecast_cache.selective
+        forecast_floor, peeled = _forecast_risk_floor(row_ids,row_masks,
+                                  free_act,locked_act,R_act,t,el_t,act)
+        isempty(forecast_floor) && error("selective prequential has empty risk floor")
+        if !isempty(peeled)
+            counts = [count(i -> row_masks[i][j],eachindex(row_ids))
+                      for j in R_act]
+            after = [counts[findfirst(==(j),R_act)] for j in forecast_floor]
+            before = [counts[findfirst(==(j),R_act)] for j in peeled]
+            # If the rank-forced peel is not clearly identifiable from
+            # contemporary observations, the exact full-history reference is
+            # safer than changing the free-asset removal order through a
+            # subset-only coverage report.
+            if isempty(after) || minimum(after)-maximum(before) < WARMUP
+                forecast_floor = R_act
+            end
+        end
+        if forecast_floor != R_act &&
+           !all(j -> j in R_act, forecast_floor)
+            error("selective forecast floor is outside initial risk domain")
+        end
+        required = act[forecast_floor]
+        _prime_historical_forecasts!(forecast_cache,t;
+              required_universe=required,
+              workers=forecast_cache.workers,
+              max_new_forecasts=forecast_cache.max_new_forecasts)
+    end
+
     # --- 步骤 7：full posterior（Π(b₀,G,α|H)——完整 quadrature，D-034/D-038） ---
     # posterior_tol/posterior_max_cells 透传（P0-7 收口）：默认 1e-6/2048
     # 严格 reference 口径（D-066 初始候选；禁止由运行预算决定——运行超时
@@ -507,6 +650,9 @@ function single_day_decision(mf::MarketFacts, el::Eligibility,
                                           tol = posterior_tol,
                                           max_cells = posterior_max_cells,
                                           u_span = u_span,
+                                          focus_risk = forecast_cache !== nothing &&
+                                              forecast_cache.selective ?
+                                              act[forecast_floor] : nothing,
                                           forecast_cache = forecast_cache)
     # resid_all: n × N_act（asset 空间）。早期行（train 不足 A2 propriety）
     # 输出 NaN——残差不可定义。仅剔除整行都不可定义的行；局部缺失进入
@@ -534,6 +680,26 @@ function single_day_decision(mf::MarketFacts, el::Eligibility,
         R_act2, dropped2 = resolve_risk_domain(row_ids_ok, row_masks_ok,
                                                free_after_first, locked_act,
                                                t; residual_rows = resid)
+        if forecast_cache !== nothing && forecast_cache.selective &&
+           R_act2 != forecast_floor
+            # Fail-safe: if rank/coverage chooses another R, the previously
+            # ignored nonjoint rows may become meaningful. Rebuild the full
+            # reference residual history before final risk-domain selection.
+            # Never adopt a choice made on a partial coverage report.
+            resid_all = _market_prequential_residuals(mf_t, el_t, row_ids,
+                         act,s1_act;tol=posterior_tol,
+                         max_cells=posterior_max_cells,u_span=u_span,
+                         forecast_cache=forecast_cache)
+            keep_res = Int[i for i in 1:size(resid_all,1)
+                           if any(isfinite,view(resid_all,i,:))]
+            resid = resid_all[keep_res,:]
+            row_ids_ok = row_ids[keep_res]
+            row_masks_ok = [BitVector(row_masks[i] .&
+                            isfinite.(view(resid_all,i,:))) for i in keep_res]
+            R_act2,dropped2 = resolve_risk_domain(row_ids_ok,row_masks_ok,
+                                   free_after_first,locked_act,t;
+                                   residual_rows=resid)
+        end
         R_act = R_act2
         append!(dropped_free_act, dropped2)
         N_R = length(R_act)

@@ -52,9 +52,22 @@
 # error，不返回 heuristic 权重。
 # =============================================================================
 
-using Convex
-using Clarabel
 using LinearAlgebra
+
+# The historical prequential forecast pipeline uses no conic solver. Eagerly
+# loading Convex/Clarabel at every checkpoint-resume starts a large Julia JIT
+# and dependency precompile before the first historical forecast is computed.
+# Defer imports to the first actual Kelly decision. The exact same conic
+# programs remain in _cash_kelly_solve and canonical tie-breaking; no change
+# to the objective, feasible set, numerical tolerances or solver fallback.
+const _KELLY_CONIC_IMPORTED = Ref(false)
+function _ensure_kelly_conic_backend!()
+    _KELLY_CONIC_IMPORTED[] && return nothing
+    @eval using Convex
+    @eval using Clarabel
+    _KELLY_CONIC_IMPORTED[] = true
+    nothing
+end
 
 """
     cash_kelly_inputs(X, budget, base) -> Vector{Float64}
@@ -420,6 +433,30 @@ function _kelly_ipm_barrier(A::Matrix{Float64}, b::Vector{Float64},
     (phi, true)
 end
 
+# The same full log-barrier evaluated with a BLAS matrix-vector product.
+# Armijo previously repeated S×m scalar multiplication on every trial step,
+# dominating wall time after the Hessian had already been converted to GEMM.
+# Reuse caller-owned wealth workspace, leaving the certified objective and
+# line-search inequality unchanged.
+function _kelly_ipm_barrier_blas!(scratch::Vector{Float64},
+                                  A::Matrix{Float64}, b::Vector{Float64},
+                                  w::Vector{Float64}, mu::Float64)
+    S,m = size(A)
+    mul!(scratch,A,w)
+    logsum=0.0
+    @inbounds for s in 1:S
+        z=scratch[s]+b[s]
+        (isfinite(z) && z>0.0) || return (NaN,false)
+        logsum+=log(z)
+    end
+    phi=logsum/S
+    for i in 1:m
+        (isfinite(w[i]) && w[i]>0.0) || return (NaN,false)
+        phi+=mu*log(w[i])
+    end
+    (phi,true)
+end
+
 """
     _cash_kelly_ipm(Xt, bt, cash_col, budget, tol) -> NamedTuple
 
@@ -432,7 +469,7 @@ LOGSUM-SIMPLEX-IPM-1 核心。增广 A = [Xt cash_col]、base = bt。返回
 """
 function _cash_kelly_ipm(Xt::Matrix{Float64}, bt::Vector{Float64},
                           cash_col::Vector{Float64}, budget::Float64,
-                          tol::Float64)
+                          tol::Float64; blas_scan::Bool=true)
     S, n = size(Xt)
     m = n + 1
     (isfinite(budget) && budget > 0.0) ||
@@ -455,45 +492,80 @@ function _cash_kelly_ipm(Xt::Matrix{Float64}, bt::Vector{Float64},
     iters = 0
     nu = NaN
 
+    # Full Hessian = A' * Diagonal(1 ./ wealth.^2) * A / S.
+    # Compute it with an exact BLAS GEMM (not a diagonal approximation): the
+    # former triple Julia loop took O(S*m²) scalar dispatches per IPM step.
+    # Keep the original scalar loop as an oracle for numerical cross-checks.
+    zs_vec = Vector{Float64}(undef,S)
+    invz_vec = similar(zs_vec)
+    scaled_A = blas_scan ? similar(A) : Matrix{Float64}(undef,0,0)
+    g_work = zeros(m)
+    H_work = zeros(m,m)
+    barrier_work = blas_scan ? Vector{Float64}(undef,S) : Float64[]
+
     for _outer in 1:_KELLY_IPM_MAX_OUTER
         for _inner in 1:_KELLY_IPM_MAX_NEWTON
             iters += 1
 
             # ---- 一遍扫描：g、H（下三角）、Σ log z ----
-            g = zeros(m)
-            H = zeros(m, m)
+            g = g_work
+            H = H_work
+            fill!(g,0.0)
+            fill!(H,0.0)
             logsum = 0.0
             scan_ok = true
-            for s in 1:S
-                zs = b[s]
-                for i in 1:m
-                    zs += A[s, i] * w[i]
+            if blas_scan
+                mul!(zs_vec,A,w)
+                @inbounds for s in 1:S
+                    zs = zs_vec[s] + b[s]
+                    if !(isfinite(zs) && zs > 0.0)
+                        scan_ok = false
+                        break
+                    end
+                    logsum += log(zs)
+                    invz_vec[s] = inv(zs)
                 end
-                if !(isfinite(zs) && zs > 0.0)
-                    scan_ok = false
-                    break
+                if scan_ok
+                    mul!(g,transpose(A),invz_vec)
+                    g ./= S
+                    @inbounds for j in 1:m, s in 1:S
+                        scaled_A[s,j] = A[s,j]*invz_vec[s]
+                    end
+                    mul!(H,transpose(scaled_A),scaled_A)
+                    H ./= S
                 end
-                logsum += log(zs)
-                invz = 1.0 / zs
-                for i in 1:m
-                    ai = A[s, i]
-                    g[i] += ai * invz
-                    for j in 1:i
-                        H[i, j] += ai * A[s, j] * invz * invz
+            else
+                for s in 1:S
+                    zs = b[s]
+                    for i in 1:m
+                        zs += A[s, i] * w[i]
+                    end
+                    if !(isfinite(zs) && zs > 0.0)
+                        scan_ok = false
+                        break
+                    end
+                    logsum += log(zs)
+                    invz = 1.0 / zs
+                    for i in 1:m
+                        ai = A[s, i]
+                        g[i] += ai * invz
+                        for j in 1:i
+                            H[i, j] += ai * A[s, j] * invz * invz
+                        end
                     end
                 end
+                g ./= S
+                for i in 1:m
+                    for j in (i + 1):m
+                        H[i, j] = H[j, i]
+                    end
+                end
+                H ./= S
             end
             if !scan_ok
                 return (; w_val=w, converged=false, iters=iters,
                         reason=:nonfinite_wealth)
             end
-            g ./= S
-            for i in 1:m
-                for j in (i + 1):m
-                    H[i, j] = H[j, i]
-                end
-            end
-            H ./= S
             objective_now = logsum / S
             phi_cur = objective_now
             for i in 1:m
@@ -568,7 +640,9 @@ function _cash_kelly_ipm(Xt::Matrix{Float64}, bt::Vector{Float64},
                 for i in 1:m
                     w_new[i] = w[i] + alpha * dw[i]
                 end
-                (phi_try, ok_try) = _kelly_ipm_barrier(A, b, w_new, mu)
+                (phi_try, ok_try) = blas_scan ?
+                    _kelly_ipm_barrier_blas!(barrier_work,A,b,w_new,mu) :
+                    _kelly_ipm_barrier(A,b,w_new,mu)
                 if ok_try && isfinite(phi_try) &&
                    phi_try >= phi_cur - 1e-10 * (1.0 + abs(phi_cur))
                     accepted = true
@@ -646,6 +720,16 @@ function _cash_kelly_solve(Xt::Matrix{Float64}, bt::Vector{Float64},
         end
     end
 
+    # The native certified IPM has no dependency on Convex/Clarabel. Import
+    # the conic stack ONLY when native IPM actually needs a solver fallback.
+    # invokelatest handles Julia world-age after the on-demand @eval import.
+    _ensure_kelly_conic_backend!()
+    Base.invokelatest(_cash_kelly_solve_clarabel,Xt,bt,cash_col,budget,tol)
+end
+
+function _cash_kelly_solve_clarabel(Xt::Matrix{Float64},bt::Vector{Float64},
+                                    cash_col::Vector{Float64},budget::Float64,
+                                    tol::Float64)
     # ---- Clarabel reference/回退路径（原实现逐字保留）----
     S, n = size(Xt)
     m = n + 1
@@ -842,8 +926,12 @@ function _cash_kelly_finish_tiebreak(X::Matrix{Float64}, pre, mid)
     w_cash = mid.w_cash
     cert = mid.cert
     if mid.tie_eps > 0 && !mid.skip_tb
-        tb = _cash_kelly_canonical_tiebreak(X, mid.b, mid.budget, mid.cert.objective,
-                                            mid.w_val, Float64(mid.tie_eps), mid.tol)
+        tb = _cash_kelly_canonical_vertex(X, mid.b, mid.budget,
+                          mid.cert.objective, mid.w_val,
+                          Float64(mid.tie_eps), mid.tol)
+        tb === nothing && (tb = _cash_kelly_canonical_tiebreak(
+                   X, mid.b, mid.budget, mid.cert.objective,
+                   mid.w_val, Float64(mid.tie_eps), mid.tol))
         if tb !== nothing
             w_risky = tb[1][1:n]
             w_cash = tb[1][n + 1]
@@ -853,6 +941,97 @@ function _cash_kelly_finish_tiebreak(X::Matrix{Float64}, pre, mid)
     (w_risky, w_cash, cert)
 end
 
+"""
+    _cash_kelly_canonical_vertex(...) -> nothing or (w, original_certificate)
+
+Exact *certified* stage-2 and stage-3 canonical solution for a strict
+single-asset winner. For the utility upper-level set U(w) >= Ustar-epsilon,
+maximising cash is a convex problem. If (i) U(e_j) >= threshold,
+(ii) U(a*e_j+(budget-a)*cash) = threshold, and (iii) at that boundary
+g_j > max(g_cash,g_other), then the Lagrange multiplier
+lambda = 1/(g_j-g_cash) > 0 gives the stage-2 global KKT conditions.
+Strict g_j > g_other also proves that this boundary is the *only* feasible
+risky allocation at the maximum cash weight, completing stage 3.
+
+All checks use the original scenario log objective, the original tie epsilon,
+and the original Kelly certificate. If the proof is inconclusive, fall back
+to the unchanged two-stage conic solver. There is no approximation or new
+portfolio preference.
+"""
+function _cash_kelly_canonical_vertex(X::Matrix{Float64},
+                                       b::Vector{Float64},
+                                       budget::Float64,
+                                       Ustar::Float64,
+                                       w_primary::Vector{Float64},
+                                       tie_eps::Float64,
+                                       tol::Float64)
+    S,n=size(X)
+    n>=2 && length(w_primary)==n+1 && tie_eps>0 || return nothing
+    j=argmax(view(w_primary,1:n))
+    threshold=Ustar-tie_eps
+    util(a) = begin
+        v=0.0
+        @inbounds for s in 1:S
+            wealth=b[s]+budget+a*(X[s,j]-1)
+            (isfinite(wealth) && wealth>0) || return -Inf
+            v+=log(wealth)
+        end
+        v/S
+    end
+    util(budget) >= threshold || return nothing
+    util(0.0) < threshold || return nothing  # handled by cash-only shortcut
+    lo,hi=0.0,budget
+    for _ in 1:66
+        mid=0.5*(lo+hi)
+        if util(mid) >= threshold
+            hi=mid
+        else
+            lo=mid
+        end
+    end
+    # The bisection utility and original certificate use different floating
+    # accumulation orders. Move less than 1.2e-13 of budget into the winner
+    # to stay strictly inside the ORIGINAL utility superlevel set. The
+    # supporting-hyperplane check below bounds any change in the canonical
+    # cash and stage-3 risky weights to at most 1e-11.
+    a=min(budget,hi+512*eps(Float64)*max(1.0,budget))
+    w=zeros(n+1)
+    w[j]=a
+    w[end]=budget-a
+    cert=cash_kelly_certificate(X,w[1:n],w[end];base=b,budget=budget)
+    cash_kelly_certified(cert;tol=tol) || return nothing
+    # The candidate must remain on the utility boundary; otherwise a more
+    # cash-heavy feasible candidate could exist.
+    isfinite(cert.objective) && cert.objective >= threshold || return nothing
+    inv_wealth=Vector{Float64}(undef,S)
+    @inbounds for s in 1:S
+        inv_wealth[s]=1/(b[s]+budget+a*(X[s,j]-1))
+    end
+    gradient=(X' * inv_wealth)./S
+    g_j=gradient[j]
+    g_cash=sum(inv_wealth)/S
+    g_j > g_cash + 1e-8 || return nothing
+    # Tight strict inequality is a sufficient (not necessary) numerical
+    # proof of the active set; inconclusive or tied cases use the conic path.
+    runnerup_margin=Inf
+    @inbounds for k in 1:n
+        k==j && continue
+        g_j > gradient[k]+1e-8 || return nothing
+        runnerup_margin=min(runnerup_margin,g_j-gradient[k])
+    end
+    slack=cert.objective-threshold
+    # Global concavity gives the following strict upper bounds for ANY
+    # other point in the utility superlevel set. They certify native
+    # canonicalisation accuracy in the original numerical objective.
+    slack/(g_j-g_cash) <= 1e-11 || return nothing
+    # This is a L1 weight error bound, not a relaxed utility tolerance.
+    # 1e-9 is 100,000 times tighter than the production 1e-4 weight
+    # convergence certificate. Near-indifferent, full-dimensional assets
+    # otherwise magnify sub-ulp utility rounding into a spurious rejection.
+    slack/runnerup_margin <= 1e-9 || return nothing
+    (w,cert)
+end
+
 function _cash_kelly_finish(X::Matrix{Float64}, pre)
     # B2B-SPLIT-2 修复：early 快照（退化预算直通）不得进入 tie-break 段——
     # 恢复 B2B-SPLIT-1 的短路（重构时遗漏；与「组合 = 原 cash_kelly 逐点一致」
@@ -860,6 +1039,30 @@ function _cash_kelly_finish(X::Matrix{Float64}, pre)
     pre.early === nothing || return pre.early
     mid = _cash_kelly_finish_main(X, pre)
     _cash_kelly_finish_tiebreak(X, pre, mid)
+end
+
+# The adaptive scenario integrator cannot know that a coarse quadrature is
+# stable until it has compared it with finer quadratures. Keep the ORIGINAL
+# certified primary IPM, scale-retry and Newton-polish chain, but defer the
+# expensive stage-2/3 canonicalisation until a candidate numerical refinement
+# has passed its preliminary A/B tests. The final decision must still pass
+# the original canonical A/B/C tests before it can be returned.
+function _cash_kelly_staged_primary(X::Matrix{Float64};
+                         base::Union{Nothing,Vector{Float64}}=nothing,
+                         budget=1.0, tol=1e-8, tie_eps::Real=1e-8)
+    pre=_cash_kelly_prelude(X;base=base,budget=budget,tol=tol,tie_eps=tie_eps)
+    if pre.early !== nothing
+        risky,cash,cert=pre.early
+        return (;risky,cash,cert,pre,mid=nothing)
+    end
+    mid=_cash_kelly_finish_main(X,pre)
+    (;risky=mid.w_risky,cash=mid.w_cash,cert=mid.cert,pre,mid)
+end
+
+function _cash_kelly_staged_canonical(X::Matrix{Float64},stage)
+    stage.mid===nothing &&
+        return (stage.risky,stage.cash,stage.cert)
+    _cash_kelly_finish_tiebreak(X,stage.pre,stage.mid)
 end
 
 function _cash_kelly_prelude_prep(X::Matrix{Float64};
@@ -882,6 +1085,25 @@ function _cash_kelly_prelude_prep(X::Matrix{Float64};
                   tol = Float64(tol), tie_eps = Float64(tie_eps),
                   scale_retry_diag = scale_retry_diag, cs = Float64[],
                   scale_preferred = false)
+    end
+    # Certified analytical canonical cash shortcut. Concavity gives a strict
+    # upper bound U* - U(cash) <= objective_gap(cash). If that bound is already
+    # <= tie_eps, the all-cash vertex lies in the SAME canonical tie set.
+    # It maximises cash exactly (w_cash=budget), and its risky L2 is zero:
+    # both canonical stages have the UNIQUE known solution without a conic
+    # solve. This never chooses cash from market performance or a heuristic;
+    # it uses the existing ORIGINAL objective certificate.
+    if tie_eps > 0
+        cashw = zeros(n)
+        cashcert = cash_kelly_certificate(X,cashw,Float64(budget);
+                                             base=b,budget=budget)
+        if cash_kelly_certified(cashcert;tol=tol) &&
+           cashcert.objective_gap <= tie_eps
+            return (; early=(cashw,Float64(budget),cashcert),
+                      b=b,budget=Float64(budget),tol=Float64(tol),
+                      tie_eps=Float64(tie_eps),scale_retry_diag=scale_retry_diag,
+                      cs=Float64[],scale_preferred=false)
+        end
     end
     # 行尺度规范化（纯数值；数学恒等，见 KELLY_NUMERICAL §2.1）。
     cs = Vector{Float64}(undef, S)
@@ -1022,6 +1244,15 @@ function cash_kelly(X::Matrix{Float64};
                     base::Union{Nothing,Vector{Float64}}=nothing,
                     budget=1.0, tol=1e-8, tie_eps::Real=1e-8,
                     scale_retry_diag::Union{Nothing,KellyScaleDiagnostics}=nothing)
+    _cash_kelly_loaded(X;
+                      base=base, budget=budget, tol=tol,
+                      tie_eps=tie_eps, scale_retry_diag=scale_retry_diag)
+end
+
+function _cash_kelly_loaded(X::Matrix{Float64};
+                            base::Union{Nothing,Vector{Float64}}=nothing,
+                            budget=1.0, tol=1e-8, tie_eps::Real=1e-8,
+                            scale_retry_diag::Union{Nothing,KellyScaleDiagnostics}=nothing)
     pre = _cash_kelly_prelude(X; base=base, budget=budget, tol=tol,
                               tie_eps=tie_eps, scale_retry_diag=scale_retry_diag)
     _cash_kelly_finish(X, pre)
@@ -1113,6 +1344,22 @@ function _cash_kelly_canonical_tiebreak(X::Matrix{Float64},
         return (w_tb, cert_tb)
     end
 
+    # Only genuinely nontrivial canonicalisation enters the conic backend;
+    # the all-cash certificate shortcut and n=1 analytic case do not load it.
+    _ensure_kelly_conic_backend!()
+    Base.invokelatest(_cash_kelly_canonical_tiebreak_conic,
+                      X,b,budget,Ustar,w_primary,tie_eps,tol)
+end
+
+function _cash_kelly_canonical_tiebreak_conic(X::Matrix{Float64},
+                                        b::Vector{Float64},
+                                        budget::Float64,
+                                        Ustar::Float64,
+                                        w_primary::Vector{Float64},
+                                        tie_eps::Float64,
+                                        tol::Float64)
+    S,n = size(X)
+    m = n+1
     X_aug = hcat(X, ones(S))
     U_lower = Ustar - tie_eps
 

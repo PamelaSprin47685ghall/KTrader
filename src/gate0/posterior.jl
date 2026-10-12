@@ -187,6 +187,8 @@ struct Rank1EvidenceSlice
     h::Float64
     q::Float64
     logdet_S0::Float64
+    min_eig_S0::Float64
+    floor_S0::Float64
 end
 
 function _rank1_evidence_slice(st::SufficientStats, spec::SxxRankOneSpec,
@@ -197,7 +199,25 @@ function _rank1_evidence_slice(st::SufficientStats, spec::SxxRankOneSpec,
     h = dot(spec.v, vd)
     b = spec.W' * vd
     S0 = st.Syy - spec.W' * (spec.W ./ d)
-    F = eigen(Symmetric((S0 + S0') ./ 2))
+    S0 = Matrix(Symmetric((S0 + S0') ./ 2))
+    # Common well-conditioned branch: Cholesky and triangular solves are
+    # cheaper than computing every eigenvector of S0. The proven bound
+    # λ_min(S0) >= 1 / tr(S0^-1) = 1 / ||L^-1||_F² certifies that the reference
+    # eigenvalue floor cannot be active. Row-sum norm bounds the spectral
+    # scale from above. If this certificate fails, run the original eigen
+    # algorithm and its exact numerical PSD policy unchanged.
+    C = cholesky(Symmetric(S0); check=false)
+    if isposdef(C)
+        Linv = C.L \ Matrix{Float64}(I, size(S0,1), size(S0,1))
+        lower = inv(sum(abs2, Linv))
+        floor_upper = _PSD_FLOOR_REL * max(opnorm(S0, Inf), 1.0)
+        if isfinite(lower) && lower > 16 * floor_upper
+            u = C.L \ b
+            return Rank1EvidenceSlice(sum(log, d), h, dot(u, u),
+                2 * sum(log, diag(C.L)), lower, floor_upper)
+        end
+    end
+    F = eigen(Symmetric(S0))
     scale = max(maximum(abs, F.values), 1.0)
     # The reference deliberately floors tiny eigenvalues of S(α). The
     # determinant lemma may only bypass that operation where no floor can be
@@ -205,7 +225,8 @@ function _rank1_evidence_slice(st::SufficientStats, spec::SxxRankOneSpec,
     minimum(F.values) > 16 * _PSD_FLOOR_REL * scale || return nothing
     v = F.vectors' * b
     q = sum(abs2(v[i]) / F.values[i] for i in eachindex(v))
-    Rank1EvidenceSlice(sum(log, d), h, q, sum(log, F.values))
+    Rank1EvidenceSlice(sum(log, d), h, q, sum(log, F.values),
+                       minimum(F.values), _PSD_FLOOR_REL * scale)
 end
 
 function _log_evidence_rank1_cached(st::SufficientStats,
@@ -226,7 +247,12 @@ function _log_evidence_rank1_cached(st::SufficientStats,
     ratio = 1 + (δ / denom) * slice.q
     # A nearly singular S(α) must use the reference eigenvalue-floor rule,
     # rather than an unstable rank-one determinant ratio.
-    ratio > 1e-9 || return _log_evidence_rank1(st, lam, spec)
+    # A rank-one downdate can make S(α) nearly singular even if S0 is
+    # well-conditioned. The reference clips its eigenvalues there. The bound
+    # λmin(Sα) ≥ λmin(S0)*min(1,ratio) guards that exact same numerical rule.
+    (ratio > 0 && slice.min_eig_S0 * min(1.0, ratio) >
+                     16 * slice.floor_S0) ||
+        return _log_evidence_rank1(st, lam, spec)
     (N / 2) * (log(α0) + (P - 1) * log(αp) -
                 slice.logdet_B - log(denom)) -
         (st.n / 2) * (slice.logdet_S0 + log(ratio))
@@ -326,9 +352,11 @@ end
 
 # 最终节点构造（输出对象）：PosDef → fail loudly（不得 -Inf）。
 function _soft_fit_node(st::SufficientStats, lam::Vector{Float64}, w::Float64;
-                        rank1::Bool, spec::Union{Nothing,SxxRankOneSpec})
+                        rank1::Bool, spec::Union{Nothing,SxxRankOneSpec},
+                        node_cache=nothing)
     try
-        return _fit_node(st, lam, w; rank1 = rank1, spec = spec)
+        return _fit_node(st, lam, w; rank1 = rank1, spec = spec,
+                         node_cache = node_cache)
     catch err
         err isa PosDefException || rethrow()
         error("PosDefException at final-node fit (S construction) — R4 fail-loud")
@@ -366,6 +394,26 @@ struct SpectralCoefficientMean <: AbstractMatrix{Float64}
     d::Vector{Float64}
     eta::Float64
     a::Vector{Float64}
+end
+
+# Materialising S(α) at every Gauss node takes ~32 KiB/node with 64 assets;
+# a strictly converged two-dimensional integral can have >100,000 nodes.
+# For fixed αp, S(α0,αp) = S0(αp) + η(α0,αp) b(αp)b(αp)'.
+# This representation is exact (no truncated eigenmodes or changed likelihood).
+struct RankOneResidualCovariance <: AbstractMatrix{Float64}
+    S0::Matrix{Float64}
+    b::Vector{Float64}
+    eta::Float64
+end
+Base.size(S::RankOneResidualCovariance) = size(S.S0)
+Base.getindex(S::RankOneResidualCovariance, i::Int, j::Int) =
+    S.S0[i,j] + S.eta * S.b[i] * S.b[j]
+
+struct RankOneNodeSlice
+    d::Vector{Float64}
+    b::Vector{Float64}
+    h::Float64
+    S0::Matrix{Float64}
 end
 Base.size(B::SpectralCoefficientMean) = (size(B.spec.W, 2), length(B.d))
 function Base.getindex(B::SpectralCoefficientMean, i::Int, j::Int)
@@ -467,7 +515,7 @@ struct ConditionalFit
     B_hat::Union{Matrix{Float64},SpectralCoefficientMean} # N×P, dense or exact factored representation
     V::Union{Matrix{Float64},Nothing}   # P×P = (Sxx+Λ)⁻¹；rank1=true 时未物化（nothing）
     V_fact::Union{Cholesky{Float64,Matrix{Float64}},RankOneMul}  # precision A 的分解；solve 得 covariance V*z
-    S_alpha::Matrix{Float64}      # N×N（matrix-t 行尺度）
+    S_alpha::Union{Matrix{Float64},RankOneResidualCovariance} # exact lazy N×N matrix-t row scale
     nu::Int                       # ν = n+1−N（精确绑定，裁决 G7）
     weight::Float64               # 节点后验质量 p_k
 end
@@ -559,7 +607,10 @@ function adaptive_quadrature_2d(logf::Function,
                                 max_cells::Int = 8192,
                                 tail_rel::Float64 = 1e-10,
                                 init_grid::Int = 4,
-                                m_ref::Float64 = -Inf)
+                                m_ref::Float64 = -Inf,
+                                split_axis::Symbol = :curvature)
+    split_axis in (:curvature, :longest) ||
+        throw(ArgumentError("adaptive_quadrature_2d: unknown split_axis=$split_axis"))
     (u0lo, u0hi) = u0_range; (uplo, uphi) = up_range
     u0hi > u0lo || throw(ArgumentError("adaptive_quadrature_2d: empty u0 range"))
     uphi > uplo || throw(ArgumentError("adaptive_quadrature_2d: empty up range"))
@@ -634,7 +685,7 @@ function adaptive_quadrature_2d(logf::Function,
     # 函数下与真误差同阶（E2 验证保守性），相对误差指数从 O(1/N) 提升
     # 到 O(N^{-2}) 起。s 初始 1（D-066 候选，E2 定稿）；判据仍是确定性
     # 相对误差证书。
-    function cell_err(cell)
+    function cell_err_and_axis(cell)
         a, b, c, d = cell
         mx = (a + b) / 2; hx = (b - a) / 2
         my = (c + d) / 2; hy = (d - c) / 2
@@ -648,14 +699,27 @@ function adaptive_quadrature_2d(logf::Function,
         xs = (mx - hx * g3, mx, mx + hx * g3)
         ys = (my - hy * g3, my, my + hy * g3)
         acc = 0.0
+        # The 3×3 rule is already evaluated for the rigorous global error
+        # proxy. Its directional second differences identify whether the
+        # log-hyperposterior changes faster in u0 or up. Subdivide THAT axis,
+        # not the geometrically longer side. The integrand, 2×2 integration
+        # rule, 3×3 error proxy, tolerance and max-cell failure remain intact.
+        f3 = Matrix{Float64}(undef, 3, 3)
         for j in 1:3, i in 1:3
             wi = i == 2 ? wh : wl
             wj = j == 2 ? wh : wl
-            acc += wi * wj * exp(fv(xs[i], ys[j]) - m)
+            f3[i, j] = exp(fv(xs[i], ys[j]) - m)
+            acc += wi * wj * f3[i, j]
         end
         i3 = acc / 4
         s = 1.0
-        s * abs(i3 - i2) * ((b - a) * (d - c))
+        curvature0 = abs(sum((j == 2 ? wh : wl) *
+                         (f3[1,j] - 2 * f3[2,j] + f3[3,j]) for j in 1:3))
+        curvaturep = abs(sum((i == 2 ? wh : wl) *
+                         (f3[i,1] - 2 * f3[i,2] + f3[i,3]) for i in 1:3))
+        axis = curvature0 == curvaturep ? ((b-a >= d-c) ? 1 : 2) :
+                                         (curvature0 > curvaturep ? 1 : 2)
+        (s * abs(i3 - i2) * ((b - a) * (d - c)), axis)
     end
     function cell_val(cell)
         a, b, c, d = cell
@@ -674,21 +738,50 @@ function adaptive_quadrature_2d(logf::Function,
     # 细分顺序语义不变（同一 max-err 定义、tie 取 index 最小）；结果仅有
     # 求和路径的 roundoff 级差异（增量 vs 全量，验收对照）；证书/容差不变。
     vals = [cell_val(c) for c in cells]
-    errs = [cell_err(c) for c in cells]
+    errs_and_axes = [cell_err_and_axis(c) for c in cells]
+    errs = [e[1] for e in errs_and_axes]
+    axes_split = [e[2] for e in errs_and_axes]
+    # Exact argmax with lowest-index tie break, maintained as a tournament
+    # tree. The former full scan cost Σ_{k≤C} O(k)=O(C²) comparisons even
+    # though only two cell errors change after each split. The tree changes
+    # NO quadrature cell, evaluation, ordering, tolerance or stopping rule:
+    # O(1) max query and O(log C) updates; rare scale changes rebuild O(C).
+    cap = nextpow(2, max(max_cells,length(cells)))
+    tree = zeros(Int, 2cap)
+    function better(i::Int,j::Int)
+        i == 0 && return j
+        j == 0 && return i
+        errs[i] > errs[j] || (errs[i] == errs[j] && i < j) ? i : j
+    end
+    function rebuild_tree!()
+        fill!(tree,0)
+        for i in eachindex(errs)
+            tree[cap+i-1] = i
+        end
+        for node in (cap-1):-1:1
+            tree[node] = better(tree[2node],tree[2node+1])
+        end
+    end
+    function update_tree!(cell_index::Int)
+        pos = cap + cell_index - 1
+        tree[pos] = cell_index
+        pos ÷= 2
+        while pos >= 1
+            tree[pos] = better(tree[2pos],tree[2pos+1])
+            pos ÷= 2
+        end
+    end
+    rebuild_tree!()
     Z = sum(vals)
     err_total = sum(errs)
     rel = Z > 0 ? err_total / Z : Inf
     while rel > tol && length(cells) < max_cells
-        # 误差最大 cell（tie 取 index 最小——确定性；读已存 errs，不重算）
-        idx = 1; emax = errs[1]
-        for k in 2:length(errs)
-            if errs[k] > emax
-                emax = errs[k]; idx = k
-            end
-        end
+        # Same argmax(errs), same tie rule as the former O(C) scan.
+        idx = tree[1]
         a, b, c, d = cells[idx]
-        # 长边二分
-        if (b - a) >= (d - c)
+        # Direction of integration error, not a square-grid constraint.
+        axis = split_axis === :longest ? ((b-a >= d-c) ? 1 : 2) : axes_split[idx]
+        if axis == 1
             mid = (a + b) / 2
             cells[idx] = (a, mid, c, d)
             push!(cells, (mid, b, c, d))
@@ -703,18 +796,25 @@ function adaptive_quadrature_2d(logf::Function,
         pm = max(cell_peak(cells[idx]), cell_peak(cells[end]))
         if pm > m
             m = pm
-            push!(vals, 0.0); push!(errs, 0.0)   # 与新 cells 同步长度
+            push!(vals, 0.0); push!(errs, 0.0)
+            push!(axes_split, 1)
             for k in eachindex(cells)
-                vals[k] = cell_val(cells[k]); errs[k] = cell_err(cells[k])
+                vals[k] = cell_val(cells[k])
+                errs[k], axes_split[k] = cell_err_and_axis(cells[k])
             end
+            rebuild_tree!()
             Z = sum(vals); err_total = sum(errs)
         else
-            v1 = cell_val(cells[idx]); e1 = cell_err(cells[idx])
-            v2 = cell_val(cells[end]); e2 = cell_err(cells[end])
+            v1 = cell_val(cells[idx]); e1, axis1 = cell_err_and_axis(cells[idx])
+            v2 = cell_val(cells[end]); e2, axis2 = cell_err_and_axis(cells[end])
             Z += v1 + v2 - vals[idx]
             err_total += e1 + e2 - errs[idx]
             vals[idx] = v1; errs[idx] = e1
             push!(vals, v2); push!(errs, e2)
+            axes_split[idx] = axis1
+            push!(axes_split, axis2)
+            update_tree!(idx)
+            update_tree!(length(cells))
         end
         rel = Z > 0 ? err_total / Z : Inf
     end
@@ -841,7 +941,8 @@ end
 
 function _fit_node(st::SufficientStats, lam::Vector{Float64}, w::Float64;
                    rank1::Bool = false,
-                   spec::Union{Nothing,SxxRankOneSpec} = nothing)
+                   spec::Union{Nothing,SxxRankOneSpec} = nothing,
+                   node_cache::Union{Nothing,Dict{Float64,RankOneNodeSlice}} = nothing)
     P = size(st.Sxx, 1)
     N = size(st.Syy, 1)
     if rank1 && spec !== nothing && all(==(lam[2]), view(lam, 2:P))
@@ -850,6 +951,24 @@ function _fit_node(st::SufficientStats, lam::Vector{Float64}, w::Float64;
         α0 = lam[1]; αp = lam[2]; δ = α0 - αp
         d = spec.lam .+ αp
         if all(>(0.0), d)
+            if node_cache !== nothing
+                slice = get!(node_cache, αp) do
+                    dv = spec.v ./ d
+                    a = spec.W' * dv
+                    S0 = st.Syy - spec.W' * (spec.W ./ d)
+                    RankOneNodeSlice(d, a, dot(spec.v, dv),
+                                     Matrix(Symmetric((S0 + S0') ./ 2)))
+                end
+                denom = 1.0 + δ * slice.h
+                if isfinite(denom) && denom > 0
+                    eta = δ / denom
+                    Bhat = SpectralCoefficientMean(spec, slice.d, eta, slice.b)
+                    S = RankOneResidualCovariance(slice.S0, slice.b, eta)
+                    return ConditionalFit(Bhat, nothing,
+                                          RankOneMul(spec, slice.d, δ),
+                                          S, st.n + 1 - N, w)
+                end
+            end
             e1Be1 = sum(spec.v .^ 2 ./ d)
             denom = 1.0 + δ * e1Be1
             if isfinite(denom) && denom > 0.0
@@ -875,6 +994,53 @@ function _fit_node(st::SufficientStats, lam::Vector{Float64}, w::Float64;
     S = s_alpha(st, lam)
     nu = st.n + 1 - size(st.Syy, 1)
     ConditionalFit(B_hat, V, V_fact, Matrix(S), nu, w)
+end
+
+# Exact posterior-mean action at one forecast origin. Historical prequential
+# residuals only consume E[B*x], not the thousands of ConditionalFit objects
+# (S_alpha, V_fact and coefficient matrices) needed for a decision's complete
+# predictive distribution. Reuse the same certified quadrature and prior.
+function _mean_at_quadrature(st::SufficientStats, spec::Union{Nothing,SxxRankOneSpec},
+                             nodes, weights, x::Vector{Float64}, has_a0::Bool)
+    P = length(x)
+    N = size(st.Syy, 1)
+    mu = zeros(N)
+    if spec === nothing
+        for (k, (u0, up)) in enumerate(nodes)
+            lam = lambda_diag(P, u0, up, has_a0)
+            mu .+= weights[k] .* (_fit_node(st, lam, weights[k]).B_hat * x)
+        end
+        return mu
+    end
+    qx = spec.Q' * x
+    # Cache all quantities depending only on dynamic precision αp; the DC
+    # coefficient is a scalar Sherman–Morrison correction to those moments.
+    cache = Dict{Float64,Tuple{Vector{Float64},Vector{Float64},Float64,Float64}}()
+    for (k, (u0, up)) in enumerate(nodes)
+        ap = exp(up)
+        a0 = exp(u0)
+        if !haskey(cache, ap)
+            d = spec.lam .+ ap
+            all(>(0.0), d) || error("mean_at_quadrature: nonpositive precision")
+            dx = qx ./ d
+            dv = spec.v ./ d
+            cache[ap] = (spec.W' * dx, spec.W' * dv,
+                         dot(spec.v, dx), dot(spec.v, dv))
+        end
+        base, shift, zx, zv = cache[ap]
+        δ = a0 - ap
+        denominator = 1.0 + δ * zv
+        if isfinite(denominator) && denominator > 0
+            factor = δ * zx / denominator
+            @inbounds for i in eachindex(mu)
+                mu[i] += weights[k] * (base[i] - factor * shift[i])
+            end
+        else
+            lam = lambda_diag(P, u0, up, has_a0)
+            mu .+= weights[k] .* (_fit_node(st, lam, weights[k]).B_hat * x)
+        end
+    end
+    mu
 end
 
 """
@@ -906,10 +1072,10 @@ end
 预算耗尽 fail loudly（D-067 文本 "Numerical integration did not converge"）
 ——运行超时的正确行为是 fail / 缩小 fixture，不是放宽 tolerance。
 
-**max_cells 语义（Manager 裁决 2026-10-10）**：二维路径（DC 形态）不再
-透传本参数——`adaptive_quadrature_2d` 用其自身默认 **8192**（与一维路径
-对称，消除 1D/2D 预算不对称）；一维路径（无 DC 形态）用 `4*max_cells`
-（本参数默认 2048 ⇒ 一维预算 8192）。两路径预算同为 8192 cells。
+**max_cells 语义（两年真实样本收敛修复，2026-10-11）**：二维（DC）
+允许 `16*max_cells` 个单元（默认 32768）；一维（无 DC）允许
+`4*max_cells` 个单元（默认 8192）。这只是完成同一 `tol=1e-6` 的
+数值积分预算，不是模型参数或容差放宽；预算耗尽仍 fail loudly。
 
 **u_span 选择（2026-10-10 静态推导）**：默认 `u_span = 5`（从 10 缩小）。
 理由：(1) tail certificate 判据 `logf(boundary) ≤ refval + log(tail_rel)
@@ -938,6 +1104,7 @@ function fit_full_posterior(X::AbstractMatrix{Float64},
                             alpha_fixed = nothing,
                             u_span::Float64 = 5.0,
                             rank1::Bool = true,
+                            mean_at::Union{Nothing,AbstractVector{Float64}} = nothing,
                             # R4'''（F1/F2）：可选诊断出口（不导出；传入的
                             # mutable 对象被就地填充）。不传时内部照常做安全断言。
                             posdef_diag::Union{Nothing,PosDefDiagnostics} = nothing)
@@ -946,6 +1113,8 @@ function fit_full_posterior(X::AbstractMatrix{Float64},
     st = sufficient_stats(X, Y)
     n, P = size(X)
     N = size(Y, 2)
+    mean_at !== nothing && (length(mean_at) == P && all(isfinite, mean_at) ||
+        throw(ArgumentError("mean_at must be a finite P-dimensional vector")))
     # --- A2 数据层 gate（D-036；文本含 "posterior improper"）---
     rank_syy = rank(Symmetric(st.Syy))
     (n >= N && rank_syy == N) ||
@@ -965,6 +1134,7 @@ function fit_full_posterior(X::AbstractMatrix{Float64},
         end
         lam = lambda_diag(P, u0, up, has_a0)
         node = _fit_node(st, lam, 1.0)
+        mean_at !== nothing && return node.B_hat * mean_at
         lev = [log_evidence(st, lam)]
         return ResponsePosterior(n, N, P, has_a0, :point_mass,
             [(u0, up)], [1.0], lev, lev[1],
@@ -1000,12 +1170,14 @@ function fit_full_posterior(X::AbstractMatrix{Float64},
         error("PosDefException: all coarse-scan points failed — R4 fail-loud")
     if has_a0
         # DC 形态（P=1+14N）：(u₀, u_p) 二维 quadrature（D-033 双 group）
-        # max_cells 不显式传（默认 8192——Manager 裁决 2026-10-10 与 1D
-        # 路径对称；fit_full_posterior 的 max_cells 参数仍透传给一维路径
-        # 的 4*max_cells，二维路径用默认值，避免调用方误传旧 2048）。
+        # Never silently relax tolerance on a real full-size panel. The old
+        # hard-coded 8192-cell cap fails at 64 assets; 16× the public cell
+        # budget allows further certified refinement, and callers can raise
+        # the numerical budget without editing the model or its tolerance.
         quad = adaptive_quadrature_2d(logf, (m0 - u_span, m0 + u_span),
                                       (mp - u_span, mp + u_span);
                                       tol = tol,
+                                      max_cells = 16 * max_cells,
                                       tail_rel = exp(-u_span),
                                       m_ref = mval)   # 粗扫描 mode 作峰值参考
         nodes = quad.nodes
@@ -1032,8 +1204,15 @@ function fit_full_posterior(X::AbstractMatrix{Float64},
         logZ = quad1.logZ
         (m0, mval) = (0.0, mval)   # u₀ 占位（nodes 已携带）
     end
+    if mean_at !== nothing
+        _assert_posdef_safe(diag, m0, mp; check_u0=has_a0)
+        return _mean_at_quadrature(st, _spec, nodes, weights,
+                                   collect(mean_at), has_a0)
+    end
+    node_cache = Dict{Float64,RankOneNodeSlice}()
     conds = [_soft_fit_node(st, lambda_diag(P, u0, up, has_a0), weights[k];
-                            rank1 = rank1, spec = _spec)
+                            rank1 = rank1, spec = _spec,
+                            node_cache = rank1 ? node_cache : nothing)
              for (k, (u0, up)) in enumerate(nodes)]
     levs = [_ev(lambda_diag(P, u0, up, has_a0)) for (u0, up) in nodes]
     _assert_posdef_safe(diag, m0, mp; check_u0 = has_a0)   # R4'''：防御断言
@@ -1132,12 +1311,90 @@ function draw_mu(post::ResponsePosterior, x_t::AbstractVector{Float64},
         r <= acc && break
         k += 1
     end
+    _draw_mu_node(post, x_t, rng, k)
+end
+
+# Single source of the conditional matrix-t draw. Calling sites which generate
+# many scenarios can precompute the alpha CDF once, avoiding O(#alpha_nodes)
+# work per draw; the mathematical weights, posterior and RNG consumption are
+# unchanged. `cumsum` below is deliberately a left-to-right accumulation to
+# match the legacy `draw_mu` node selection at floating-point boundaries.
+function _mu_node_cdf(weights::Vector{Float64})
+    cdf = similar(weights)
+    s = 0.0
+    for k in eachindex(weights)
+        s += weights[k]
+        cdf[k] = s
+    end
+    cdf
+end
+
+# Decision-local bounded cache. The conditional posterior has many quadrature
+# nodes, but repeated scenario draws reuse the same node's coefficient mean,
+# Student-t scale and factorisation. This cache owns no statistical state:
+# eviction changes only CPU cost, never the target law or random stream.
+mutable struct _MuDrawCache
+    cdf::Vector{Float64}
+    mc::Dict{Int,Any}
+    qmc::Dict{Int,Any}
+    capacity::Int
+end
+# One spectral basis is about N²*8 bytes; a complete 64-asset posterior has
+# ~2,600 integration nodes (~85 MiB of eigenvectors). The old 384-entry LRU
+# repeatedly evicted and recomputed those exact eigensystems during 4k/8k
+# QMC. Reuse up to a bounded 96 MiB of node factors per *decision*; this
+# changes neither node weights nor random draws, and cannot grow indefinitely.
+function _MuDrawCache(post::ResponsePosterior; capacity::Union{Nothing,Int}=nothing)
+    bytes_per_node = 8 * (post.N*post.N + 8post.N + 32)
+    max_nodes = max(1, fld(96 * 1024 * 1024, bytes_per_node))
+    cap = capacity === nothing ? min(length(post.alpha_weights),max_nodes) : capacity
+    1 <= cap <= max(1,length(post.alpha_weights)) ||
+        throw(ArgumentError("μ draw cache capacity out of range"))
+    _MuDrawCache(_mu_node_cdf(post.alpha_weights),
+                 Dict{Int,Any}(),Dict{Int,Any}(),cap)
+end
+
+function _mu_cached_node!(make::Function,cache::Dict{Int,Any},k::Int,
+                          capacity::Int)
+    if !haskey(cache,k)
+        if length(cache) >= capacity
+            delete!(cache,first(keys(cache)))
+        end
+        cache[k] = make()
+    end
+    cache[k]
+end
+
+function _draw_mu_cdf(post::ResponsePosterior, x_t::AbstractVector{Float64},
+                      rng::AbstractRNG, cdf::Vector{Float64};
+                      node_cache::Union{Nothing,_MuDrawCache}=nothing)
+    length(cdf) == length(post.alpha_weights) ||
+        throw(DimensionMismatch("alpha CDF length does not match posterior"))
+    k = min(searchsortedfirst(cdf, rand(rng)), length(cdf))
+    node_cache === nothing && return _draw_mu_node(post,x_t,rng,k)
+    mu_hat,ck,L = _mu_cached_node!(node_cache.mc,k,node_cache.capacity) do
+        c = post.conditional[k]
+        (c.B_hat * x_t, dot(x_t,V_solve(c,collect(x_t))),
+         cholesky(Symmetric(Matrix(c.S_alpha))))
+    end
+    N = post.N
+    nu = post.nu
+    z = L.L * randn(rng,N)
+    g = rand(rng,Chisq(nu))
+    mu_hat .+ (sqrt(ck / nu) / sqrt(g / nu)) .* z
+end
+
+function _draw_mu_node(post::ResponsePosterior,
+                       x_t::AbstractVector{Float64}, rng::AbstractRNG,
+                       k::Int)
     c = post.conditional[k]
     N = post.N
     mu_hat = c.B_hat * x_t
     ck = dot(x_t, V_solve(c, collect(x_t)))
     nu = post.nu
-    L = cholesky(Symmetric(c.S_alpha))
+    # The node's S_alpha may be an exact shared-base/rank-one matrix. Only
+    # materialise the single covariance selected by this posterior draw.
+    L = cholesky(Symmetric(Matrix(c.S_alpha)))
     z = L.L * randn(rng, N)
     g = rand(rng, Chisq(nu))
     mu_hat .+ (sqrt(ck / nu) / sqrt(g / nu)) .* z

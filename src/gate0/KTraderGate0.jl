@@ -16,7 +16,8 @@
 # kelly.jl 按文件自含模式声明各自依赖（geometry: LinearAlgebra；kelly:
 # Convex/Clarabel/LinearAlgebra/Random/Printf 中前三个实际使用）——include
 # 时这些 using 在本 module 作用域执行。kelly.jl 的 Convex/Clarabel 是
-# reference solver 依赖（Project.toml 已登记，旧线同源）；除此之外不引入
+# reference solver 依赖（Project.toml 已登记）；从首次 Kelly 决策起按需
+# 加载，纯历史 forecast 不加载 conic solver，不更改任何数值目标；除此之外不引入
 # FFTW / Distributions / HTTP 等旧线重依赖（D-082/D-083 reference 定位）。
 #
 # include 列表（Wave 2 集成收口，依赖链顺序）：
