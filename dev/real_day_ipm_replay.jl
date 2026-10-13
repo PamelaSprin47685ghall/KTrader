@@ -3,9 +3,8 @@
 # source and validates the SHA256 source/data/settings signature before use.
 using Dates, Serialization, LinearAlgebra, Random, Printf
 BLAS.set_num_threads(parse(Int,get(ENV,"PROBE_BLAS_THREADS","4")))
-include(joinpath(@__DIR__,"../src/gate0/KTraderGate0.jl"))
+include(joinpath(@__DIR__, "..", "gate0", "KTraderGate0.jl"))
 using .KTraderGate0
-Base.include(KTraderGate0,joinpath(@__DIR__,"../src/gate0/market_io.jl"))
 const G=KTraderGate0
 
 data_dir=get(ENV,"GATE0_DATA_DIR","data")

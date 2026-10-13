@@ -3,16 +3,8 @@
 # under sequential and threaded scheduling, with identical causal inputs.
 using Dates, LinearAlgebra
 BLAS.set_num_threads(parse(Int,get(ENV,"PROBE_BLAS_THREADS","1")))
-module ForecastProbe
-    using Dates
-    include(joinpath(@__DIR__, "../src/gate0/market.jl"))
-    include(joinpath(@__DIR__, "../src/gate0/market_io.jl"))
-    include(joinpath(@__DIR__, "../src/gate0/geometry.jl"))
-    include(joinpath(@__DIR__, "../src/gate0/modes.jl"))
-    include(joinpath(@__DIR__, "../src/gate0/response.jl"))
-    include(joinpath(@__DIR__, "../src/gate0/posterior.jl"))
-    include(joinpath(@__DIR__, "../src/gate0/driver.jl"))
-end
+include(joinpath(@__DIR__, "..", "gate0", "KTraderGate0.jl"))
+const ForecastProbe = KTraderGate0
 
 mf = ForecastProbe.load_market_facts(get(ENV,"GATE0_DATA_DIR","data"))
 el = ForecastProbe.Eligibility(mf)

@@ -125,17 +125,8 @@ using Distributions: quantile, Normal
 # 模块名必须与 batch_t_capture.jl / batch_t_solve3.jl 完全一致：serialize 记录
 # 类型的模块路径（Main.Gate0BatchCaptureA.*），反序列化按名查找——不同名则
 # UndefVarError（batch 产物：prep 含 post/st 等 src 类型）。
-module Gate0BatchCaptureA
-    include(joinpath(@__DIR__, "..", "src", "gate0", "geometry.jl"))
-    include(joinpath(@__DIR__, "..", "src", "gate0", "modes.jl"))
-    include(joinpath(@__DIR__, "..", "src", "gate0", "response.jl"))
-    include(joinpath(@__DIR__, "..", "src", "gate0", "posterior.jl"))
-    include(joinpath(@__DIR__, "..", "src", "gate0", "oof.jl"))
-    include(joinpath(@__DIR__, "..", "src", "gate0", "innovation.jl"))
-    include(joinpath(@__DIR__, "..", "src", "gate0", "predictive.jl"))
-    include(joinpath(@__DIR__, "..", "src", "gate0", "kelly.jl"))
-    include(joinpath(@__DIR__, "..", "src", "gate0", "quadrature.jl"))
-end
+include(joinpath(@__DIR__, "..", "gate0", "KTraderGate0.jl"))
+const Gate0BatchCaptureA = KTraderGate0
 using .Gate0BatchCaptureA
 using .Gate0BatchCaptureA: SobolOwenRule, rule_points, audit_seed,
     predictive_rqmc_source, locked_wealth_gate0, cash_kelly

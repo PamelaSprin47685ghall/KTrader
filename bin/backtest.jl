@@ -102,9 +102,8 @@ BLAS.set_num_threads(blas_threads)
 # ---------------------------------------------------------------------------
 # 加载 Gate-0 独立顶层 module（与 test/gate0/ 各测试文件同模式）
 # ---------------------------------------------------------------------------
-include(joinpath(@__DIR__, "..", "src", "gate0", "KTraderGate0.jl"))
+include(joinpath(@__DIR__, "..", "gate0", "KTraderGate0.jl"))
 using .KTraderGate0
-Base.include(KTraderGate0, joinpath(@__DIR__, "..", "src", "gate0", "market_io.jl"))
 
 # ---------------------------------------------------------------------------
 # 数据桥：旧线数据层 → MarketFacts（H1；只搬裸矩阵）

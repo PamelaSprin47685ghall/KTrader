@@ -18,20 +18,8 @@
 
 using Serialization, Dates, Statistics, LinearAlgebra, Random
 
-module Gate0BatchCaptureA
-    using Dates
-    include(joinpath(@__DIR__, "..", "src", "gate0", "market.jl"))
-    include(joinpath(@__DIR__, "..", "src", "gate0", "geometry.jl"))
-    include(joinpath(@__DIR__, "..", "src", "gate0", "modes.jl"))
-    include(joinpath(@__DIR__, "..", "src", "gate0", "response.jl"))
-    include(joinpath(@__DIR__, "..", "src", "gate0", "posterior.jl"))
-    include(joinpath(@__DIR__, "..", "src", "gate0", "oof.jl"))
-    include(joinpath(@__DIR__, "..", "src", "gate0", "innovation.jl"))
-    include(joinpath(@__DIR__, "..", "src", "gate0", "predictive.jl"))
-    include(joinpath(@__DIR__, "..", "src", "gate0", "kelly.jl"))
-    include(joinpath(@__DIR__, "..", "src", "gate0", "quadrature.jl"))
-    include(joinpath(@__DIR__, "..", "src", "gate0", "driver.jl"))
-end
+include(joinpath(@__DIR__, "..", "gate0", "KTraderGate0.jl"))
+const Gate0BatchCaptureA = KTraderGate0
 using .Gate0BatchCaptureA
 import KTrader
 

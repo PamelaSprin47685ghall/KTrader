@@ -59,7 +59,8 @@
 
 | 目录 | 角色 |
 |---|---|
-| `src/` | `KTraderGate0`（`src/gate0/`，当前 Gate-0 线，由唯一当前入口 `bin/backtest.jl` 驱动）+ `KTrader`（2.0-RC 历史 release 线，冻结） |
+| `src/` | `KTrader`（2.0-RC 历史 release 线，冻结） |
+| `gate0/` | `KTraderGate0` 兼容层：只重导出 KTraderNew 的 13 个库（版本钉在 `Project.toml` 的 `[sources]`），由唯一当前入口 `bin/backtest.jl` 驱动；Gate-0 正文与其测试已迁到 KTraderNew |
 | `test/` | 标准测试入口 `test/runtests.jl` + 契约注册表 + `test/fixtures/` |
 | `bin/` | 当前入口：`backtest`（KTraderGate0）；历史线工具：`bench / report / live`；数据层：`fetch`；工具：`scoped_run.sh / verify_release`；`ceiling_probes.jl` 为受门禁的 dev 命名空间入口 |
 | `docs/` | 规范与审计文档（Gate-0 裁决分析、设计、审计与状态同步；当前 24 份 .md，2026-10-11 时点） |
@@ -171,8 +172,8 @@ predict / incremental / kelly / backtest / broker / live`。生产模块不加�
 
 ## 验证与已知限制
 
-**当前 Gate-0 线**：测试入口为 `test/gate0/runtests.jl`（12 模块，按
-`GATE0_MODULES` 分组调度；默认 backtest 场景 1 为 5-day end-to-end）。
+**当前 Gate-0 线**：测试入口为 `test/gate0/runtests.jl`（兼容层检查 + 对钉住版本的
+KTraderNew 各库跑 `Pkg.test`，`GATE0_LIBS` 选库）。以下为迁移前的历史口径：
 最近一次全量受控运行报告 984/984 全绿（kelly 收敛鲁棒性缺口已修复；
 archive/evidence/gate0_final_verify_20261010/——984 为 F5 前时点口径）；其后 kelly_cash
 增 B2B-SPLIT-1 testset（其断言 26/26，TIE-FAST-1 13/13），再经 IPM 重写与 F5 锚定，

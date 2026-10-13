@@ -5,12 +5,8 @@
 using Dates, Serialization, LinearAlgebra, FFTW, Printf, Profile
 BLAS.set_num_threads(parse(Int,get(ENV,"PROBE_BLAS_THREADS","4")))
 FFTW.set_num_threads(parse(Int,get(ENV,"PROBE_FFT_THREADS","1")))
-module InnoPerf
-    using Dates
-    include(joinpath(@__DIR__,"../src/gate0/geometry.jl"))
-    include(joinpath(@__DIR__,"../src/gate0/modes.jl"))
-    include(joinpath(@__DIR__,"../src/gate0/innovation.jl"))
-end
+include(joinpath(@__DIR__, "..", "gate0", "KTraderGate0.jl"))
+const InnoPerf = KTraderGate0
 path=get(ENV,"PROBE_INNOVATION_PATH",
          "/tmp/ktrader-two-year-20261011/real-one-day-innovation-input.jls")
 data=deserialize(path)

@@ -7,11 +7,10 @@
 using Dates, LinearAlgebra, Serialization, Printf, Random, Profile
 
 BLAS.set_num_threads(parse(Int,get(ENV,"PROBE_BLAS_THREADS","4")))
-include(joinpath(@__DIR__,"../src/gate0/KTraderGate0.jl"))
+include(joinpath(@__DIR__, "..", "gate0", "KTraderGate0.jl"))
 using .KTraderGate0
-Base.include(KTraderGate0,joinpath(@__DIR__,"../src/gate0/market_io.jl"))
 const G=KTraderGate0
-G.FFTW.set_num_threads(parse(Int,get(ENV,"PROBE_FFT_THREADS","1")))
+import FFTW; FFTW.set_num_threads(parse(Int,get(ENV,"PROBE_FFT_THREADS","1")))
 
 date=Date(get(ENV,"PROBE_DATE","2024-10-01"))
 mf=G.load_market_facts(get(ENV,"GATE0_DATA_DIR","data"))

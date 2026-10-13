@@ -3,10 +3,8 @@
 # Diagnostic provenance only. Never an account/backtest result.
 using Dates, Serialization, LinearAlgebra, Printf
 BLAS.set_num_threads(parse(Int,get(ENV,"PROBE_BLAS_THREADS","4")))
-module CanonicalPair
-    using LinearAlgebra
-    include(joinpath(@__DIR__,"../src/gate0/kelly.jl"))
-end
+include(joinpath(@__DIR__, "..", "gate0", "KTraderGate0.jl"))
+const CanonicalPair = KTraderGate0
 const K=CanonicalPair
 path=get(ENV,"PROBE_CAPTURE_PATH",
     "/tmp/ktrader-two-year-20261011/one-day-qmc-65536-both-current.jls")

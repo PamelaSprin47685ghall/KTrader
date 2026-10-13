@@ -3,13 +3,10 @@
 # and does not consume / replace true causal residuals.
 using Random, LinearAlgebra, Printf
 BLAS.set_num_threads(parse(Int,get(ENV,"PROBE_BLAS_THREADS","1")))
-module InnovationProbe
-    include(joinpath(@__DIR__,"../src/gate0/geometry.jl"))
-    include(joinpath(@__DIR__,"../src/gate0/modes.jl"))
-    include(joinpath(@__DIR__,"../src/gate0/innovation.jl"))
-end
+include(joinpath(@__DIR__, "..", "gate0", "KTraderGate0.jl"))
+const InnovationProbe = KTraderGate0
 using .InnovationProbe
-InnovationProbe.FFTW.set_num_threads(parse(Int,get(ENV,"PROBE_FFT_THREADS","1")))
+import FFTW; FFTW.set_num_threads(parse(Int,get(ENV,"PROBE_FFT_THREADS","1")))
 
 rows = parse(Int,get(ENV,"PROBE_ROWS","400"))
 assets = parse(Int,get(ENV,"PROBE_ASSETS","65"))

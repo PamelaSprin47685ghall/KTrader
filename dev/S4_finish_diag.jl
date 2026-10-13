@@ -1,18 +1,8 @@
 # S4_finish_diag.jl — finish 组成诊断（t=338）：分步计时
 # 用法: julia S4_finish_diag.jl <step>   step ∈ raw|scaled|tb
 using Serialization, LinearAlgebra
-module Gate0BatchCaptureA
-    using Dates
-    include(joinpath(@__DIR__, "..", "src", "gate0", "geometry.jl"))
-    include(joinpath(@__DIR__, "..", "src", "gate0", "modes.jl"))
-    include(joinpath(@__DIR__, "..", "src", "gate0", "response.jl"))
-    include(joinpath(@__DIR__, "..", "src", "gate0", "posterior.jl"))
-    include(joinpath(@__DIR__, "..", "src", "gate0", "oof.jl"))
-    include(joinpath(@__DIR__, "..", "src", "gate0", "innovation.jl"))
-    include(joinpath(@__DIR__, "..", "src", "gate0", "predictive.jl"))
-    include(joinpath(@__DIR__, "..", "src", "gate0", "kelly.jl"))
-    include(joinpath(@__DIR__, "..", "src", "gate0", "quadrature.jl"))
-end
+include(joinpath(@__DIR__, "..", "gate0", "KTraderGate0.jl"))
+const Gate0BatchCaptureA = KTraderGate0
 using .Gate0BatchCaptureA: cash_kelly_certificate, cash_kelly_certified,
     _cash_kelly_newton_polish, _cash_kelly_solve, _cash_kelly_canonical_tiebreak
 

@@ -2,10 +2,8 @@
 # No trading/account work. Never treats stale provenance as a production gate.
 using Dates, Serialization, LinearAlgebra, Printf
 BLAS.set_num_threads(4)
-module RealVertex
-    using LinearAlgebra
-    include(joinpath(@__DIR__,"../src/gate0/kelly.jl"))
-end
+include(joinpath(@__DIR__, "..", "gate0", "KTraderGate0.jl"))
+const RealVertex = KTraderGate0
 path=get(ENV,"PROBE_CAPTURE_PATH",
          "/tmp/ktrader-two-year-20261011/one-day-qmc-32768-parallel-prefetch.jls")
 dat=deserialize(path)

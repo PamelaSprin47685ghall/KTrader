@@ -1,9 +1,7 @@
 # Bounded analytic two-gross-state regression diagnostic. Never a backtest.
 using LinearAlgebra, Printf
-module AnalyticStage
-    using LinearAlgebra
-    include(joinpath(@__DIR__,"../src/gate0/kelly.jl"))
-end
+include(joinpath(@__DIR__, "..", "gate0", "KTraderGate0.jl"))
+const AnalyticStage = KTraderGate0
 for M in (64,128,256,512,1024,2048)
     X=Matrix{Float64}(undef,M,2)
     for i in 1:M

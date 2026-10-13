@@ -2,10 +2,8 @@
 # scenario panel. Does not invoke Clarabel, does not calculate trading PnL.
 using Dates, Serialization, LinearAlgebra, Printf
 BLAS.set_num_threads(parse(Int,get(ENV,"PROBE_BLAS_THREADS","4")))
-module NativeKelly
-    using LinearAlgebra
-    include(joinpath(@__DIR__,"../src/gate0/kelly.jl"))
-end
+include(joinpath(@__DIR__, "..", "gate0", "KTraderGate0.jl"))
+const NativeKelly = KTraderGate0
 path=get(ENV,"PROBE_CAPTURE_PATH",
          "/tmp/ktrader-two-year-20261011/one-day-qmc-32768.jls")
 p=deserialize(path)

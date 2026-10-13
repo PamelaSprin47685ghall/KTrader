@@ -2,16 +2,8 @@
 # universe substitute. Does not invoke the broker or run a legacy model.
 using Dates, LinearAlgebra
 BLAS.set_num_threads(1)
-module ReadinessEnv
-    using Dates
-    include(joinpath(@__DIR__, "../src/gate0/market.jl"))
-    include(joinpath(@__DIR__, "../src/gate0/market_io.jl"))
-    include(joinpath(@__DIR__, "../src/gate0/geometry.jl"))
-    include(joinpath(@__DIR__, "../src/gate0/modes.jl"))
-    include(joinpath(@__DIR__, "../src/gate0/response.jl"))
-    include(joinpath(@__DIR__, "../src/gate0/posterior.jl"))
-    include(joinpath(@__DIR__, "../src/gate0/driver.jl"))
-end
+include(joinpath(@__DIR__, "..", "gate0", "KTraderGate0.jl"))
+const ReadinessEnv = KTraderGate0
 using .ReadinessEnv
 
 mf = ReadinessEnv.load_market_facts(get(ENV, "GATE0_DATA_DIR", "data"))

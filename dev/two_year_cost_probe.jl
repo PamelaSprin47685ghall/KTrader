@@ -3,16 +3,8 @@
 # Use distinct, representative PROBE_DATE values in separate bounded runs.
 using Dates, LinearAlgebra, Printf
 BLAS.set_num_threads(parse(Int,get(ENV,"PROBE_BLAS_THREADS","1")))
-module CostProbe
-    using Dates
-    include(joinpath(@__DIR__, "../src/gate0/market.jl"))
-    include(joinpath(@__DIR__, "../src/gate0/market_io.jl"))
-    include(joinpath(@__DIR__, "../src/gate0/geometry.jl"))
-    include(joinpath(@__DIR__, "../src/gate0/modes.jl"))
-    include(joinpath(@__DIR__, "../src/gate0/response.jl"))
-    include(joinpath(@__DIR__, "../src/gate0/posterior.jl"))
-    include(joinpath(@__DIR__, "../src/gate0/driver.jl"))
-end
+include(joinpath(@__DIR__, "..", "gate0", "KTraderGate0.jl"))
+const CostProbe = KTraderGate0
 
 const mf = CostProbe.load_market_facts(get(ENV, "GATE0_DATA_DIR", "data"))
 const el = CostProbe.Eligibility(mf)

@@ -3,6 +3,19 @@ uuid = "5f1d2c3a-7b8e-4a6d-9c10-2e4b8a7d3f11"
 version = "2.0.0"
 
 [deps]
+KBacktest = "544f2d6e-5994-5c8e-8ad5-8935d5e565e5"
+KDriver = "85af4086-beba-56cd-9cf9-51efcc04ee30"
+KGeometry = "9e915828-077c-5539-83f1-f6e01cd2a632"
+KInnovation = "15e603b9-9465-54b0-9af0-b3754c67df41"
+KKelly = "777b2c40-48cb-5f83-a972-6f2a1c5c434e"
+KMarket = "bf7cf0eb-eded-5e0f-8b97-833e4b8f6f07"
+KMarketIO = "6200c2e4-3a5b-5dc8-a00b-9de38359dc50"
+KModes = "1bb5463e-44be-5a09-b441-2f343c3747d8"
+KOOF = "dd1f1169-3bab-5a7f-a64d-de0a43b2caea"
+KPosterior = "bdbc9719-078f-5c5e-9b39-7d49e176eae0"
+KPredictive = "809b54d0-1faf-5c83-b638-4a7164cc05e4"
+KQuadrature = "a7f724f7-e3d4-590c-bb3c-384202f1bd1b"
+KResponse = "9ffcfeb6-a7c5-54b0-b0ea-054c29f46cc5"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
 Clarabel = "61c947e1-3e6d-4ee4-985a-eec8c727bd6e"
@@ -28,3 +41,70 @@ DSP = "0.8.6"
 FFTW = "1.10.0"
 PrecompileTools = "1.3.4"
 TimeZones = "1.22.3"
+
+# Gate-0 正文在 KTraderNew（只许旧依赖新）；钉在已推送的 master 提交。
+
+[sources.KBacktest]
+url = "https://github.com/PamelaSprin47685ghall/KTraderNew"
+subdir = "KBacktest"
+rev = "3b5c39368e11292e91e4c30e0c9156d867ee6ca2"
+
+[sources.KDriver]
+url = "https://github.com/PamelaSprin47685ghall/KTraderNew"
+subdir = "KDriver"
+rev = "3b5c39368e11292e91e4c30e0c9156d867ee6ca2"
+
+[sources.KGeometry]
+url = "https://github.com/PamelaSprin47685ghall/KTraderNew"
+subdir = "KGeometry"
+rev = "3b5c39368e11292e91e4c30e0c9156d867ee6ca2"
+
+[sources.KInnovation]
+url = "https://github.com/PamelaSprin47685ghall/KTraderNew"
+subdir = "KInnovation"
+rev = "3b5c39368e11292e91e4c30e0c9156d867ee6ca2"
+
+[sources.KKelly]
+url = "https://github.com/PamelaSprin47685ghall/KTraderNew"
+subdir = "KKelly"
+rev = "3b5c39368e11292e91e4c30e0c9156d867ee6ca2"
+
+[sources.KMarket]
+url = "https://github.com/PamelaSprin47685ghall/KTraderNew"
+subdir = "KMarket"
+rev = "3b5c39368e11292e91e4c30e0c9156d867ee6ca2"
+
+[sources.KMarketIO]
+url = "https://github.com/PamelaSprin47685ghall/KTraderNew"
+subdir = "KMarketIO"
+rev = "3b5c39368e11292e91e4c30e0c9156d867ee6ca2"
+
+[sources.KModes]
+url = "https://github.com/PamelaSprin47685ghall/KTraderNew"
+subdir = "KModes"
+rev = "3b5c39368e11292e91e4c30e0c9156d867ee6ca2"
+
+[sources.KOOF]
+url = "https://github.com/PamelaSprin47685ghall/KTraderNew"
+subdir = "KOOF"
+rev = "3b5c39368e11292e91e4c30e0c9156d867ee6ca2"
+
+[sources.KPosterior]
+url = "https://github.com/PamelaSprin47685ghall/KTraderNew"
+subdir = "KPosterior"
+rev = "3b5c39368e11292e91e4c30e0c9156d867ee6ca2"
+
+[sources.KPredictive]
+url = "https://github.com/PamelaSprin47685ghall/KTraderNew"
+subdir = "KPredictive"
+rev = "3b5c39368e11292e91e4c30e0c9156d867ee6ca2"
+
+[sources.KQuadrature]
+url = "https://github.com/PamelaSprin47685ghall/KTraderNew"
+subdir = "KQuadrature"
+rev = "3b5c39368e11292e91e4c30e0c9156d867ee6ca2"
+
+[sources.KResponse]
+url = "https://github.com/PamelaSprin47685ghall/KTraderNew"
+subdir = "KResponse"
+rev = "3b5c39368e11292e91e4c30e0c9156d867ee6ca2"
