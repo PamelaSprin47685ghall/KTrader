@@ -12,11 +12,6 @@ using HTTP, JSON3, CSV
 using FFTW, Distributions
 
 include("libs.jl")
-include("prepare.jl")
-include("predict.jl")
-include("incremental.jl")
-include("kelly.jl")
-include("backtest.jl")
 include("broker.jl")
 include("live.jl")
 

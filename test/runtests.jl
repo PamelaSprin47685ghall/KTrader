@@ -119,8 +119,6 @@ if test_entry_mode == :full
         include("v1_constitutional_tests.jl")
         include("numerical_tests.jl")
         include("execution_tests.jl")
-        include("incremental_tests.jl")
-        include("residual_oracle_tests.jl")
         # Delivered contract files: mandatory, verified above, included
         # unconditionally. conditioned_eb / relative_support / timeblock /
         # ceiling_probes were PROMOTED from the legacy optional isfile block

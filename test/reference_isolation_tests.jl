@@ -16,11 +16,20 @@ using LinearAlgebra, Statistics, Random, Dates
 using TimeZones, Convex, Clarabel
 using HTTP, JSON3, CSV
 using FFTW, Distributions
-include(joinpath(@__DIR__, "..", "src", "libs.jl"))
-include(joinpath(@__DIR__, "..", "src", "prepare.jl"))
-include(joinpath(@__DIR__, "..", "src", "predict.jl"))
-include(joinpath(@__DIR__, "..", "src", "kelly.jl"))
-include(joinpath(@__DIR__, "..", "src", "backtest.jl"))
+# 正文已在 KTraderNew 各库。这里只接参考核心各库的名字，刻意不接 KIncremental。
+# 注意：KBacktestV1 在包依赖层面 import 了 KIncremental，所以本文件现在只能证明
+# “命名空间里没有增量后端”，不再能证明“参考核心不依赖增量引擎”。
+import KGeometry: TAUS, BANDS, BANDCOL, WARMUP, center_of_mass, compute_s_perp,
+    fast_s_m, path_basis_1d, principal_sqrt_root, relative_gauge
+import KBars, KRulerV1, KNumerics, KResponseV1, KResidualOracle, KPrepared,
+    KPredictV1, KKellyV1, KBacktestV1
+for M in (KBars, KRulerV1, KNumerics, KResponseV1, KResidualOracle, KPrepared,
+          KPredictV1, KKellyV1, KBacktestV1), n in names(M; all = true)
+    s = String(n)
+    (startswith(s, '#') || n in (:eval, :include) || n === nameof(M)) && continue
+    (isdefined(@__MODULE__, n) || !isdefined(M, n)) && continue
+    Core.eval(@__MODULE__, Expr(:import, Expr(:(:), Expr(:., fullname(M)...), Expr(:., n))))
+end
 end
 
 @testset "Reference isolation: minimal core without accelerator/probes" begin
@@ -46,10 +55,10 @@ end
         @test !isdefined(RefIsolation, sym)
     end
     # The reference surface IS present (the module is a working core, not
-    # an empty shell) - including the lazy prepare_incremental forward.
+    # an empty shell). prepare_incremental 已移入 KIncremental，不在参考核心里。
     for sym in (:prepare_reference, :solve, :PreparedProblem, :fit_v1,
                 :generate_scenarios_v1, :scenario_weights, :kelly_certificate,
-                :backtest_v1, :Bars, :signal_prices, :prepare_incremental)
+                :backtest_v1, :Bars, :signal_prices)
         @test isdefined(RefIsolation, sym)
     end
 
