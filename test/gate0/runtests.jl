@@ -2,11 +2,13 @@
 #
 # 正文和测试都在 KTraderNew；本仓库只依赖两个组装层（经私有 registry）。这里验两件事：
 #   1. gate0/KTraderGate0.jl 把旧名字（含 bin/ 与 dev/ 用到的内部名）接回来了；
-#   2. 两个组装层自己的测试（含跨库测试）在本仓库解析出的版本上通过（Pkg.test）。
+#   2. 本仓库 Manifest 解析出的组装层版本，在 KTraderNew 里对应的那次提交上 run.jl 全过
+#      （各库单测 + 组装层跨库测试）。不用 Pkg.test：组装层测试环境用相对路径指兄弟库，
+#      装进 depot 后找不到。提交按 Manifest 里组装层的 git-tree-sha1 在 KTraderNew 历史里定位。
 #
 # 运行：JULIA_PKG_USE_CLI_GIT=true julia --startup-file=no --project=. test/gate0/runtests.jl
-# ENV：GATE0_ASSEMBLIES —— 逗号分隔，默认 "KTraderGate0,KTraderV1"；"none" 只跑第 1 项。
-using Test, Pkg
+# ENV：GATE0_LIBS —— 传给 run.jl 的库名（逗号分隔），默认 "all"；"none" 只跑第 1 项。
+using Test, TOML
 
 include(joinpath(@__DIR__, "..", "..", "gate0", "KTraderGate0.jl"))
 using .KTraderGate0
@@ -39,5 +41,20 @@ const OLD_CALLERS_NEED = (
     @test first(cash_kelly([1.1 0.9; 0.95 1.05])) isa AbstractVector
 end
 
-const _SPEC = get(ENV, "GATE0_ASSEMBLIES", "KTraderGate0,KTraderV1")
-_SPEC == "none" || Pkg.test(split(_SPEC, ','))
+const _SPEC = get(ENV, "GATE0_LIBS", "all")
+if _SPEC != "none"
+    root = joinpath(@__DIR__, "..", "..")
+    man = TOML.parsefile(joinpath(root, "Manifest.toml"))["deps"]
+    tree = only(man["KTraderGate0"])["git-tree-sha1"]
+    dir = mktempdir()
+    run(`git clone --quiet https://github.com/PamelaSprin47685ghall/KTraderNew $dir`)
+    rev = something(findfirst(c -> readchomp(`git -C $dir rev-parse $c:apps/KTraderGate0`) == tree,
+                              split(readchomp(`git -C $dir rev-list origin/master`))), 0)
+    revs = split(readchomp(`git -C $dir rev-list origin/master`))
+    @test rev != 0
+    if rev != 0
+        run(`git -C $dir checkout --quiet $(revs[rev])`)
+        args = _SPEC == "all" ? String[] : split(_SPEC, ',')
+        @test success(pipeline(`$(Base.julia_cmd()) --startup-file=no $(joinpath(dir, "run.jl")) $args`; stdout, stderr))
+    end
+end
