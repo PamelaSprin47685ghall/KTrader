@@ -2,7 +2,7 @@
 
 julia_version = "1.12.7"
 manifest_format = "2.0"
-project_hash = "cbf0e6c5d2ca30bbb0d53d46984ebeab3daeacd2"
+project_hash = "ab4aaa0e205a6234d3f7fb3b681330ef9216fddf"
 
 [[deps.AMD]]
 deps = ["LinearAlgebra", "SparseArrays", "SuiteSparse_jll"]
@@ -544,10 +544,16 @@ uuid = "a725e047-84f0-5661-9003-509630569047"
 version = "0.1.0"
 
 [[deps.KTrader]]
-deps = ["CSV", "Clarabel", "Convex", "DSP", "Dates", "Distributions", "FFTW", "HTTP", "JSON3", "KTraderGate0", "KTraderV1", "LinearAlgebra", "PrecompileTools", "Printf", "QuadGK", "Random", "Serialization", "SpecialFunctions", "Statistics", "Test", "TimeZones"]
+deps = ["CSV", "Clarabel", "Convex", "DSP", "Dates", "Distributions", "FFTW", "HTTP", "JSON3", "KTraderCLI", "KTraderGate0", "KTraderV1", "LinearAlgebra", "PrecompileTools", "Printf", "QuadGK", "Random", "SHA", "Serialization", "SpecialFunctions", "Statistics", "Test", "TimeZones"]
 path = "."
 uuid = "5f1d2c3a-7b8e-4a6d-9c10-2e4b8a7d3f11"
 version = "2.0.0"
+
+[[deps.KTraderCLI]]
+deps = ["Dates", "KTraderGate0", "KTraderV1", "LinearAlgebra", "Printf", "Random", "Statistics"]
+git-tree-sha1 = "e156097a02d7ebd55e9c5e0cc4d8f51ce1947fb8"
+uuid = "889c12be-1c07-5690-baaf-8a9eb4f41281"
+version = "0.1.0"
 
 [[deps.KTraderGate0]]
 deps = ["Dates", "KGeometry", "KInnovation", "KKelly", "KMarket", "KMarketIO", "KModes", "KPosterior", "KPredictive", "KQuadrature", "KResponse", "LinearAlgebra", "Random", "SHA", "Serialization", "Statistics"]

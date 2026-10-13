@@ -1,3 +1,14 @@
+> [!WARNING]
+> **DEPRECATED（2026-10）：本仓库已废弃，后续开发与入口全部在
+> [KTraderNew](https://github.com/PamelaSprin47685ghall/KTraderNew)。**
+>
+> - 总入口：在 KTraderNew 根目录 `julia bin/ktrader.jl <backtest|report|fetch|live>`
+>   （组装包 `apps/KTraderCLI`，只依赖 `KTraderGate0` / `KTraderV1`；参数面不变，仍是 `GATE0_*` 等环境变量）。
+> - 包经私有登记处 KTraderRegistry 分发：
+>   `Pkg.Registry.add(url="https://github.com/PamelaSprin47685ghall/KTraderRegistry.git"); Pkg.add("KTraderCLI")`。
+> - 本仓库 `bin/backtest.jl`、`bin/report.jl`、`bin/fetch.jl`、`bin/live.jl` 只是转发到 KTraderCLI 的薄壳；
+>   `src/` 只剩对两个组装包的兼容再导出。其余 bin/dev 脚本与下文内容作为历史记录保留，不再维护。
+
 # KTrader 2.0.0 Final — CPU
 
 > **Gate-0 状态声明（2026-10-09）**
