@@ -9,7 +9,7 @@
 # scalars; the legacy (rho, theta) table is not its statistic. This reports the
 # actual V1.0 quantities: EB alphas, trace diagnostics, predictive moments, and
 # the Kelly weights they imply.
-using KTrader, Dates, Random, Statistics, Printf
+using KTrader, Dates, Random, Statistics, Printf, LinearAlgebra
 b = load_bars(joinpath(@__DIR__, "..", "data"))
 S = parse(Int, get(ENV, "SCENARIOS", "1000"))
 adaptive = get(ENV, "SCENARIOS", "") == "adaptive"
