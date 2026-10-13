@@ -1,15 +1,12 @@
-# test/gate0/runtests.jl —— Gate-0 兼容层验收
+# test/gate0/runtests.jl —— Gate-0 兼容层与组装层验收
 #
-# Gate-0 正文和它的 25 个测试文件已经搬到 KTraderNew 各库；run.jl 同时跑 v1 线抽出的库（KBars 等）（版本钉在根
-# Project.toml 的 [sources]）。这里只验两件事：
-#   1. gate0/KTraderGate0.jl 把旧名字（含 bin/ 与 dev/ 用到的内部名）拼回来了；
-#   2. 钉住版本的各库自己的测试照样通过：按 [sources] 里的 url+rev 取一份
-#      KTraderNew，用它自带的 run.jl 跑（各库测试环境用相对路径互指，
-#      装进 depot 后 Pkg.test 找不到兄弟库，所以不走 Pkg.test）。
+# 正文和测试都在 KTraderNew；本仓库只依赖两个组装层（经私有 registry）。这里验两件事：
+#   1. gate0/KTraderGate0.jl 把旧名字（含 bin/ 与 dev/ 用到的内部名）接回来了；
+#   2. 两个组装层自己的测试（含跨库测试）在本仓库解析出的版本上通过（Pkg.test）。
 #
-# 运行：julia --startup-file=no --project=. test/gate0/runtests.jl
-# ENV：GATE0_LIBS —— 逗号分隔的库名，默认 "all"；"none" 只跑第 1 项。
-using Test, TOML
+# 运行：JULIA_PKG_USE_CLI_GIT=true julia --startup-file=no --project=. test/gate0/runtests.jl
+# ENV：GATE0_ASSEMBLIES —— 逗号分隔，默认 "KTraderGate0,KTraderV1"；"none" 只跑第 1 项。
+using Test, Pkg
 
 include(joinpath(@__DIR__, "..", "..", "gate0", "KTraderGate0.jl"))
 using .KTraderGate0
@@ -34,21 +31,13 @@ const OLD_CALLERS_NEED = (
         @test isdefined(G, n)
     end
     # 同一绑定：兼容层不另造对象。
-    @test G.single_day_decision === G.KDriver.single_day_decision
-    @test G._ForecastCache === G.KDriver._ForecastCache
+    @test G.single_day_decision === G.Assembly.single_day_decision
+    @test G._ForecastCache === G.Assembly._ForecastCache
     @test G.MarketFacts === G.KMarket.MarketFacts
     @test G.cash_kelly === G.KKelly.cash_kelly
     # 旧 export 面里的公开名字直接可用。
     @test first(cash_kelly([1.1 0.9; 0.95 1.05])) isa AbstractVector
 end
 
-const _SPEC = get(ENV, "GATE0_LIBS", "all")
-const _LIBS = _SPEC == "all" ? String[] : _SPEC == "none" ? nothing : split(_SPEC, ',')
-if _LIBS !== nothing
-    src = TOML.parsefile(joinpath(@__DIR__, "..", "..", "Project.toml"))["sources"]["KMarket"]
-    dir = mktempdir()
-    run(`git clone --quiet $(src["url"]) $dir`)
-    run(`git -C $dir checkout --quiet $(src["rev"])`)
-    @test success(pipeline(`$(Base.julia_cmd()) --startup-file=no $(joinpath(dir, "run.jl")) $_LIBS`;
-                           stdout, stderr))
-end
+const _SPEC = get(ENV, "GATE0_ASSEMBLIES", "KTraderGate0,KTraderV1")
+_SPEC == "none" || Pkg.test(split(_SPEC, ','))
