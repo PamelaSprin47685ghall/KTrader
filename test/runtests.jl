@@ -118,7 +118,6 @@ if test_entry_mode == :full
     @testset "KTrader V1.0 Complete Rigorous Suite" begin
         include("v1_constitutional_tests.jl")
         include("numerical_tests.jl")
-        include("data_tests.jl")
         include("execution_tests.jl")
         include("incremental_tests.jl")
         include("residual_oracle_tests.jl")

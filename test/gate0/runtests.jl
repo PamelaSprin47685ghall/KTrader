@@ -1,6 +1,6 @@
 # test/gate0/runtests.jl —— Gate-0 兼容层验收
 #
-# Gate-0 正文和它的 25 个测试文件已经搬到 KTraderNew 各库（版本钉在根
+# Gate-0 正文和它的 25 个测试文件已经搬到 KTraderNew 各库；run.jl 同时跑 v1 线抽出的库（KBars 等）（版本钉在根
 # Project.toml 的 [sources]）。这里只验两件事：
 #   1. gate0/KTraderGate0.jl 把旧名字（含 bin/ 与 dev/ 用到的内部名）拼回来了；
 #   2. 钉住版本的各库自己的测试照样通过：按 [sources] 里的 url+rev 取一份

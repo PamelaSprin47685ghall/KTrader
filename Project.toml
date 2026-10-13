@@ -3,6 +3,11 @@ uuid = "5f1d2c3a-7b8e-4a6d-9c10-2e4b8a7d3f11"
 version = "2.0.0"
 
 [deps]
+KResidualOracle = "86b84b13-9d1d-5f82-9d46-3b54d0bb2e27"
+KResponseV1 = "6a53a9d6-29ee-5155-a46f-52500c7bd2e3"
+KNumerics = "8a68b2d5-4b07-5197-8db1-b1f396c1e591"
+KRulerV1 = "a725e047-84f0-5661-9003-509630569047"
+KBars = "90cdbd79-3ea2-5179-9c6c-a57f46fe4439"
 KBacktest = "544f2d6e-5994-5c8e-8ad5-8935d5e565e5"
 KDriver = "85af4086-beba-56cd-9cf9-51efcc04ee30"
 KGeometry = "9e915828-077c-5539-83f1-f6e01cd2a632"
@@ -47,64 +52,89 @@ TimeZones = "1.22.3"
 [sources.KBacktest]
 url = "https://github.com/PamelaSprin47685ghall/KTraderNew"
 subdir = "KBacktest"
-rev = "3b5c39368e11292e91e4c30e0c9156d867ee6ca2"
+rev = "9c94325afc231f2ad423ccb9072d211105067842"
 
 [sources.KDriver]
 url = "https://github.com/PamelaSprin47685ghall/KTraderNew"
 subdir = "KDriver"
-rev = "3b5c39368e11292e91e4c30e0c9156d867ee6ca2"
+rev = "9c94325afc231f2ad423ccb9072d211105067842"
 
 [sources.KGeometry]
 url = "https://github.com/PamelaSprin47685ghall/KTraderNew"
 subdir = "KGeometry"
-rev = "3b5c39368e11292e91e4c30e0c9156d867ee6ca2"
+rev = "9c94325afc231f2ad423ccb9072d211105067842"
 
 [sources.KInnovation]
 url = "https://github.com/PamelaSprin47685ghall/KTraderNew"
 subdir = "KInnovation"
-rev = "3b5c39368e11292e91e4c30e0c9156d867ee6ca2"
+rev = "9c94325afc231f2ad423ccb9072d211105067842"
 
 [sources.KKelly]
 url = "https://github.com/PamelaSprin47685ghall/KTraderNew"
 subdir = "KKelly"
-rev = "3b5c39368e11292e91e4c30e0c9156d867ee6ca2"
+rev = "9c94325afc231f2ad423ccb9072d211105067842"
 
 [sources.KMarket]
 url = "https://github.com/PamelaSprin47685ghall/KTraderNew"
 subdir = "KMarket"
-rev = "3b5c39368e11292e91e4c30e0c9156d867ee6ca2"
+rev = "9c94325afc231f2ad423ccb9072d211105067842"
 
 [sources.KMarketIO]
 url = "https://github.com/PamelaSprin47685ghall/KTraderNew"
 subdir = "KMarketIO"
-rev = "3b5c39368e11292e91e4c30e0c9156d867ee6ca2"
+rev = "9c94325afc231f2ad423ccb9072d211105067842"
 
 [sources.KModes]
 url = "https://github.com/PamelaSprin47685ghall/KTraderNew"
 subdir = "KModes"
-rev = "3b5c39368e11292e91e4c30e0c9156d867ee6ca2"
+rev = "9c94325afc231f2ad423ccb9072d211105067842"
 
 [sources.KOOF]
 url = "https://github.com/PamelaSprin47685ghall/KTraderNew"
 subdir = "KOOF"
-rev = "3b5c39368e11292e91e4c30e0c9156d867ee6ca2"
+rev = "9c94325afc231f2ad423ccb9072d211105067842"
 
 [sources.KPosterior]
 url = "https://github.com/PamelaSprin47685ghall/KTraderNew"
 subdir = "KPosterior"
-rev = "3b5c39368e11292e91e4c30e0c9156d867ee6ca2"
+rev = "9c94325afc231f2ad423ccb9072d211105067842"
 
 [sources.KPredictive]
 url = "https://github.com/PamelaSprin47685ghall/KTraderNew"
 subdir = "KPredictive"
-rev = "3b5c39368e11292e91e4c30e0c9156d867ee6ca2"
+rev = "9c94325afc231f2ad423ccb9072d211105067842"
 
 [sources.KQuadrature]
 url = "https://github.com/PamelaSprin47685ghall/KTraderNew"
 subdir = "KQuadrature"
-rev = "3b5c39368e11292e91e4c30e0c9156d867ee6ca2"
+rev = "9c94325afc231f2ad423ccb9072d211105067842"
 
 [sources.KResponse]
 url = "https://github.com/PamelaSprin47685ghall/KTraderNew"
 subdir = "KResponse"
-rev = "3b5c39368e11292e91e4c30e0c9156d867ee6ca2"
+rev = "9c94325afc231f2ad423ccb9072d211105067842"
+
+[sources.KBars]
+url = "https://github.com/PamelaSprin47685ghall/KTraderNew"
+subdir = "KBars"
+rev = "9c94325afc231f2ad423ccb9072d211105067842"
+
+[sources.KRulerV1]
+url = "https://github.com/PamelaSprin47685ghall/KTraderNew"
+subdir = "KRulerV1"
+rev = "9c94325afc231f2ad423ccb9072d211105067842"
+
+[sources.KNumerics]
+url = "https://github.com/PamelaSprin47685ghall/KTraderNew"
+subdir = "KNumerics"
+rev = "9c94325afc231f2ad423ccb9072d211105067842"
+
+[sources.KResponseV1]
+url = "https://github.com/PamelaSprin47685ghall/KTraderNew"
+subdir = "KResponseV1"
+rev = "9c94325afc231f2ad423ccb9072d211105067842"
+
+[sources.KResidualOracle]
+url = "https://github.com/PamelaSprin47685ghall/KTraderNew"
+subdir = "KResidualOracle"
+rev = "9c94325afc231f2ad423ccb9072d211105067842"

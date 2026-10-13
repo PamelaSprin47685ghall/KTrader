@@ -7,9 +7,7 @@ KTrader V1.0 Final: Prediction Layer
 - Exact Matrix-Free Matrix-Normal Posterior Predictive Sampling
 """
 
-const DGRID_V1 = [0.05, 0.1, 0.2, 0.4, 0.6, 0.8, 1.0]
-
-frac_weights(d, n) = accumulate((w, k) -> w * (k - 1 + d) / k, 1:n-1; init = 1.0) |> w -> pushfirst!(w, 1.0)
+# DGRID_V1 / frac_weights 来自 KNumerics。
 
 const DELTA_D_V1 = [0.025, 0.075, 0.15, 0.2, 0.2, 0.2, 0.1]
 

@@ -11,11 +11,7 @@ using Convex, Clarabel
 using HTTP, JSON3, CSV
 using FFTW, Distributions
 
-include("data.jl")
-include("geometry.jl")
-include("numerics.jl")
-include("response.jl")
-include("residual_oracle.jl")
+include("libs.jl")
 include("prepare.jl")
 include("predict.jl")
 include("incremental.jl")

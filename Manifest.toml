@@ -2,7 +2,7 @@
 
 julia_version = "1.12.7"
 manifest_format = "2.0"
-project_hash = "55cd12bf59cbc907156b166adddb78f8b389a33c"
+project_hash = "50c1f392ab6575c52593c14591372159556a0505"
 
 [[deps.AMD]]
 deps = ["LinearAlgebra", "SparseArrays", "SuiteSparse_jll"]
@@ -426,16 +426,25 @@ version = "1.12.0"
 [[deps.KBacktest]]
 deps = ["Dates", "KDriver", "KGeometry", "KInnovation", "KKelly", "KMarket", "LinearAlgebra", "Random", "SHA", "Serialization", "Statistics"]
 git-tree-sha1 = "26a872e935703902fc2ceebcf58cd567ed48ae98"
-repo-rev = "3b5c39368e11292e91e4c30e0c9156d867ee6ca2"
+repo-rev = "9c94325afc231f2ad423ccb9072d211105067842"
 repo-subdir = "KBacktest"
 repo-url = "https://github.com/PamelaSprin47685ghall/KTraderNew"
 uuid = "544f2d6e-5994-5c8e-8ad5-8935d5e565e5"
 version = "0.1.0"
 
+[[deps.KBars]]
+deps = ["CSV", "Dates", "HTTP", "JSON3", "TimeZones"]
+git-tree-sha1 = "3340c7b4797d93a09ec3a57ca0340fb4e54ceb95"
+repo-rev = "9c94325afc231f2ad423ccb9072d211105067842"
+repo-subdir = "KBars"
+repo-url = "https://github.com/PamelaSprin47685ghall/KTraderNew"
+uuid = "90cdbd79-3ea2-5179-9c6c-a57f46fe4439"
+version = "0.1.0"
+
 [[deps.KDriver]]
 deps = ["Dates", "KGeometry", "KInnovation", "KKelly", "KMarket", "KPosterior", "KPredictive", "KQuadrature", "KResponse", "LinearAlgebra", "Random", "Statistics"]
 git-tree-sha1 = "8ff216da41cde71eb27d58b89061cc9532ce2d0d"
-repo-rev = "3b5c39368e11292e91e4c30e0c9156d867ee6ca2"
+repo-rev = "9c94325afc231f2ad423ccb9072d211105067842"
 repo-subdir = "KDriver"
 repo-url = "https://github.com/PamelaSprin47685ghall/KTraderNew"
 uuid = "85af4086-beba-56cd-9cf9-51efcc04ee30"
@@ -444,7 +453,7 @@ version = "0.1.0"
 [[deps.KGeometry]]
 deps = ["LinearAlgebra"]
 git-tree-sha1 = "05972f796d3bd5da03ee7bc6ad7123dfb47f8ccf"
-repo-rev = "3b5c39368e11292e91e4c30e0c9156d867ee6ca2"
+repo-rev = "9c94325afc231f2ad423ccb9072d211105067842"
 repo-subdir = "KGeometry"
 repo-url = "https://github.com/PamelaSprin47685ghall/KTraderNew"
 uuid = "9e915828-077c-5539-83f1-f6e01cd2a632"
@@ -453,7 +462,7 @@ version = "0.1.0"
 [[deps.KInnovation]]
 deps = ["FFTW", "KModes", "LinearAlgebra", "Random"]
 git-tree-sha1 = "f078740beb775ddf5e07199440752e39bc91058e"
-repo-rev = "3b5c39368e11292e91e4c30e0c9156d867ee6ca2"
+repo-rev = "9c94325afc231f2ad423ccb9072d211105067842"
 repo-subdir = "KInnovation"
 repo-url = "https://github.com/PamelaSprin47685ghall/KTraderNew"
 uuid = "15e603b9-9465-54b0-9af0-b3754c67df41"
@@ -462,7 +471,7 @@ version = "0.1.0"
 [[deps.KKelly]]
 deps = ["Clarabel", "Convex", "LinearAlgebra"]
 git-tree-sha1 = "ef074cdcf7861416aff7fe132e9d3aca72aa2a39"
-repo-rev = "3b5c39368e11292e91e4c30e0c9156d867ee6ca2"
+repo-rev = "9c94325afc231f2ad423ccb9072d211105067842"
 repo-subdir = "KKelly"
 repo-url = "https://github.com/PamelaSprin47685ghall/KTraderNew"
 uuid = "777b2c40-48cb-5f83-a972-6f2a1c5c434e"
@@ -471,7 +480,7 @@ version = "0.1.0"
 [[deps.KMarket]]
 deps = ["Dates"]
 git-tree-sha1 = "54e363d209ba33d93174de2fdebcb15db107dfcb"
-repo-rev = "3b5c39368e11292e91e4c30e0c9156d867ee6ca2"
+repo-rev = "9c94325afc231f2ad423ccb9072d211105067842"
 repo-subdir = "KMarket"
 repo-url = "https://github.com/PamelaSprin47685ghall/KTraderNew"
 uuid = "bf7cf0eb-eded-5e0f-8b97-833e4b8f6f07"
@@ -480,7 +489,7 @@ version = "0.1.0"
 [[deps.KMarketIO]]
 deps = ["CSV", "Dates", "KMarket"]
 git-tree-sha1 = "84fdcd6b326723fafd3b0efb7b4a91a5d14bfc0f"
-repo-rev = "3b5c39368e11292e91e4c30e0c9156d867ee6ca2"
+repo-rev = "9c94325afc231f2ad423ccb9072d211105067842"
 repo-subdir = "KMarketIO"
 repo-url = "https://github.com/PamelaSprin47685ghall/KTraderNew"
 uuid = "6200c2e4-3a5b-5dc8-a00b-9de38359dc50"
@@ -489,16 +498,25 @@ version = "0.1.0"
 [[deps.KModes]]
 deps = ["KGeometry", "LinearAlgebra"]
 git-tree-sha1 = "d181f58fef383c49c91643970d4013af2b63ca43"
-repo-rev = "3b5c39368e11292e91e4c30e0c9156d867ee6ca2"
+repo-rev = "9c94325afc231f2ad423ccb9072d211105067842"
 repo-subdir = "KModes"
 repo-url = "https://github.com/PamelaSprin47685ghall/KTraderNew"
 uuid = "1bb5463e-44be-5a09-b441-2f343c3747d8"
 version = "0.1.0"
 
+[[deps.KNumerics]]
+deps = ["FFTW", "KGeometry", "KRulerV1", "LinearAlgebra", "Random", "Serialization", "Statistics"]
+git-tree-sha1 = "8395456c5542c8ea8a929fdda9c8c18f5ff5d459"
+repo-rev = "9c94325afc231f2ad423ccb9072d211105067842"
+repo-subdir = "KNumerics"
+repo-url = "https://github.com/PamelaSprin47685ghall/KTraderNew"
+uuid = "8a68b2d5-4b07-5197-8db1-b1f396c1e591"
+version = "0.1.0"
+
 [[deps.KOOF]]
 deps = ["KPosterior", "LinearAlgebra", "Random"]
 git-tree-sha1 = "e73d60169747578f99464542f2a0bf61b67e976c"
-repo-rev = "3b5c39368e11292e91e4c30e0c9156d867ee6ca2"
+repo-rev = "9c94325afc231f2ad423ccb9072d211105067842"
 repo-subdir = "KOOF"
 repo-url = "https://github.com/PamelaSprin47685ghall/KTraderNew"
 uuid = "dd1f1169-3bab-5a7f-a64d-de0a43b2caea"
@@ -507,7 +525,7 @@ version = "0.1.0"
 [[deps.KPosterior]]
 deps = ["Distributions", "LinearAlgebra", "Random"]
 git-tree-sha1 = "0421aeb324f6c05e966c7920e1ccfe29af0249fe"
-repo-rev = "3b5c39368e11292e91e4c30e0c9156d867ee6ca2"
+repo-rev = "9c94325afc231f2ad423ccb9072d211105067842"
 repo-subdir = "KPosterior"
 repo-url = "https://github.com/PamelaSprin47685ghall/KTraderNew"
 uuid = "bdbc9719-078f-5c5e-9b39-7d49e176eae0"
@@ -516,7 +534,7 @@ version = "0.1.0"
 [[deps.KPredictive]]
 deps = ["KInnovation", "KPosterior", "LinearAlgebra", "Random"]
 git-tree-sha1 = "d623a156908103a12f84a4185308d25fd13db1c8"
-repo-rev = "3b5c39368e11292e91e4c30e0c9156d867ee6ca2"
+repo-rev = "9c94325afc231f2ad423ccb9072d211105067842"
 repo-subdir = "KPredictive"
 repo-url = "https://github.com/PamelaSprin47685ghall/KTraderNew"
 uuid = "809b54d0-1faf-5c83-b638-4a7164cc05e4"
@@ -525,23 +543,50 @@ version = "0.1.0"
 [[deps.KQuadrature]]
 deps = ["Distributions", "KInnovation", "KKelly", "KPosterior", "LinearAlgebra", "Random", "Serialization"]
 git-tree-sha1 = "e73566057ba3cbff77acd6cc184ac61dde82d2a9"
-repo-rev = "3b5c39368e11292e91e4c30e0c9156d867ee6ca2"
+repo-rev = "9c94325afc231f2ad423ccb9072d211105067842"
 repo-subdir = "KQuadrature"
 repo-url = "https://github.com/PamelaSprin47685ghall/KTraderNew"
 uuid = "a7f724f7-e3d4-590c-bb3c-384202f1bd1b"
 version = "0.1.0"
 
+[[deps.KResidualOracle]]
+deps = ["KGeometry", "KResponseV1", "LinearAlgebra", "Statistics"]
+git-tree-sha1 = "10825054718e193c77a1a4eea4b0607116737be3"
+repo-rev = "9c94325afc231f2ad423ccb9072d211105067842"
+repo-subdir = "KResidualOracle"
+repo-url = "https://github.com/PamelaSprin47685ghall/KTraderNew"
+uuid = "86b84b13-9d1d-5f82-9d46-3b54d0bb2e27"
+version = "0.1.0"
+
 [[deps.KResponse]]
 deps = ["KGeometry", "KModes", "LinearAlgebra"]
 git-tree-sha1 = "7c98571f1724e16db451bf8ab9d501c0b1244507"
-repo-rev = "3b5c39368e11292e91e4c30e0c9156d867ee6ca2"
+repo-rev = "9c94325afc231f2ad423ccb9072d211105067842"
 repo-subdir = "KResponse"
 repo-url = "https://github.com/PamelaSprin47685ghall/KTraderNew"
 uuid = "9ffcfeb6-a7c5-54b0-b0ea-054c29f46cc5"
 version = "0.1.0"
 
+[[deps.KResponseV1]]
+deps = ["KGeometry", "KNumerics", "KRulerV1", "LinearAlgebra", "Random", "Statistics"]
+git-tree-sha1 = "1bc604cc21784a402dd12bdeeb559de42757eda6"
+repo-rev = "9c94325afc231f2ad423ccb9072d211105067842"
+repo-subdir = "KResponseV1"
+repo-url = "https://github.com/PamelaSprin47685ghall/KTraderNew"
+uuid = "6a53a9d6-29ee-5155-a46f-52500c7bd2e3"
+version = "0.1.0"
+
+[[deps.KRulerV1]]
+deps = ["KGeometry", "LinearAlgebra", "Statistics"]
+git-tree-sha1 = "5d64b4fec3f44e9ce73c5e5932ef9be857776cd1"
+repo-rev = "9c94325afc231f2ad423ccb9072d211105067842"
+repo-subdir = "KRulerV1"
+repo-url = "https://github.com/PamelaSprin47685ghall/KTraderNew"
+uuid = "a725e047-84f0-5661-9003-509630569047"
+version = "0.1.0"
+
 [[deps.KTrader]]
-deps = ["CSV", "Clarabel", "Convex", "DSP", "Dates", "Distributions", "FFTW", "HTTP", "JSON3", "KBacktest", "KDriver", "KGeometry", "KInnovation", "KKelly", "KMarket", "KMarketIO", "KModes", "KOOF", "KPosterior", "KPredictive", "KQuadrature", "KResponse", "LinearAlgebra", "PrecompileTools", "Printf", "QuadGK", "Random", "Serialization", "SpecialFunctions", "Statistics", "Test", "TimeZones"]
+deps = ["CSV", "Clarabel", "Convex", "DSP", "Dates", "Distributions", "FFTW", "HTTP", "JSON3", "KBacktest", "KBars", "KDriver", "KGeometry", "KInnovation", "KKelly", "KMarket", "KMarketIO", "KModes", "KNumerics", "KOOF", "KPosterior", "KPredictive", "KQuadrature", "KResidualOracle", "KResponse", "KResponseV1", "KRulerV1", "LinearAlgebra", "PrecompileTools", "Printf", "QuadGK", "Random", "Serialization", "SpecialFunctions", "Statistics", "Test", "TimeZones"]
 path = "."
 uuid = "5f1d2c3a-7b8e-4a6d-9c10-2e4b8a7d3f11"
 version = "2.0.0"

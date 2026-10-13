@@ -107,18 +107,10 @@
 # REQUIRED_CONTRACT_TESTS include loop (which would double-include it).
 const ARCHITECTURE_CONTRACT_TEST = "architecture_contract_tests.jl"
 
+# 迁移：data / timed_passthrough / conditioned_* / relative_support / scalar_tensor
+# 共 13 个文件已随正文搬到 KTraderNew（KBars, KNumerics, KResponseV1），由库自己的测试守住。
 const REQUIRED_CONTRACT_TESTS = (
-    "conditioned_jcore_tests.jl",
-    "conditioned_deadwork_tests.jl",
     "fit_local_reuse_tests.jl",
-    "conditioned_geometry_reuse_tests.jl",
-    "conditioned_lazy_gradient_tests.jl",
-    "scalar_tensor_tests.jl",
-    "conditioned_certificate_reuse_tests.jl",
-    "conditioned_certificate_cache_tests.jl",
-    "conditioned_storage_tests.jl",
-    "conditioned_contraction_kernel_tests.jl",
-    "timed_passthrough_tests.jl",
     "principal_root_contract_tests.jl",
     "model_api_micro_tests.jl",
     "ceiling_admission_tests.jl",
@@ -137,8 +129,6 @@ const REQUIRED_CONTRACT_TESTS = (
     "reference_isolation_tests.jl",
     # Promoted from the runtests.jl legacy optional isfile block (see notes
     # above): delivered and behavior-preserving, therefore fail-closed.
-    "conditioned_eb_tests.jl",
-    "relative_support_tests.jl",
     "timeblock_tests.jl",
     "ceiling_probes.jl",
     # Admission-integration deliveries (independent src/dev owners; see
