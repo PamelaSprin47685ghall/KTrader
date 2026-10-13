@@ -3,16 +3,8 @@
 # This deliberately does not establish current source-signature acceptance.
 using Dates, Serialization, Random, LinearAlgebra, Printf
 BLAS.set_num_threads(parse(Int,get(ENV,"PROBE_BLAS_THREADS","4")))
-module RealAdaptiveReplay
-    using Random, LinearAlgebra
-    include(joinpath(@__DIR__,"../src/gate0/geometry.jl"))
-    include(joinpath(@__DIR__,"../src/gate0/modes.jl"))
-    include(joinpath(@__DIR__,"../src/gate0/response.jl"))
-    include(joinpath(@__DIR__,"../src/gate0/posterior.jl"))
-    include(joinpath(@__DIR__,"../src/gate0/innovation.jl"))
-    include(joinpath(@__DIR__,"../src/gate0/kelly.jl"))
-    include(joinpath(@__DIR__,"../src/gate0/quadrature.jl"))
-end
+include(joinpath(@__DIR__, "..", "gate0", "KTraderGate0.jl"))
+const RealAdaptiveReplay = KTraderGate0
 const R=RealAdaptiveReplay
 path=get(ENV,"PROBE_CAPTURE_PATH",
     "/tmp/ktrader-two-year-20261011/one-day-qmc-65536-both-current.jls")

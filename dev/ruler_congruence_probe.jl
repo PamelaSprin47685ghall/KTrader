@@ -4,12 +4,8 @@
 # and compare against the exact full-rank Gaussian volume correction.
 using LinearAlgebra,Random,Printf
 BLAS.set_num_threads(4)
-module RulerInvariant
-    using Random,LinearAlgebra
-    include(joinpath(@__DIR__,"../src/gate0/geometry.jl"))
-    include(joinpath(@__DIR__,"../src/gate0/modes.jl"))
-    include(joinpath(@__DIR__,"../src/gate0/innovation.jl"))
-end
+include(joinpath(@__DIR__, "..", "gate0", "KTraderGate0.jl"))
+const RulerInvariant = KTraderGate0
 rng=MersenneTwister(20261012)
 for N in (3,12,32),n in (N+3,100)
     E=RulerInvariant.domain_mode_basis(N)

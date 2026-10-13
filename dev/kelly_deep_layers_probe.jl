@@ -98,17 +98,8 @@
 
 using Serialization, Random, LinearAlgebra, Printf
 
-module Gate0BatchCaptureA
-    include(joinpath(@__DIR__, "..", "src", "gate0", "geometry.jl"))
-    include(joinpath(@__DIR__, "..", "src", "gate0", "modes.jl"))
-    include(joinpath(@__DIR__, "..", "src", "gate0", "response.jl"))
-    include(joinpath(@__DIR__, "..", "src", "gate0", "posterior.jl"))
-    include(joinpath(@__DIR__, "..", "src", "gate0", "oof.jl"))
-    include(joinpath(@__DIR__, "..", "src", "gate0", "innovation.jl"))
-    include(joinpath(@__DIR__, "..", "src", "gate0", "predictive.jl"))
-    include(joinpath(@__DIR__, "..", "src", "gate0", "kelly.jl"))
-    include(joinpath(@__DIR__, "..", "src", "gate0", "quadrature.jl"))
-end
+include(joinpath(@__DIR__, "..", "gate0", "KTraderGate0.jl"))
+const Gate0BatchCaptureA = KTraderGate0
 using .Gate0BatchCaptureA
 using .Gate0BatchCaptureA: predictive_rqmc_source, SobolOwenRule,
     locked_wealth_gate0, cash_kelly_certificate, _cash_kelly_ipm,

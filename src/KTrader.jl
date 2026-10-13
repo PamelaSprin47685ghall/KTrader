@@ -11,18 +11,7 @@ using Convex, Clarabel
 using HTTP, JSON3, CSV
 using FFTW, Distributions
 
-include("data.jl")
-include("geometry.jl")
-include("numerics.jl")
-include("response.jl")
-include("residual_oracle.jl")
-include("prepare.jl")
-include("predict.jl")
-include("incremental.jl")
-include("kelly.jl")
-include("backtest.jl")
-include("broker.jl")
-include("live.jl")
+include("libs.jl")
 
 function __init__()
     # Native FFTW plan pointers cannot survive Julia's precompile serialization.

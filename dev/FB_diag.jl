@@ -2,18 +2,8 @@
 # 用法: julia FB_diag.jl <t> [main|tb]
 #   main: 仅 _cash_kelly_solve 计时（t=332 关键判定）；tb: 追加 tie-break 计时（t=330）
 using Serialization, LinearAlgebra, Random
-module Gate0BatchCaptureA
-    using Dates
-    include(joinpath(@__DIR__, "..", "src", "gate0", "geometry.jl"))
-    include(joinpath(@__DIR__, "..", "src", "gate0", "modes.jl"))
-    include(joinpath(@__DIR__, "..", "src", "gate0", "response.jl"))
-    include(joinpath(@__DIR__, "..", "src", "gate0", "posterior.jl"))
-    include(joinpath(@__DIR__, "..", "src", "gate0", "oof.jl"))
-    include(joinpath(@__DIR__, "..", "src", "gate0", "innovation.jl"))
-    include(joinpath(@__DIR__, "..", "src", "gate0", "predictive.jl"))
-    include(joinpath(@__DIR__, "..", "src", "gate0", "kelly.jl"))
-    include(joinpath(@__DIR__, "..", "src", "gate0", "quadrature.jl"))
-end
+include(joinpath(@__DIR__, "..", "gate0", "KTraderGate0.jl"))
+const Gate0BatchCaptureA = KTraderGate0
 using .Gate0BatchCaptureA: locked_wealth_gate0, cash_kelly, cash_kelly_certificate,
     cash_kelly_certified, _cash_kelly_solve, _cash_kelly_canonical_tiebreak
 

@@ -1,3 +1,14 @@
+> [!WARNING]
+> **DEPRECATED（2026-10）：本仓库已废弃，后续开发与入口全部在
+> [KTraderNew](https://github.com/PamelaSprin47685ghall/KTraderNew)。**
+>
+> - 总入口：在 KTraderNew 根目录 `julia bin/ktrader.jl <backtest|report|fetch|live>`
+>   （组装包 `apps/KTraderCLI`，只依赖 `KTraderGate0` / `KTraderV1`；参数面不变，仍是 `GATE0_*` 等环境变量）。
+> - 包经私有登记处 KTraderRegistry 分发：
+>   `Pkg.Registry.add(url="https://github.com/PamelaSprin47685ghall/KTraderRegistry.git"); Pkg.add("KTraderCLI")`。
+> - 本仓库 `bin/backtest.jl`、`bin/report.jl`、`bin/fetch.jl`、`bin/live.jl` 只是转发到 KTraderCLI 的薄壳；
+>   `src/` 只剩对两个组装包的兼容再导出。其余 bin/dev 脚本与下文内容作为历史记录保留，不再维护。
+
 # KTrader 2.0.0 Final — CPU
 
 > **Gate-0 状态声明（2026-10-09）**
@@ -59,7 +70,8 @@
 
 | 目录 | 角色 |
 |---|---|
-| `src/` | `KTraderGate0`（`src/gate0/`，当前 Gate-0 线，由唯一当前入口 `bin/backtest.jl` 驱动）+ `KTrader`（2.0-RC 历史 release 线，冻结） |
+| `src/` | `KTrader`（2.0-RC 历史 release 线，冻结） |
+| `gate0/` | `KTraderGate0` 兼容层：只重导出 KTraderNew 的 13 个库（版本钉在 `Project.toml` 的 `[sources]`），由唯一当前入口 `bin/backtest.jl` 驱动；Gate-0 正文与其测试已迁到 KTraderNew |
 | `test/` | 标准测试入口 `test/runtests.jl` + 契约注册表 + `test/fixtures/` |
 | `bin/` | 当前入口：`backtest`（KTraderGate0）；历史线工具：`bench / report / live`；数据层：`fetch`；工具：`scoped_run.sh / verify_release`；`ceiling_probes.jl` 为受门禁的 dev 命名空间入口 |
 | `docs/` | 规范与审计文档（Gate-0 裁决分析、设计、审计与状态同步；当前 24 份 .md，2026-10-11 时点） |
@@ -171,8 +183,8 @@ predict / incremental / kelly / backtest / broker / live`。生产模块不加�
 
 ## 验证与已知限制
 
-**当前 Gate-0 线**：测试入口为 `test/gate0/runtests.jl`（12 模块，按
-`GATE0_MODULES` 分组调度；默认 backtest 场景 1 为 5-day end-to-end）。
+**当前 Gate-0 线**：测试入口为 `test/gate0/runtests.jl`（兼容层检查 + 对钉住版本的
+KTraderNew 各库跑 `Pkg.test`，`GATE0_LIBS` 选库）。以下为迁移前的历史口径：
 最近一次全量受控运行报告 984/984 全绿（kelly 收敛鲁棒性缺口已修复；
 archive/evidence/gate0_final_verify_20261010/——984 为 F5 前时点口径）；其后 kelly_cash
 增 B2B-SPLIT-1 testset（其断言 26/26，TIE-FAST-1 13/13），再经 IPM 重写与 F5 锚定，

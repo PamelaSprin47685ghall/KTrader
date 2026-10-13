@@ -9,11 +9,8 @@ using Dates,Serialization,LinearAlgebra,Printf
 blas=parse(Int,get(ENV,"GATE0_BLAS_THREADS","4"))
 1<=blas<=16 || error("unsupported BLAS thread count")
 BLAS.set_num_threads(blas)
-# Precompiled carrier of the unchanged src/gate0 code (no per-process JIT).
-# Setup once: julia --project=. -e 'push!(LOAD_PATH,"gate0pkg"); using KTraderGate0Precompiled'
-push!(LOAD_PATH,joinpath(@__DIR__,"..","gate0pkg"))
-using KTraderGate0Precompiled
-const KTraderGate0=KTraderGate0Precompiled.KTraderGate0  # checkpoint type paths
+# Gate-0 code lives in the KTraderNew libs (precompiled as packages); gate0/KTraderGate0.jl re-exports them.
+include(joinpath(@__DIR__, "..", "gate0", "KTraderGate0.jl"))
 const G=KTraderGate0
 
 mf=G.load_market_facts(get(ENV,"GATE0_DATA_DIR","data"))

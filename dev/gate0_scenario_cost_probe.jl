@@ -3,13 +3,8 @@
 # generation. No Kelly, no live trades, no account backtest.
 using Dates, Random, LinearAlgebra, Printf
 BLAS.set_num_threads(1)
-module ScenarioProbe
-    using Dates
-    include(joinpath(@__DIR__, "../src/gate0/KTraderGate0.jl"))
-    import .KTraderGate0
-    Base.include(KTraderGate0, joinpath(@__DIR__,"../src/gate0/market_io.jl"))
-end
-const M = ScenarioProbe.KTraderGate0
+include(joinpath(@__DIR__, "..", "gate0", "KTraderGate0.jl"))
+const M = KTraderGate0
 mf = M.load_market_facts(get(ENV,"GATE0_DATA_DIR","data"))
 el = M.Eligibility(mf)
 date = Date(get(ENV,"PROBE_DATE","2024-10-02"))

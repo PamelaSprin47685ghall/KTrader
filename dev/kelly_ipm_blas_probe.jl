@@ -3,10 +3,8 @@
 # and re-certifies both solutions on the original unscaled objective.
 using Random, LinearAlgebra, Test, Printf
 BLAS.set_num_threads(parse(Int,get(ENV,"PROBE_BLAS_THREADS","4")))
-module RealIPM
-    using LinearAlgebra
-    include(joinpath(@__DIR__,"../src/gate0/kelly.jl"))
-end
+include(joinpath(@__DIR__, "..", "gate0", "KTraderGate0.jl"))
+const RealIPM = KTraderGate0
 rng = MersenneTwister(20261012)
 N = 64
 S = parse(Int,get(ENV,"PROBE_S","512"))

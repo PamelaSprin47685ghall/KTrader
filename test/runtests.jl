@@ -105,23 +105,9 @@ verify_required_contract_files(@__DIR__;
 # See test/architecture_contract_tests.jl.
 include("architecture_contract_tests.jl")
 
-# Full numeric suite must run ALL reference-isolation phases: an
-# inherited REFISO_STAGE=R2/R3 environment would silently skip the other
-# phases' contracts (a false-green path). Reject partial environments here;
-# the phase-split runner is for explicit single-file budgeted runs only.
-# The standard full entry keeps refusing partial environments even while the
-# wider suite is execution-paused: source-level admission stays exact.
 if test_entry_mode == :full
-    stage_env = get(ENV, "REFISO_STAGE", "ALL")
-    stage_env == "ALL" ||
-        error("full suite requires REFISO_STAGE=ALL (got $(stage_env)): partial phase environments must not silently skip reference-isolation contracts; unset it or set ALL")
     @testset "KTrader V1.0 Complete Rigorous Suite" begin
         include("v1_constitutional_tests.jl")
-        include("numerical_tests.jl")
-        include("data_tests.jl")
-        include("execution_tests.jl")
-        include("incremental_tests.jl")
-        include("residual_oracle_tests.jl")
         # Delivered contract files: mandatory, verified above, included
         # unconditionally. conditioned_eb / relative_support / timeblock /
         # ceiling_probes were PROMOTED from the legacy optional isfile block

@@ -1,61 +1,8 @@
-# Usage: julia --project=. bin/report.jl     (reads data/, writes nothing)
-# What the model believes at the last decision date, and the weights it implies.
-#
-# 历史 release 工具（2.0-RC legacy line，2026-10-10 入口切换后标注）：
-# 本脚本驱动旧线 `fit_v1` / `V1Model`（2.0.0 历史线的模型报告面）。Gate-0
-# 当前唯一入口是 bin/backtest.jl（KTraderGate0）；Gate-0 尚无对应的单模型
-# 报告面，迁移待后续 Gate。保留不删除（D-002/§46）。
-# The V1.0 response posterior is a full Matrix-Normal operator, not per-(band, mode)
-# scalars; the legacy (rho, theta) table is not its statistic. This reports the
-# actual V1.0 quantities: EB alphas, trace diagnostics, predictive moments, and
-# the Kelly weights they imply.
-using KTrader, Dates, Random, Statistics, Printf
-b = load_bars(joinpath(@__DIR__, "..", "data"))
-S = parse(Int, get(ENV, "SCENARIOS", "1000"))
-adaptive = get(ENV, "SCENARIOS", "") == "adaptive"
-
-signal = signal_prices(b)
-model = fit_v1(signal)
-free = b.bar[end, :] .& (trues(length(b.symbols)))
-tradable = b.bar[end, :]
-
-println("decision date ", b.dates[end], ": ", length(model.active_indices), " active of ",
-        length(b.symbols), " assets, ", count(tradable), " tradable")
-
-resp = model.resp
-@printf("EB alpha (macro)  = %.4g\n", resp.alpha_macro)
-@printf("EB alpha (relative, trace-neutral support) = %.4g\n", resp.alpha_rel)
-@printf("trace(A) = %.3g   trace(B) = %.3g   (both ≡ 0 on the parameter support)\n",
-        resp.trace_real, resp.trace_imag)
-
-moments = model.pred_moments
-@printf("\npredictive moments at decision time:\n")
-@printf("  macro mean mu_m = %.4g, macro sd = %.4g\n", moments.mu_m, sqrt(moments.var_m))
-@printf("  relative covariance rank = %d (zero-sum subspace), Frobenius = %.3g\n",
-        size(moments.L_rel, 1), norm(moments.L_rel))
-@printf("  fractional d-posterior: ")
-for (g, d) in enumerate(DGRID_V1)
-    @printf("d=%.2f:%.2f  ", d, model.d_posterior[g])
-end
-println()
-@printf("  v_forecasts (per d): min %.3g, max %.3g; v_bootstrap = %.3g\n",
-        minimum(model.v_forecasts), maximum(model.v_forecasts), model.v_bootstrap)
-
-if adaptive
-    result = KTrader.adaptive_scenario_weights(model, tradable; rng = MersenneTwister(1))
-    w = result.weights
-    @printf("\nadaptive quadrature converged at S = %d (gap %.3g)\n", result.S, result.objective_gap)
-else
-    X = generate_scenarios_v1(model; S, rng = MersenneTwister(1))
-    w = KTrader.scenario_weights(X, model.active_indices, tradable)
-    cert = KTrader.kelly_certificate(view(X, :, [j for j in model.active_indices if tradable[j]]),
-        w[[j for j in model.active_indices if tradable[j]]])
-    @printf("\nKelly certificate: feasibility %.3g, KKT residual %.3g, objective gap %.3g\n",
-        cert.feasibility, cert.kkt_residual, cert.objective_gap)
-end
-
-println("\nKelly weights (non-zero):")
-for i in sortperm(w; rev = true)
-    w[i] > 1e-4 && @printf("  %-8s %6.2f%%\n", b.symbols[i], 100w[i])
-end
-@printf("effective number of holdings 1/Σw² = %.2f   (Σw = %.6f)\n", 1 / sum(abs2, w), sum(w))
+# DEPRECATED：本入口已迁到 KTraderNew（https://github.com/PamelaSprin47685ghall/KTraderNew）。
+# 新用法：在 KTraderNew 根目录 `julia bin/ktrader.jl report`。本文件只是薄转发：
+# 默认数据目录 / universe 仍指向本仓库的 data/ 与 universe.txt，其余参数（环境变量、ARGS）原样传给 KTraderCLI。
+using KTraderCLI
+root = joinpath(@__DIR__, "..")
+haskey(ENV, "KTRADER_DATA_DIR") || haskey(ENV, "GATE0_DATA_DIR") || (ENV["KTRADER_DATA_DIR"] = joinpath(root, "data"))
+haskey(ENV, "KTRADER_UNIVERSE") || (ENV["KTRADER_UNIVERSE"] = joinpath(root, "universe.txt"))
+exit(KTraderCLI.main(["report"; ARGS]))

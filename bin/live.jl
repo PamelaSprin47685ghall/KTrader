@@ -1,39 +1,8 @@
-# Usage: TRADIER_ACCOUNT_ID=.. TRADIER_TOKEN=.. julia --project=. bin/live.jl [--live]
-#
-# 历史 release 工具（2.0-RC legacy line，2026-10-10 入口切换后标注）：
-# 本脚本是旧线执行入口（LiveState / live_step! / path_kelly_v1）；Gate-0
-# 当前无 live 集成（迁移待后续 Gate 与执行层评审）。Gate-0 当前唯一入口
-# 是 bin/backtest.jl（KTraderGate0）。保留不删除（D-002/§46）；本脚本
-# 未经本次切换验证，不得作为当前入口引用。
-# Env: REBALANCE_INTERVAL_S (60), LIQUIDATE_RATE (0.25: share of each non-universe position sold per pass,
-# of its quantity at the day's first pass; the account is dedicated to KTrader), TRADIER_BASE_URL.
-# Intraday: every INTERVAL seconds, last price = preview close -> path_kelly -> rebalance!.
-# After the close: store the real closes (settle!) ready for tomorrow.
-using KTrader, Dates
+# DEPRECATED：本入口已迁到 KTraderNew（https://github.com/PamelaSprin47685ghall/KTraderNew）。
+# 新用法：在 KTraderNew 根目录 `julia bin/ktrader.jl live`。本文件只是薄转发：
+# 默认数据目录 / universe 仍指向本仓库的 data/ 与 universe.txt，其余参数（环境变量、ARGS）原样传给 KTraderCLI。
+using KTraderCLI
 root = joinpath(@__DIR__, "..")
-dir = joinpath(root, "data")
-syms = load_universe(joinpath(root, "universe.txt"))
-br = tradier(; live = "--live" in ARGS)
-st = LiveState(load_bars(dir), syms)
-interval = parse(Int, get(ENV, "REBALANCE_INTERVAL_S", "60"))
-liq_rate = parse(Float64, get(ENV, "LIQUIDATE_RATE", "0.25"))
-settled = Date(0)
-while true
-    try
-        r = live_step!(st, br; liq_rate)
-        if r === nothing
-            asof = KTrader.ny_now()
-            if Date(asof) != settled && settle_due(st, asof)
-                settle!(st, dir); settled = Date(asof)
-                @info "settled" last = st.bars.dates[end]
-            end
-            sleep(300)
-        else
-            @info "pass" weights = round.(r.weights, digits = 3) orders = length(r.orders)
-            sleep(interval)
-        end
-    catch e
-        @error "pass failed" exception = (e, catch_backtrace())
-        sleep(interval)
-    end
-end
+haskey(ENV, "KTRADER_DATA_DIR") || haskey(ENV, "GATE0_DATA_DIR") || (ENV["KTRADER_DATA_DIR"] = joinpath(root, "data"))
+haskey(ENV, "KTRADER_UNIVERSE") || (ENV["KTRADER_UNIVERSE"] = joinpath(root, "universe.txt"))
+exit(KTraderCLI.main(["live"; ARGS]))
