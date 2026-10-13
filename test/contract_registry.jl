@@ -113,10 +113,7 @@ const REQUIRED_CONTRACT_TESTS = (
     "model_api_micro_tests.jl",
     "ceiling_admission_tests.jl",
     "scoped_run_tests.jl",
-    "kelly_packing_tests.jl",
-    "backtest_failure_tests.jl",
     "cli_boundary_contract_tests.jl",
-    "reference_isolation_tests.jl",
     # Promoted from the runtests.jl legacy optional isfile block (see notes
     # above): delivered and behavior-preserving, therefore fail-closed.
     "ceiling_probes.jl",

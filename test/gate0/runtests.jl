@@ -35,7 +35,7 @@ const OLD_CALLERS_NEED = (
     end
     # 同一绑定：兼容层不另造对象。
     @test G.single_day_decision === G.KDriver.single_day_decision
-    @test G._ForecastCache === G.KBacktest._ForecastCache
+    @test G._ForecastCache === G.KDriver._ForecastCache
     @test G.MarketFacts === G.KMarket.MarketFacts
     @test G.cash_kelly === G.KKelly.cash_kelly
     # 旧 export 面里的公开名字直接可用。
